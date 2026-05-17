@@ -38,6 +38,14 @@ Build the Electron/Vite output:
 npm run build
 ```
 
+Produce a local macOS `.app` for manual use:
+
+```sh
+npm run build:mac
+```
+
+The local app is written under `release/mac-arm64/Video Audit.app` on Apple Silicon Macs. This build is intentionally unsigned and unnotarized; it is for local private use only.
+
 ## Current Scope
 
 The current app includes:
@@ -49,6 +57,7 @@ The current app includes:
 - `contextIsolation: true`
 - `nodeIntegration: false`
 - typed preload API at `window.videoAudit`
+- local macOS `.app` packaging through `npm run build:mac`
 - basic app/version/platform info returned through IPC
 - native folder selection through Electron dialogs
 - native video-file selection through Electron dialogs

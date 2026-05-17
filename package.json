@@ -1,7 +1,9 @@
 {
   "name": "video-audit-electron",
-  "version": "0.16.0",
+  "version": "0.17.0",
   "description": "Private macOS Electron version of Video Audit.",
+  "private": true,
+  "author": "Josh Levy",
   "main": "out/main/main.js",
   "type": "module",
   "engines": {
@@ -10,7 +12,27 @@
   "scripts": {
     "dev": "cross-env ELECTRON_RUN_AS_NODE= electron-vite dev",
     "build": "npm run typecheck && electron-vite build",
+    "build:mac": "node scripts/build-mac-app.mjs",
     "typecheck": "tsc --noEmit"
+  },
+  "build": {
+    "appId": "com.joshlevy.video-audit-electron",
+    "productName": "Video Audit",
+    "asar": true,
+    "directories": {
+      "output": "release"
+    },
+    "files": [
+      "out/**/*",
+      "package.json"
+    ],
+    "mac": {
+      "target": [
+        "dir"
+      ],
+      "category": "public.app-category.video",
+      "identity": null
+    }
   },
   "dependencies": {
     "primeflex": "^4.0.0",
@@ -26,6 +48,7 @@
     "@vitejs/plugin-react": "^5.1.1",
     "cross-env": "^10.1.0",
     "electron": "^39.2.5",
+    "electron-builder": "^26.8.1",
     "electron-vite": "^4.0.0",
     "typescript": "^5.9.3",
     "vite": "^7.2.6"

@@ -7,6 +7,14 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.17.0] - 2026-05-17
+
+### Added
+
+- Added a local macOS app packaging script through `npm run build:mac`.
+- Added Electron Builder configuration for producing an unsigned local `Video Audit.app` directory build.
+- Added README instructions for creating and finding the local macOS app output.
+
 ## [0.16.0] - 2026-05-17
 
 ### Added
