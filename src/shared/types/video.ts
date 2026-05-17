@@ -42,6 +42,22 @@ export interface BlackBorderRecommendedFix {
   reason?: string;
 }
 
+export interface BlackBorderSample {
+  timestampSeconds: number;
+  crop: {
+    width: number;
+    height: number;
+    x: number;
+    y: number;
+  };
+}
+
+export interface BlackBorderSampleAgreement {
+  matchingSamples: number;
+  totalSamples: number;
+  successfulSamples: number;
+}
+
 export interface BlackBorderAdjustment {
   analyzed: boolean;
   detected: boolean;
@@ -51,6 +67,9 @@ export interface BlackBorderAdjustment {
   visibleArea?: CropRectangle;
   borders?: BorderPixels;
   borderPercent?: BorderPercent;
+  durationSeconds?: number | null;
+  samples?: BlackBorderSample[];
+  sampleAgreement?: BlackBorderSampleAgreement;
   recommendedFix?: BlackBorderRecommendedFix;
   error?: string;
 }

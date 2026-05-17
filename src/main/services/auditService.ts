@@ -7,7 +7,17 @@ import type {
   AuditError,
   DiscoveredVideoFile
 } from '../../shared/types/audit';
-import type { FfprobeResult, FfprobeVideoStream, VideoRow } from '../../shared/types/video';
+import type {
+  BlackBorderAdjustment,
+  FfprobeResult,
+  FfprobeVideoStream,
+  VideoRow
+} from '../../shared/types/video';
+import {
+  analyzeBlackBorders,
+  getBlackBorderReviewReason,
+  isBlackBorderReviewCandidate
+} from './blackBorderAnalysisService';
 import { discoverVideoFiles } from './fileDiscoveryService';
 import { runFfprobe } from './ffprobeService';
 
@@ -25,6 +35,7 @@ export interface RunAuditOptions {
   filePaths: string[];
   options: AuditOptions;
   ffprobePath?: string | null;
+  ffmpegPath?: string | null;
   signal?: AbortSignal;
   onProgress?: (progress: Omit<AuditProgress, 'jobId' | 'status'>) => void;
 }
@@ -54,12 +65,14 @@ export async function runAudit({
   filePaths,
   options,
   ffprobePath,
+  ffmpegPath,
   signal,
   onProgress
 }: RunAuditOptions): Promise<AuditServiceResult> {
   const auditOptions = normalizeAuditOptions(options);
   const resolvedDirectory = getResolvedDirectoryLabel(folderPaths, filePaths);
-  const binaryPath = ffprobePath?.trim() || 'ffprobe';
+  const ffprobeBinaryPath = ffprobePath?.trim() || 'ffprobe';
+  const ffmpegBinaryPath = ffmpegPath?.trim() || 'ffmpeg';
 
   throwIfAborted(signal);
   emitProgress(onProgress, {
@@ -137,7 +150,7 @@ export async function runAudit({
     }
 
     const ffprobeResult = await runFfprobe(file.path, {
-      ffprobePath: binaryPath,
+      ffprobePath: ffprobeBinaryPath,
       signal
     });
 
@@ -151,18 +164,40 @@ export async function runAudit({
       continue;
     }
 
+    const blackBorder = auditOptions.includeBlackBorderAnalysis
+      ? await analyzeVideoBlackBorders({
+          file,
+          ffprobeResult,
+          ffmpegPath: ffmpegBinaryPath,
+          signal,
+          onProgress,
+          resolvedDirectory,
+          totalFiles: files.length,
+          processedFiles: index,
+          skippedFiles: discoveryResult.skippedFiles,
+          flagged,
+          errors
+        })
+      : null;
+
+    throwIfAborted(signal);
+
     const row = buildVideoRow({
       file,
       fileInfo,
       ffprobeResult,
-      options: auditOptions
+      options: auditOptions,
+      blackBorder
     });
 
     const lowResolutionDetected =
       auditOptions.includeLowResolutionAnalysis &&
       (row.isLowResolution || row.isWrongAspectRatio);
 
-    if (lowResolutionDetected) {
+    const blackBorderNeedsReview =
+      auditOptions.includeBlackBorderAnalysis && isBlackBorderReviewCandidate(blackBorder);
+
+    if (lowResolutionDetected || blackBorderNeedsReview) {
       flagged.push(row);
     }
 
@@ -248,6 +283,58 @@ function emitAnalysisProgress(
   });
 }
 
+async function analyzeVideoBlackBorders({
+  file,
+  ffprobeResult,
+  ffmpegPath,
+  signal,
+  onProgress,
+  resolvedDirectory,
+  totalFiles,
+  processedFiles,
+  skippedFiles,
+  flagged,
+  errors
+}: {
+  file: DiscoveredVideoFile;
+  ffprobeResult: FfprobeResult;
+  ffmpegPath: string;
+  signal?: AbortSignal;
+  onProgress: RunAuditOptions['onProgress'];
+  resolvedDirectory: string | null;
+  totalFiles: number;
+  processedFiles: number;
+  skippedFiles: number;
+  flagged: VideoRow[];
+  errors: AuditError[];
+}): Promise<BlackBorderAdjustment> {
+  const stream = ffprobeResult.stream ?? {};
+  const format = ffprobeResult.format ?? {};
+  const streamDurationSeconds = safeNumber(stream.duration);
+  const formatDurationSeconds = safeNumber(format.duration);
+
+  emitProgress(onProgress, {
+    phase: 'analyzing',
+    resolvedDirectory,
+    totalFiles,
+    processedFiles,
+    skippedFiles,
+    flaggedCount: flagged.length,
+    errorCount: errors.length,
+    currentFile: file.fileName,
+    message: 'Checking black borders.'
+  });
+
+  return analyzeBlackBorders({
+    filePath: file.path,
+    width: safeNumber(stream.width),
+    height: safeNumber(stream.height),
+    durationSeconds: streamDurationSeconds ?? formatDurationSeconds,
+    ffmpegPath,
+    signal
+  });
+}
+
 async function getFileInfo(file: DiscoveredVideoFile): Promise<AuditFileInfo> {
   const fileStats = await stat(file.path);
   const sizeBytes = Number.isFinite(fileStats.size) ? fileStats.size : file.sizeBytes;
@@ -271,12 +358,14 @@ function buildVideoRow({
   file,
   fileInfo,
   ffprobeResult,
-  options
+  options,
+  blackBorder
 }: {
   file: DiscoveredVideoFile;
   fileInfo: AuditFileInfo;
   ffprobeResult: FfprobeResult;
   options: AuditOptions;
+  blackBorder: BlackBorderAdjustment | null;
 }): VideoRow {
   const stream = ffprobeResult.stream ?? {};
   const format = ffprobeResult.format ?? {};
@@ -297,13 +386,15 @@ function buildVideoRow({
     options.targetAspectRatio,
     options.aspectRatioTolerance
   );
+  const blackBorderReviewReason = getBlackBorderReviewReason(blackBorder);
   const reasons = [
     options.includeLowResolutionAnalysis && isLowResolution
       ? getLowResolutionReason(height, options.minHeight)
       : null,
     options.includeLowResolutionAnalysis && isWrongAspectRatio
       ? getAspectRatioReason(options.targetAspectRatio)
-      : null
+      : null,
+    blackBorderReviewReason
   ]
     .filter(Boolean)
     .join('; ');
@@ -360,7 +451,14 @@ function buildVideoRow({
     reasons,
     status: 'Pending',
     visible: true,
-    sourceSizeBytes: fileInfo.sizeBytes
+    sourceSizeBytes: fileInfo.sizeBytes,
+    ...(blackBorder
+      ? {
+          adjustments: {
+            blackBorder
+          }
+        }
+      : {})
   };
 }
 

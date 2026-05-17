@@ -405,6 +405,7 @@ async function runAuditJob(
     const serviceResult = await runAudit({
       ...job.request,
       ffprobePath: settings.ffprobePathOverride,
+      ffmpegPath: settings.ffmpegPathOverride,
       signal: job.abortController.signal,
       onProgress: (progress) =>
         updateAuditProgress(job, browserWindow, {

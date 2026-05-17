@@ -65,6 +65,9 @@ The current app includes:
 - cancellable child-process metadata progress reported through Electron IPC
 - Electron-native core audits for selected folders and selected files
 - low-resolution and wrong-aspect-ratio detection using per-file ffprobe results
+- optional black-border analysis using ffmpeg cropdetect
+- black-border classifications, confidence, visible-area crop data, and recommended-fix eligibility stored on audit rows
+- crop-review result display in the audit table for auto, review, clean, uncertain, errored, and not-scanned black-border states
 - cancellable audit progress, result retrieval, flagged rows, and per-file errors through IPC
 - Electron-native renderer controller for source selection, audit lifecycle, and result-state management
 - persisted audit results in renderer IndexedDB with refresh and clear-data controls

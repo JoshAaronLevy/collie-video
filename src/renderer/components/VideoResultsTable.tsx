@@ -7,7 +7,7 @@ import { InputText } from 'primereact/inputtext';
 import { Message } from 'primereact/message';
 import { Tag } from 'primereact/tag';
 import type { AuditError, AuditSummary } from '../../shared/types/audit';
-import type { VideoRow } from '../../shared/types/video';
+import type { VideoAdjustments, VideoRow } from '../../shared/types/video';
 
 interface VideoResultsTableProps {
   rows: VideoRow[];
@@ -41,9 +41,14 @@ const globalFilterFields = [
   'fileType',
   'resolution',
   'displayAspectRatio',
+  'adjustments.blackBorder.classification',
+  'adjustments.blackBorder.confidence',
+  'adjustments.blackBorder.recommendedFix.reason',
   'reasons',
   'status'
 ];
+
+type TagSeverity = 'success' | 'info' | 'warning' | 'danger' | 'secondary';
 
 export function VideoResultsTable({
   rows,
@@ -176,7 +181,7 @@ export function VideoResultsTable({
         stripedRows
         size="small"
         scrollable
-        tableStyle={{ minWidth: showThumbnails ? '1280px' : '1180px' }}
+        tableStyle={{ minWidth: showThumbnails ? '1380px' : '1280px' }}
         emptyMessage={isStorageLoading ? 'Loading saved audit...' : 'No videos found.'}
       >
         <Column selectionMode="multiple" headerStyle={{ width: '3rem' }} style={{ width: '3rem' }} />
@@ -196,6 +201,7 @@ export function VideoResultsTable({
           body={aspectTemplate}
           style={{ width: '10%' }}
         />
+        <Column field="adjustments" header="Crop" body={cropTemplate} style={{ width: '10%' }} />
         <Column field="reasons" header="Issues" body={issuesTemplate} style={{ width: '16%' }} />
         <Column
           header="Actions"
@@ -271,6 +277,117 @@ function aspectTemplate(row: VideoRow): ReactElement {
       className="result-tag"
     />
   );
+}
+
+function cropTemplate(row: VideoRow): ReactElement {
+  const crop = getBlackBorderCropDisplay(row);
+
+  return (
+    <Tag
+      value={crop.value}
+      severity={crop.severity}
+      className="result-tag crop-tag"
+      title={crop.detail}
+    />
+  );
+}
+
+function getBlackBorderCropDisplay(row: VideoRow): {
+  value: string;
+  severity: TagSeverity;
+  detail: string;
+} {
+  const blackBorder = row.adjustments?.blackBorder;
+
+  if (!blackBorder?.analyzed) {
+    return {
+      value: 'Not scanned',
+      severity: 'secondary',
+      detail: 'Black-border analysis did not run for this video.'
+    };
+  }
+
+  const status = getBlackBorderCropStatus(row.adjustments);
+  const detailParts = [
+    blackBorder.error ? `Error: ${blackBorder.error}` : null,
+    getBlackBorderClassificationDetail(status),
+    blackBorder.confidence ? `Confidence: ${blackBorder.confidence}.` : null,
+    formatVisibleAreaDetail(row),
+    blackBorder.recommendedFix?.reason ?? null
+  ].filter(Boolean);
+
+  return {
+    value: status,
+    severity: getBlackBorderCropSeverity(status, blackBorder.classification === 'clean'),
+    detail: detailParts.join(' ')
+  };
+}
+
+function getBlackBorderCropStatus(adjustments?: VideoAdjustments): string {
+  const blackBorder = adjustments?.blackBorder;
+
+  if (!blackBorder?.analyzed) {
+    return 'Not scanned';
+  }
+
+  switch (blackBorder.classification) {
+    case 'analysis_error':
+      return 'Error';
+    case 'uncertain':
+      return 'Uncertain';
+    case 'nested_borders':
+      return blackBorder.recommendedFix?.eligible ? 'Auto' : 'Review';
+    case 'asymmetric_border':
+    case 'pillarboxed':
+    case 'letterboxed':
+      return 'Review';
+    case 'clean':
+      return 'No';
+  }
+}
+
+function getBlackBorderCropSeverity(status: string, isClean: boolean): TagSeverity {
+  if (isClean || status === 'No') {
+    return 'success';
+  }
+
+  if (status === 'Auto' || status === 'Error') {
+    return 'danger';
+  }
+
+  if (status === 'Review' || status === 'Uncertain') {
+    return 'warning';
+  }
+
+  return 'secondary';
+}
+
+function getBlackBorderClassificationDetail(status: string): string {
+  switch (status) {
+    case 'Auto':
+      return 'High-confidence nested borders can be cropped and scaled.';
+    case 'Review':
+      return 'Black-border analysis found a video that needs review.';
+    case 'Uncertain':
+      return 'Black-border analysis was inconclusive.';
+    case 'Error':
+      return 'Black-border analysis could not be completed.';
+    case 'No':
+      return 'No crop review is needed based on black-border analysis.';
+    default:
+      return 'Black-border analysis has not run.';
+  }
+}
+
+function formatVisibleAreaDetail(row: VideoRow): string | null {
+  const blackBorder = row.adjustments?.blackBorder;
+  const visibleArea = blackBorder?.visibleArea;
+
+  if (!visibleArea) {
+    return null;
+  }
+
+  return `Visible area: ${visibleArea.width}x${visibleArea.height} at ${visibleArea.x},${visibleArea.y}.`;
 }
 
 function issuesTemplate(row: VideoRow): string {

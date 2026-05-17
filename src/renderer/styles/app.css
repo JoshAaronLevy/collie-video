@@ -352,6 +352,10 @@ select {
   justify-content: center;
 }
 
+.crop-tag {
+  min-width: 6.25rem;
+}
+
 .video-thumb,
 .thumb-placeholder {
   display: block;

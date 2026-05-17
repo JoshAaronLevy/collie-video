@@ -7,6 +7,14 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.9.0] - 2026-05-17
+
+### Added
+
+- Added main-process black-border analysis using ffmpeg cropdetect with legacy-compatible sampling, confidence, classification, visible-area, border-percent, and recommended-fix data.
+- Added black-border review candidate handling to the core audit engine so black-border-only scans can flag review-worthy videos.
+- Added crop-review result display in the audit table for auto, review, clean, uncertain, errored, and not-scanned states.
+
 ## [0.8.0] - 2026-05-17
 
 ### Added
