@@ -38,9 +38,9 @@ Build the Electron/Vite output:
 npm run build
 ```
 
-## Stage 1 Scope
+## Current Scope
 
-The current app is a scaffold only. It includes:
+The current app includes:
 
 - Electron main process window creation
 - Vite React renderer
@@ -50,3 +50,8 @@ The current app is a scaffold only. It includes:
 - `nodeIntegration: false`
 - typed preload API at `window.videoAudit`
 - basic app/version/platform info returned through IPC
+- native folder selection through Electron dialogs
+- native video-file selection through Electron dialogs
+- native output-folder selection through Electron dialogs
+- selected path validation in the main process
+- reveal selected paths in Finder
