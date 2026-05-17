@@ -1,0 +1,47 @@
+# Changelog
+
+All notable changes to this project will be documented in this file.
+
+The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
+and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
+
+## [Unreleased]
+
+## [0.3.0] - 2026-05-16
+
+### Added
+
+- Added shared TypeScript contracts for video metadata, audit requests and results, audit errors, job status, selected video rows, app settings, auto-fix, auto-crop, thumbnail generation, migration, and Premiere bridge workflows.
+- Added shared black-border analysis types that preserve legacy classification, confidence, visible-area, border, and recommended-fix shapes.
+- Added shared video-extension constants for both dot-prefixed scan usage and Electron dialog filter usage.
+- Added shared Premiere bridge constants for plugin identity, bridge directories, request lifecycle states, request types, presets, heartbeat age, and selected-video limits.
+
+### Changed
+
+- Updated native video-file selection to use the no-dot video-extension list required by Electron file dialogs while keeping dot-prefixed extensions available for later discovery logic.
+
+## [0.2.0] - 2026-05-16
+
+### Added
+
+- Added native Electron dialog IPC handlers for choosing folders, choosing video files, and choosing an output folder.
+- Added typed preload APIs at `window.videoAudit.dialog` and `window.videoAudit.shell`.
+- Added main-process validation for selected folder and file paths before returning them to the renderer.
+- Added Finder reveal support for selected paths.
+- Added renderer controls for `Choose Folder`, `Choose Files`, and `Choose Output Folder`, plus selected-path display and validation feedback.
+
+### Changed
+
+- Replaced the Stage 1 placeholder home content with a native-selection screen while keeping all filesystem access behind preload IPC.
+
+## [0.1.0] - 2026-05-16
+
+### Added
+
+- Added the initial Electron, Vite, React, and TypeScript scaffold.
+- Added PrimeReact, PrimeFlex, and PrimeIcons styling.
+- Added Electron main-process window creation with `contextIsolation` enabled and renderer `nodeIntegration` disabled.
+- Added a typed preload API at `window.videoAudit`.
+- Added IPC-backed app, version, platform, Electron, Chrome, and Node runtime information for the renderer.
+- Added local development scripts for `npm run dev`, `npm run build`, and `npm run typecheck`.
+- Added README instructions for installing dependencies, running locally, typechecking, and building.
