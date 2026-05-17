@@ -66,3 +66,6 @@ The current app includes:
 - Electron-native core audits for selected folders and selected files
 - low-resolution and wrong-aspect-ratio detection using per-file ffprobe results
 - cancellable audit progress, result retrieval, flagged rows, and per-file errors through IPC
+- Electron-native renderer controller for source selection, audit lifecycle, and result-state management
+- persisted audit results in renderer IndexedDB with refresh and clear-data controls
+- PrimeReact results table with global search, multi-row selection, soft removal/restore, and action placeholders for later stages

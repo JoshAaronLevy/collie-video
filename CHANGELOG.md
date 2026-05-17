@@ -7,6 +7,16 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.8.0] - 2026-05-17
+
+### Added
+
+- Added an Electron-native renderer controller for source selection, audit options, audit progress, persisted results, and refresh flow.
+- Added IndexedDB-backed audit result persistence with clear-data support.
+- Added a PrimeReact audit results table with global search, multi-row selection, thumbnail visibility, soft removal, and restore controls.
+- Added action placeholders for future auto-fix, crop, thumbnail, and Premiere workflows.
+- Added side panels for discovery, metadata, app info, and settings around the migrated audit workspace.
+
 ## [0.7.0] - 2026-05-17
 
 ### Added
