@@ -2,6 +2,7 @@ import { ipcRenderer } from 'electron';
 import { IPC_CHANNELS } from '../shared/constants/ipcChannels';
 import type { AppInfo } from '../shared/types/app';
 import type { PathSelectionResult, RevealPathResult } from '../shared/types/dialog';
+import type { AppSettings, AppSettingsUpdate } from '../shared/types/settings';
 
 export interface VideoAuditApi {
   app: {
@@ -14,6 +15,11 @@ export interface VideoAuditApi {
   };
   shell: {
     revealPath: (path: string) => Promise<RevealPathResult>;
+  };
+  settings: {
+    get: () => Promise<AppSettings>;
+    update: (partialSettings: AppSettingsUpdate) => Promise<AppSettings>;
+    reset: () => Promise<AppSettings>;
   };
 }
 
@@ -28,5 +34,11 @@ export const videoAuditApi: VideoAuditApi = {
   },
   shell: {
     revealPath: (path: string) => ipcRenderer.invoke(IPC_CHANNELS.shellRevealPath, path)
+  },
+  settings: {
+    get: () => ipcRenderer.invoke(IPC_CHANNELS.settingsGet),
+    update: (partialSettings: AppSettingsUpdate) =>
+      ipcRenderer.invoke(IPC_CHANNELS.settingsUpdate, partialSettings),
+    reset: () => ipcRenderer.invoke(IPC_CHANNELS.settingsReset)
   }
 };

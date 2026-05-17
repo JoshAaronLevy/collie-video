@@ -7,6 +7,19 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.4.0] - 2026-05-17
+
+### Added
+
+- Added JSON-backed app settings stored under Electron's user data directory.
+- Added settings preload APIs for reading, updating, and resetting local settings.
+- Added a renderer settings panel for audit defaults, tool path overrides, auto-fix destination, recent selections, and reset behavior.
+- Added persistence for recent selected folders, recent selected files, latest selected folder, and default output folder.
+
+### Changed
+
+- Updated the Stage 2 source-selection flow to save relevant settings through the preload API after native folder, file, and output-folder selections.
+
 ## [0.3.0] - 2026-05-16
 
 ### Added

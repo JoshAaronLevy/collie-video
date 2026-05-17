@@ -2,6 +2,7 @@ import { app, ipcMain } from 'electron';
 import { IPC_CHANNELS } from '../../shared/constants/ipcChannels';
 import type { AppInfo } from '../../shared/types/app';
 import { registerDialogIpcHandlers } from './dialogIpc';
+import { registerSettingsIpcHandlers } from './settingsIpc';
 
 export function registerIpcHandlers(): void {
   ipcMain.handle(IPC_CHANNELS.appGetInfo, (): AppInfo => ({
@@ -14,4 +15,5 @@ export function registerIpcHandlers(): void {
   }));
 
   registerDialogIpcHandlers();
+  registerSettingsIpcHandlers();
 }

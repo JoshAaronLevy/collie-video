@@ -57,3 +57,5 @@ The current app includes:
 - reveal selected paths in Finder
 - shared TypeScript contracts for audits, videos, jobs, settings, adjustments, thumbnails, migration, and Premiere bridge work
 - shared video-extension and Premiere bridge constants
+- JSON-backed local app settings stored under Electron's user data directory
+- settings preload APIs for reading, updating, and resetting local settings
