@@ -1,17 +1,5 @@
 export type PremiereStatusCode = 'ready' | 'premiere_not_running' | 'bridge_disconnected' | 'error';
 
-export interface PremierePreset {
-  id: string;
-  label: string;
-  resolution: string;
-  presetFileName?: string;
-  available?: boolean;
-  deprecated?: boolean;
-  message?: string;
-  unavailableReason?: string;
-  unavailableMessage?: string;
-}
-
 export interface PremiereStatusResponse {
   status: PremiereStatusCode;
   message: string;
@@ -31,8 +19,6 @@ export interface PremiereStatusResponse {
     outputDirectory?: string | null;
   };
   bridgeDir?: string;
-  outputDirectory?: string;
-  presets?: PremierePreset[];
 }
 
 export interface PremiereRequestVideo {
@@ -46,11 +32,6 @@ export interface PremiereRequestVideo {
   displayAspectRatio: string | null;
   frameRate: number | null;
   originalAbsolutePath?: string;
-}
-
-export interface PremiereExportRequest {
-  presetId: string;
-  videos: PremiereRequestVideo[];
 }
 
 export interface PremiereImportRequest {
@@ -73,7 +54,4 @@ export interface PremiereBridgeRequestFile {
   status: string;
   createdAt: string;
   videos: PremiereRequestVideo[];
-  presetId?: string;
-  presetFileName?: string;
-  outputDirectory?: string;
 }

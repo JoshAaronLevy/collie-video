@@ -17,8 +17,9 @@ selection, progress, cancellation, and user-facing errors.
 
 Remaining parity decisions are concentrated in a few areas:
 
-- Premiere export presets are deprecated in Electron in favor of selected-video
-  import requests. Revisit only if direct export-request parity is still needed.
+- Premiere export presets were not carried forward in Electron; selected-video
+  import requests are the current bridge workflow. Revisit only if direct
+  export-request parity is still needed.
 - Migration execute has progress and result handling, but no visible cancel
   command is currently exposed to the renderer.
 - The Electron table has global filtering and row selection; legacy had some
@@ -56,7 +57,7 @@ Remaining parity decisions are concentrated in a few areas:
 
 | Area | Current behavior | Gap or decision |
 | --- | --- | --- |
-| Premiere bridge export parity | Electron queues `import-selected-videos` requests and reports bridge readiness. | Legacy still contains an export dialog/preset history. Electron intentionally deprecates those presets for now, so direct export-request parity is not complete. |
+| Premiere bridge export parity | Electron queues `import-selected-videos` requests and reports bridge readiness. | Legacy still contains an export dialog/preset history. Electron intentionally omits that dead export scaffolding for now, so direct export-request parity is not complete. |
 | Migration cancellation | Migration execute uses an abort-aware service path and reports canceled states internally. | No renderer/preload cancel command is exposed for an in-progress migration execute job. |
 | Recent folders | Electron shows recent-folder UI and menu support for choosing sources. | The app menu currently opens the folder chooser rather than selecting a specific recent-folder item directly. |
 | Table filters | Electron supports global search, selection, thumbnails, details, and row actions. | Legacy table behavior included additional faceted/filter affordances that can be compared during final cleanup if desired. |
@@ -78,8 +79,8 @@ Remaining parity decisions are concentrated in a few areas:
   rather than from legacy browser/local backend state.
 - Long-running completion notifications and native app-menu commands are
   Electron-only improvements.
-- Premiere export presets are marked deprecated; the current primary workflow is
-  importing selected videos into the active Premiere project.
+- Premiere export presets are omitted; the current primary workflow is importing
+  selected videos into the active Premiere project.
 
 ## Intentionally Dropped
 

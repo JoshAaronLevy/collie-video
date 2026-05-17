@@ -123,7 +123,7 @@ export function ThumbnailGenerationDialog({
             )}
             <Message
               severity="info"
-              text="Thumbnails are cached by source path, size, and modified time so future preview clips can reuse the same media-preview records."
+              text="Thumbnails are cached by source path, size, and modified time so preview clips can reuse the same media-preview records."
             />
           </>
         ) : null}

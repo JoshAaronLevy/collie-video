@@ -4,21 +4,18 @@ import { homedir } from 'node:os';
 import { dirname, extname, isAbsolute, join, parse, resolve } from 'node:path';
 import {
   DEFAULT_PREMIERE_BRIDGE_DIR,
-  DEFAULT_PREMIERE_EXPORT_OUTPUT_DIR,
   DEFAULT_PREMIERE_HEARTBEAT_MAX_AGE_MS,
   MAX_PREMIERE_REQUEST_VIDEOS,
   PREMIERE_BRIDGE_DIRECTORY_NAMES,
   PREMIERE_BRIDGE_FILE_NAMES,
   PREMIERE_BRIDGE_PLUGIN_ID,
   PREMIERE_BRIDGE_STATUS,
-  PREMIERE_EXPORT_PRESETS,
   PREMIERE_REQUEST_LIFECYCLE_STATE,
   PREMIERE_REQUEST_TYPES
 } from '../../shared/constants/premiereBridge';
 import type {
   PremiereBridgeRequestFile,
   PremiereImportRequest,
-  PremierePreset,
   PremiereRequestResponse,
   PremiereRequestVideo,
   PremiereStatusResponse
@@ -31,9 +28,7 @@ interface PremiereBridgePaths {
   requestsDir: string;
   completedDir: string;
   failedDir: string;
-  presetsDir: string;
   importsDir: string;
-  outputDirectory: string;
 }
 
 interface PremiereProcessStatus {
@@ -71,9 +66,7 @@ export async function getPremiereStatus(): Promise<PremiereStatusResponse> {
   ]);
   const baseResponse = {
     premiere,
-    bridgeDir: paths.bridgeDir,
-    outputDirectory: paths.outputDirectory,
-    presets: serializeDeprecatedPresets()
+    bridgeDir: paths.bridgeDir
   };
 
   if (premiere.running === false) {
@@ -190,7 +183,6 @@ export async function ensurePremiereBridgeDirectories(): Promise<PremiereBridgeP
     mkdir(paths.requestsDir, { recursive: true }),
     mkdir(paths.completedDir, { recursive: true }),
     mkdir(paths.failedDir, { recursive: true }),
-    mkdir(paths.presetsDir, { recursive: true }),
     mkdir(paths.importsDir, { recursive: true })
   ]);
 
@@ -206,9 +198,7 @@ function getBridgePaths(): PremiereBridgePaths {
     requestsDir: join(bridgeDir, PREMIERE_BRIDGE_DIRECTORY_NAMES.requests),
     completedDir: join(bridgeDir, PREMIERE_BRIDGE_DIRECTORY_NAMES.completed),
     failedDir: join(bridgeDir, PREMIERE_BRIDGE_DIRECTORY_NAMES.failed),
-    presetsDir: join(bridgeDir, PREMIERE_BRIDGE_DIRECTORY_NAMES.presets),
-    importsDir: join(bridgeDir, PREMIERE_BRIDGE_DIRECTORY_NAMES.imports),
-    outputDirectory: DEFAULT_PREMIERE_EXPORT_OUTPUT_DIR
+    importsDir: join(bridgeDir, PREMIERE_BRIDGE_DIRECTORY_NAMES.imports)
   };
 }
 
@@ -359,18 +349,6 @@ function getStatusFreshness(status: Record<string, unknown>, heartbeatMaxAgeMs: 
     ageMs,
     reason: ageMs >= 0 && ageMs <= heartbeatMaxAgeMs ? null : 'stale_status'
   };
-}
-
-function serializeDeprecatedPresets(): PremierePreset[] {
-  return PREMIERE_EXPORT_PRESETS.map(({ id, label, resolution, presetFileName }) => ({
-    id,
-    label,
-    resolution,
-    presetFileName,
-    available: true,
-    deprecated: true,
-    message: 'Premiere export presets are deprecated. Edit in Premiere now imports selected videos only.'
-  }));
 }
 
 function serializeReadyBridge(status: Record<string, unknown>, ageMs: number | null): PremiereStatusResponse['bridge'] {

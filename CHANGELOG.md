@@ -7,6 +7,14 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.17.2] - 2026-05-17
+
+### Changed
+
+- Tightened cleanup-stage documentation so the app is described as standalone and current workflows are accurately documented.
+- Removed unused Premiere export-preset scaffolding from the Electron bridge types and constants.
+- Removed unused thumbnail alias types after the media-preview type consolidation.
+
 ## [0.17.1] - 2026-05-17
 
 ### Added
