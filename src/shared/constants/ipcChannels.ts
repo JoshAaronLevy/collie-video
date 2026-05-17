@@ -35,6 +35,10 @@ export const IPC_CHANNELS = {
   mediaPreviewClipGetResult: 'media-preview:clip:get-result',
   mediaPreviewClipProgress: 'media-preview:clip:progress',
   mediaPreviewClearCache: 'media-preview:clear-cache',
+  migrationScan: 'migration:scan',
+  migrationExecuteStart: 'migration:execute:start',
+  migrationExecuteGetResult: 'migration:execute:get-result',
+  migrationExecuteProgress: 'migration:execute:progress',
   premiereGetStatus: 'premiere:get-status',
   premiereCreateImportRequest: 'premiere:create-import-request'
 } as const;

@@ -43,6 +43,14 @@ import type {
   PremiereRequestResponse,
   PremiereStatusResponse
 } from '../shared/types/premiere';
+import type {
+  MigrationExecuteRequest,
+  MigrationJobSnapshot,
+  MigrationResultResponse,
+  MigrationScanRequest,
+  MigrationScanResponse,
+  MigrationStartResponse
+} from '../shared/types/migration';
 import type { AppSettings, AppSettingsUpdate } from '../shared/types/settings';
 
 export interface VideoAuditApi {
@@ -101,6 +109,12 @@ export interface VideoAuditApi {
     clearCache: () => Promise<{ status: string; message: string }>;
     onProgress: (callback: (progress: MediaPreviewJobSnapshot) => void) => () => void;
     onClipProgress: (callback: (progress: PreviewClipJobSnapshot) => void) => () => void;
+  };
+  migration: {
+    scan: (request: MigrationScanRequest) => Promise<MigrationScanResponse>;
+    execute: (request: MigrationExecuteRequest) => Promise<MigrationStartResponse>;
+    getResult: (jobId: string) => Promise<MigrationResultResponse>;
+    onProgress: (callback: (progress: MigrationJobSnapshot) => void) => () => void;
   };
   premiere: {
     getStatus: () => Promise<PremiereStatusResponse>;
@@ -239,6 +253,23 @@ export const videoAuditApi: VideoAuditApi = {
 
       return () => {
         ipcRenderer.removeListener(IPC_CHANNELS.mediaPreviewClipProgress, listener);
+      };
+    }
+  },
+  migration: {
+    scan: (request: MigrationScanRequest) => ipcRenderer.invoke(IPC_CHANNELS.migrationScan, request),
+    execute: (request: MigrationExecuteRequest) =>
+      ipcRenderer.invoke(IPC_CHANNELS.migrationExecuteStart, request),
+    getResult: (jobId: string) => ipcRenderer.invoke(IPC_CHANNELS.migrationExecuteGetResult, jobId),
+    onProgress: (callback: (progress: MigrationJobSnapshot) => void) => {
+      const listener = (_event: Electron.IpcRendererEvent, progress: MigrationJobSnapshot): void => {
+        callback(progress);
+      };
+
+      ipcRenderer.on(IPC_CHANNELS.migrationExecuteProgress, listener);
+
+      return () => {
+        ipcRenderer.removeListener(IPC_CHANNELS.migrationExecuteProgress, listener);
       };
     }
   },

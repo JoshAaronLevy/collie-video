@@ -44,6 +44,7 @@ export interface MigrationScanItem {
 export interface MigrationScanResult {
   migrationId: string;
   status: 'planned' | string;
+  createdAt?: string;
   newEditedDir: string;
   destinationRoot: string;
   archiveRoot: string;
@@ -53,12 +54,19 @@ export interface MigrationScanResult {
   warnings: string[];
 }
 
+export interface MigrationScanResponse {
+  status: 'complete' | 'invalid_request' | 'error' | string;
+  message?: string;
+  result?: MigrationScanResult;
+}
+
 export interface MigrationExecuteRequest {
   migrationId: string;
 }
 
 export interface MigrationProgress {
   migrationId: string | null;
+  jobId?: string | null;
   status: Extract<JobStatus, 'idle' | 'starting' | 'running' | 'complete' | 'error'> | string;
   phase: string | null;
   totalFiles: number | null;
@@ -69,6 +77,18 @@ export interface MigrationProgress {
   currentFile: string | null;
   message: string | null;
   error: string | null;
+}
+
+export interface MigrationJobSnapshot extends MigrationProgress {
+  result?: MigrationResult;
+}
+
+export interface MigrationStartResponse {
+  jobId?: string;
+  migrationId?: string;
+  status: 'started' | 'invalid_request' | 'error' | string;
+  message?: string;
+  totalFiles?: number;
 }
 
 export interface MigrationResultMatch {
@@ -88,6 +108,7 @@ export interface MigrationResultItem {
 }
 
 export interface MigrationResult {
+  jobId?: string;
   migrationId: string;
   status: 'complete' | 'error' | string;
   archiveRunDir?: string;
@@ -107,4 +128,11 @@ export interface MigrationResult {
     potentialBytesReclaimableIfArchiveDeleted: number;
   };
   items: MigrationResultItem[];
+}
+
+export interface MigrationResultResponse {
+  jobId?: string;
+  status: MigrationResult['status'] | 'not_found' | 'not_ready' | 'error' | string;
+  message?: string;
+  result?: MigrationResult;
 }

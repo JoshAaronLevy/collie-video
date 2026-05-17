@@ -587,8 +587,15 @@ select {
 
 .auto-fix-dialog,
 .auto-crop-dialog,
-.thumbnail-dialog {
+.thumbnail-dialog,
+.migration-dialog,
+.migration-result-dialog {
   width: min(760px, calc(100vw - 32px));
+}
+
+.migration-dialog,
+.migration-result-dialog {
+  width: min(980px, calc(100vw - 32px));
 }
 
 .auto-fix-dialog-content,
@@ -599,7 +606,10 @@ select {
 .auto-crop-item-list,
 .thumbnail-dialog-content,
 .thumbnail-progress,
-.thumbnail-failed-items {
+.thumbnail-failed-items,
+.migration-dialog-content,
+.migration-progress,
+.migration-failed-items {
   display: grid;
   gap: 0.85rem;
 }
@@ -607,7 +617,8 @@ select {
 .dialog-actions,
 .auto-fix-progress-counts,
 .auto-crop-progress-counts,
-.thumbnail-progress-counts {
+.thumbnail-progress-counts,
+.migration-progress-counts {
   display: flex;
   flex-wrap: wrap;
   justify-content: flex-end;
@@ -618,7 +629,8 @@ select {
 .auto-fix-current-grid,
 .auto-crop-summary-grid,
 .auto-crop-current-grid,
-.thumbnail-summary-grid {
+.thumbnail-summary-grid,
+.migration-summary-grid {
   display: grid;
   grid-template-columns: repeat(3, minmax(0, 1fr));
   gap: 0.65rem;
@@ -632,7 +644,10 @@ select {
 .auto-crop-paths,
 .thumbnail-summary-grid > div,
 .thumbnail-current-file,
-.thumbnail-scope-option {
+.thumbnail-scope-option,
+.migration-summary-grid > div,
+.migration-path-panel,
+.migration-result-path-row {
   display: grid;
   gap: 0.25rem;
   min-width: 0;
@@ -650,7 +665,10 @@ select {
 .auto-crop-paths span,
 .thumbnail-summary-grid span,
 .thumbnail-current-file span,
-.thumbnail-scope-option small {
+.thumbnail-scope-option small,
+.migration-summary-grid span,
+.migration-path-panel span,
+.migration-result-path-row span {
   color: #64748b;
   font-size: 0.78rem;
   font-weight: 800;
@@ -661,7 +679,8 @@ select {
 .auto-crop-summary-grid strong,
 .auto-crop-current-grid strong,
 .thumbnail-summary-grid strong,
-.thumbnail-current-file strong {
+.thumbnail-current-file strong,
+.migration-summary-grid strong {
   min-width: 0;
   overflow: hidden;
   color: #172033;
@@ -670,7 +689,9 @@ select {
 }
 
 .auto-fix-paths code,
-.auto-crop-paths code {
+.auto-crop-paths code,
+.migration-path-panel code,
+.migration-result-path-row code {
   min-width: 0;
   overflow: hidden;
   color: #172033;
@@ -682,14 +703,17 @@ select {
 
 .auto-fix-progress p,
 .auto-crop-progress p,
-.thumbnail-progress p {
+.thumbnail-progress p,
+.migration-progress p {
   margin: 0;
   color: #475569;
 }
 
 .auto-fix-failed-items h3,
 .auto-crop-item-list h3,
-.thumbnail-failed-items h3 {
+.thumbnail-failed-items h3,
+.migration-warning-panel h3,
+.migration-failed-items h3 {
   margin: 0;
   color: #334155;
   font-size: 0.95rem;
@@ -697,7 +721,10 @@ select {
 
 .auto-fix-failed-items ul,
 .auto-crop-item-list ul,
-.thumbnail-failed-items ul {
+.thumbnail-failed-items ul,
+.migration-warning-panel ul,
+.migration-match-list,
+.migration-warning-list {
   display: grid;
   gap: 0.5rem;
   padding: 0;
@@ -707,7 +734,8 @@ select {
 
 .auto-fix-failed-items li,
 .auto-crop-item-list li,
-.thumbnail-failed-items li {
+.thumbnail-failed-items li,
+.migration-warning-panel li {
   display: grid;
   gap: 0.2rem;
   padding: 0.6rem;
@@ -718,11 +746,13 @@ select {
 
 .auto-fix-failed-items small,
 .auto-crop-item-list small,
-.thumbnail-failed-items small {
+.thumbnail-failed-items small,
+.migration-failed-item small {
   color: #9a3412;
 }
 
-.thumbnail-summary-grid {
+.thumbnail-summary-grid,
+.migration-summary-grid {
   grid-template-columns: repeat(4, minmax(0, 1fr));
 }
 
@@ -746,6 +776,74 @@ select {
 
 .thumbnail-scope-option strong {
   color: #172033;
+}
+
+.migration-path-grid,
+.migration-result-paths {
+  display: grid;
+  gap: 0.65rem;
+}
+
+.migration-path-grid {
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+}
+
+.migration-folder-row,
+.migration-result-path-row {
+  grid-template-columns: minmax(0, 1fr) auto;
+  align-items: center;
+}
+
+.migration-folder-row {
+  display: grid;
+  gap: 0.5rem;
+}
+
+.migration-folder-row .p-inputtext {
+  min-width: 0;
+  width: 100%;
+}
+
+.migration-notes {
+  display: grid;
+  gap: 0.45rem;
+  color: #475569;
+  font-weight: 700;
+}
+
+.migration-plan-table .p-datatable-wrapper,
+.migration-failed-table .p-datatable-wrapper {
+  border: 1px solid #dbe3ee;
+  border-radius: 8px;
+}
+
+.migration-match-list li,
+.migration-warning-list li {
+  display: grid;
+  gap: 0.15rem;
+}
+
+.migration-match-list span {
+  min-width: 0;
+  overflow: hidden;
+  color: #172033;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.migration-match-list small,
+.cell-muted {
+  color: #64748b;
+}
+
+.migration-warning-list,
+.migration-warning-panel {
+  color: #9a3412;
+}
+
+.migration-failed-item {
+  display: grid;
+  gap: 0.2rem;
 }
 
 @media (max-width: 1120px) {
@@ -800,7 +898,11 @@ select {
   .auto-crop-summary-grid,
   .auto-crop-current-grid,
   .thumbnail-summary-grid,
-  .thumbnail-scope-options {
+  .thumbnail-scope-options,
+  .migration-summary-grid,
+  .migration-path-grid,
+  .migration-folder-row,
+  .migration-result-path-row {
     grid-template-columns: 1fr;
   }
 }

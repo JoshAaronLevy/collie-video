@@ -3,6 +3,8 @@ import { AppHeader } from './components/AppHeader';
 import { AuditProgressPanel } from './components/AuditProgressPanel';
 import { AutoCropDialog } from './components/AutoCropDialog';
 import { AutoFixDialog } from './components/AutoFixDialog';
+import { MigrationResultDialog } from './components/MigrationResultDialog';
+import { MigrationScanDialog } from './components/MigrationScanDialog';
 import { SettingsPanel } from './components/SettingsPanel';
 import { SourceSelectionPanel } from './components/SourceSelectionPanel';
 import { ThumbnailGenerationDialog } from './components/ThumbnailGenerationDialog';
@@ -59,6 +61,7 @@ export function App(): ReactElement {
             isAutoCropActive={controller.isAutoCropActive}
             isMediaPreviewActive={controller.isMediaPreviewActive}
             isPreviewClipActive={controller.isPreviewClipActive}
+            isMigrationActive={controller.isMigrationActive}
             isStorageLoading={controller.isStorageLoading}
             storageMessage={controller.storageMessage}
             storageSavedAt={controller.storageSavedAt}
@@ -75,6 +78,7 @@ export function App(): ReactElement {
             canAutoFixSelected={controller.canAutoFixSelected}
             canOpenCropOptions={controller.canOpenCropOptions}
             canGenerateThumbnails={controller.canGenerateThumbnails}
+            canStartMigration={controller.canStartMigration}
             canEditSelectedInPremiere={controller.canEditSelectedInPremiere}
             onSelectedVideosChange={controller.setSelectedVideos}
             onGlobalFilterChange={controller.setGlobalFilter}
@@ -86,6 +90,7 @@ export function App(): ReactElement {
             onOpenAutoFixDialog={controller.openAutoFixDialog}
             onOpenAutoCropDialog={controller.openAutoCropDialog}
             onOpenThumbnailDialog={controller.openThumbnailDialog}
+            onOpenMigrationDialog={controller.openMigrationDialog}
             onStartPreviewClipGeneration={controller.startPreviewClipGeneration}
             onCancelPreviewClipGeneration={controller.cancelPreviewClipGeneration}
             onRefreshPremiereStatus={controller.refreshPremiereStatus}
@@ -137,6 +142,33 @@ export function App(): ReactElement {
             onSubmit={controller.startThumbnailGeneration}
             onCancel={controller.cancelThumbnailGeneration}
             onHide={controller.closeThumbnailDialog}
+          />
+
+          <MigrationScanDialog
+            visible={controller.isMigrationScanDialogVisible}
+            auditedRootDirectory={controller.auditedRootDirectory}
+            newEditedDir={controller.migrationNewEditedDir}
+            scan={controller.migrationScan}
+            error={controller.migrationScanError}
+            resultError={controller.migrationResultError}
+            progress={controller.migrationProgress}
+            percent={controller.migrationPercent}
+            isScanning={controller.isMigrationScanning}
+            isExecuting={controller.isMigrationExecuting}
+            onNewEditedDirChange={controller.setMigrationNewEditedDir}
+            onSelectFolder={controller.selectMigrationFolder}
+            onStartScan={controller.startMigrationScan}
+            onExecute={controller.executeMigration}
+            onHide={controller.closeMigrationDialog}
+          />
+
+          <MigrationResultDialog
+            visible={controller.isMigrationResultDialogVisible}
+            result={controller.migrationResult}
+            scan={controller.migrationScan}
+            error={controller.migrationResultError}
+            onHide={controller.closeMigrationResultDialog}
+            onRevealPath={controller.revealPath}
           />
         </div>
 

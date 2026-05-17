@@ -27,6 +27,7 @@ interface VideoResultsTableProps {
   isAutoCropActive: boolean;
   isMediaPreviewActive: boolean;
   isPreviewClipActive: boolean;
+  isMigrationActive: boolean;
   isStorageLoading: boolean;
   storageMessage: string | null;
   storageSavedAt: string | null;
@@ -43,6 +44,7 @@ interface VideoResultsTableProps {
   canAutoFixSelected: boolean;
   canOpenCropOptions: boolean;
   canGenerateThumbnails: boolean;
+  canStartMigration: boolean;
   canEditSelectedInPremiere: boolean;
   onSelectedVideosChange: (videos: VideoRow[]) => void;
   onGlobalFilterChange: (value: string) => void;
@@ -54,6 +56,7 @@ interface VideoResultsTableProps {
   onOpenAutoFixDialog: () => void;
   onOpenAutoCropDialog: () => void;
   onOpenThumbnailDialog: () => void;
+  onOpenMigrationDialog: () => void;
   onStartPreviewClipGeneration: (video: VideoRow, frames: VideoPreviewFrame[]) => void;
   onCancelPreviewClipGeneration: () => void;
   onRefreshPremiereStatus: () => void;
@@ -92,6 +95,7 @@ export function VideoResultsTable({
   isAutoCropActive,
   isMediaPreviewActive,
   isPreviewClipActive,
+  isMigrationActive,
   isStorageLoading,
   storageMessage,
   storageSavedAt,
@@ -108,6 +112,7 @@ export function VideoResultsTable({
   canAutoFixSelected,
   canOpenCropOptions,
   canGenerateThumbnails,
+  canStartMigration,
   canEditSelectedInPremiere,
   onSelectedVideosChange,
   onGlobalFilterChange,
@@ -119,6 +124,7 @@ export function VideoResultsTable({
   onOpenAutoFixDialog,
   onOpenAutoCropDialog,
   onOpenThumbnailDialog,
+  onOpenMigrationDialog,
   onStartPreviewClipGeneration,
   onCancelPreviewClipGeneration,
   onRefreshPremiereStatus,
@@ -233,6 +239,14 @@ export function VideoResultsTable({
           loading={isMediaPreviewActive}
           disabled={!canGenerateThumbnails}
           onClick={onOpenThumbnailDialog}
+        />
+        <Button
+          label="Migrate New Edits"
+          icon="pi pi-folder-open"
+          severity="info"
+          loading={isMigrationActive}
+          disabled={!canStartMigration}
+          onClick={onOpenMigrationDialog}
         />
         <Button
           label={selectedVideos.length > 0 ? `Edit in Premiere (${selectedVideos.length})` : 'Edit in Premiere'}

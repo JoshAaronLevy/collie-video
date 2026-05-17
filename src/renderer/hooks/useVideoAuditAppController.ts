@@ -28,6 +28,11 @@ import type {
   PremiereRequestVideo,
   PremiereStatusResponse
 } from '../../shared/types/premiere';
+import type {
+  MigrationJobSnapshot,
+  MigrationResult,
+  MigrationScanResult
+} from '../../shared/types/migration';
 import type { AppSettings, AppSettingsUpdate } from '../../shared/types/settings';
 import type { FfprobeResult, VideoPreviewFrame, VideoRow } from '../../shared/types/video';
 import {
@@ -48,6 +53,8 @@ type ActiveAction =
   | 'autoCrop'
   | 'mediaPreview'
   | 'previewClip'
+  | 'migrationScan'
+  | 'migrationExecute'
   | 'premiereStatus'
   | 'premiereImport'
   | null;
@@ -125,6 +132,20 @@ export interface VideoAuditAppController {
   previewClipResult: PreviewClipResult | null;
   previewClipError: string | null;
   isPreviewClipActive: boolean;
+  migrationNewEditedDir: string;
+  migrationScan: MigrationScanResult | null;
+  migrationScanError: string | null;
+  migrationProgress: MigrationJobSnapshot | null;
+  migrationPercent: number | null;
+  migrationResult: MigrationResult | null;
+  migrationResultError: string | null;
+  auditedRootDirectory: string | null;
+  isMigrationScanDialogVisible: boolean;
+  isMigrationResultDialogVisible: boolean;
+  isMigrationScanning: boolean;
+  isMigrationExecuting: boolean;
+  isMigrationActive: boolean;
+  canStartMigration: boolean;
   premiereStatus: PremiereStatusResponse | null;
   premiereStatusError: string | null;
   isPremiereStatusLoading: boolean;
@@ -168,6 +189,13 @@ export interface VideoAuditAppController {
   cancelThumbnailGeneration: () => Promise<void>;
   startPreviewClipGeneration: (video: VideoRow, frames: VideoPreviewFrame[]) => Promise<void>;
   cancelPreviewClipGeneration: () => Promise<void>;
+  setMigrationNewEditedDir: (value: string) => void;
+  openMigrationDialog: () => void;
+  closeMigrationDialog: () => void;
+  selectMigrationFolder: () => Promise<void>;
+  startMigrationScan: () => Promise<void>;
+  executeMigration: () => Promise<void>;
+  closeMigrationResultDialog: () => void;
   refreshPremiereStatus: () => Promise<void>;
   editSelectedInPremiere: () => Promise<void>;
 }
@@ -221,6 +249,15 @@ export function useVideoAuditAppController(): VideoAuditAppController {
   const [previewClipProgress, setPreviewClipProgress] = useState<PreviewClipJobSnapshot | null>(null);
   const [previewClipResult, setPreviewClipResult] = useState<PreviewClipResult | null>(null);
   const [previewClipError, setPreviewClipError] = useState<string | null>(null);
+  const [migrationNewEditedDir, setMigrationNewEditedDirState] = useState('');
+  const [migrationScan, setMigrationScan] = useState<MigrationScanResult | null>(null);
+  const [migrationScanError, setMigrationScanError] = useState<string | null>(null);
+  const [migrationJobId, setMigrationJobId] = useState<string | null>(null);
+  const [migrationProgress, setMigrationProgress] = useState<MigrationJobSnapshot | null>(null);
+  const [migrationResult, setMigrationResult] = useState<MigrationResult | null>(null);
+  const [migrationResultError, setMigrationResultError] = useState<string | null>(null);
+  const [isMigrationScanDialogVisible, setIsMigrationScanDialogVisible] = useState(false);
+  const [isMigrationResultDialogVisible, setIsMigrationResultDialogVisible] = useState(false);
   const [premiereStatus, setPremiereStatus] = useState<PremiereStatusResponse | null>(null);
   const [premiereStatusError, setPremiereStatusError] = useState<string | null>(null);
   const [isPremiereStatusLoading, setIsPremiereStatusLoading] = useState(false);
@@ -434,6 +471,10 @@ export function useVideoAuditAppController(): VideoAuditAppController {
     () => (videoRows ?? []).filter((row) => row.visible !== false),
     [videoRows]
   );
+  const auditedRootDirectory = useMemo(
+    () => getAuditedRootDirectory(lastAuditRequest, auditSummary),
+    [auditSummary, lastAuditRequest]
+  );
   const removedVideoCount = (videoRows?.length ?? 0) - visibleVideoRows.length;
   const isAuditActive = auditProgress?.status === 'starting' || auditProgress?.status === 'running';
   const isDiscoveryActive =
@@ -460,6 +501,12 @@ export function useVideoAuditAppController(): VideoAuditAppController {
     activeAction === 'previewClip' ||
     previewClipProgress?.status === 'starting' ||
     previewClipProgress?.status === 'running';
+  const isMigrationScanning = activeAction === 'migrationScan';
+  const isMigrationExecuting =
+    activeAction === 'migrationExecute' ||
+    migrationProgress?.status === 'starting' ||
+    migrationProgress?.status === 'running';
+  const isMigrationActive = isMigrationScanning || isMigrationExecuting;
   const isPremiereImportActive = activeAction === 'premiereImport' || isPremiereImportSubmitting;
   const auditPercent = getProgressPercent(auditProgress?.processedFiles, auditProgress?.totalFiles);
   const discoveryPercent = getProgressPercent(
@@ -477,6 +524,7 @@ export function useVideoAuditAppController(): VideoAuditAppController {
     previewClipProgress?.processedClips,
     previewClipProgress?.totalClips
   );
+  const migrationPercent = getProgressPercent(migrationProgress?.processedFiles, migrationProgress?.totalFiles);
   const discoveredPaths = discoveryProgress?.result?.files.map((file) => file.path) ?? [];
   const metadataItems = ffprobeProgress?.result?.items ?? [];
   const autoFixOutputDirectory = outputFolder ?? settings?.defaultAutoFixDestinationRoot ?? null;
@@ -489,6 +537,7 @@ export function useVideoAuditAppController(): VideoAuditAppController {
     !isAutoCropActive &&
     !isMediaPreviewActive &&
     !isPreviewClipActive &&
+    !isMigrationActive &&
     !isPremiereImportActive &&
     (selectedFolders.length > 0 || selectedFiles.length > 0) &&
     (auditOptions.includeLowResolutionAnalysis || auditOptions.includeBlackBorderAnalysis);
@@ -501,6 +550,7 @@ export function useVideoAuditAppController(): VideoAuditAppController {
     !isAutoCropActive &&
     !isMediaPreviewActive &&
     !isPreviewClipActive &&
+    !isMigrationActive &&
     !isPremiereImportActive;
   const canAutoFixSelected =
     selectedVideos.length > 0 &&
@@ -511,6 +561,7 @@ export function useVideoAuditAppController(): VideoAuditAppController {
     !isAutoCropActive &&
     !isMediaPreviewActive &&
     !isPreviewClipActive &&
+    !isMigrationActive &&
     !isPremiereImportActive;
   const canOpenCropOptions =
     selectedVideos.length > 0 &&
@@ -521,6 +572,7 @@ export function useVideoAuditAppController(): VideoAuditAppController {
     !isAutoCropActive &&
     !isMediaPreviewActive &&
     !isPreviewClipActive &&
+    !isMigrationActive &&
     !isPremiereImportActive;
   const canGenerateThumbnails =
     visibleVideoRows.length > 0 &&
@@ -531,6 +583,19 @@ export function useVideoAuditAppController(): VideoAuditAppController {
     !isAutoCropActive &&
     !isMediaPreviewActive &&
     !isPreviewClipActive &&
+    !isMigrationActive &&
+    !isPremiereImportActive;
+  const canStartMigration =
+    Boolean(auditedRootDirectory) &&
+    Boolean(videoRows) &&
+    !isAuditActive &&
+    !isDiscoveryActive &&
+    !isFfprobeActive &&
+    !isAutoFixActive &&
+    !isAutoCropActive &&
+    !isMediaPreviewActive &&
+    !isPreviewClipActive &&
+    !isMigrationActive &&
     !isPremiereImportActive;
   const canEditSelectedInPremiere =
     selectedVideos.length > 0 &&
@@ -542,6 +607,7 @@ export function useVideoAuditAppController(): VideoAuditAppController {
     !isAutoCropActive &&
     !isMediaPreviewActive &&
     !isPreviewClipActive &&
+    !isMigrationActive &&
     !isPremiereImportActive;
 
   const persistSettings = useCallback(async (partialSettings: AppSettingsUpdate): Promise<AppSettings | null> => {
@@ -1026,6 +1092,45 @@ export function useVideoAuditAppController(): VideoAuditAppController {
     });
   }, [applyPreviewClipResult]);
 
+  useEffect(() => {
+    return window.videoAudit.migration.onProgress((progress) => {
+      setMigrationProgress(progress);
+
+      if (progress.jobId) {
+        setMigrationJobId(progress.jobId);
+      }
+
+      if (progress.status === 'running' || progress.status === 'starting') {
+        setActiveAction('migrationExecute');
+      }
+
+      if (progress.status === 'complete' && progress.result) {
+        setActiveAction(null);
+        setMigrationResult(progress.result);
+        setMigrationResultError(null);
+        setIsMigrationScanDialogVisible(false);
+        setIsMigrationResultDialogVisible(true);
+        setWorkflowMessage(
+          `Migration complete. ${progress.result.summary.filesCopiedToDestination.toLocaleString()} copied, ${progress.result.summary.destinationMatchesArchived.toLocaleString()} archived.`
+        );
+      }
+
+      if (progress.status === 'error') {
+        setActiveAction(null);
+        setMigrationResultError(progress.error ?? progress.message ?? 'Migration failed.');
+        setIsMigrationScanDialogVisible(false);
+        setIsMigrationResultDialogVisible(true);
+        setWorkflowMessage(progress.message ?? 'Migration failed.');
+      }
+
+      if (progress.status === 'canceled') {
+        setActiveAction(null);
+        setMigrationResultError(null);
+        setWorkflowMessage(progress.message ?? 'Migration canceled.');
+      }
+    });
+  }, []);
+
   const removeSelectedVideos = useCallback(async (): Promise<void> => {
     if (selectedVideos.length === 0) {
       return;
@@ -1094,6 +1199,15 @@ export function useVideoAuditAppController(): VideoAuditAppController {
     setPreviewClipProgress(null);
     setPreviewClipResult(null);
     setPreviewClipError(null);
+    setMigrationNewEditedDirState('');
+    setMigrationScan(null);
+    setMigrationScanError(null);
+    setMigrationJobId(null);
+    setMigrationProgress(null);
+    setMigrationResult(null);
+    setMigrationResultError(null);
+    setIsMigrationScanDialogVisible(false);
+    setIsMigrationResultDialogVisible(false);
     setPremiereImportResult(null);
     setPremiereImportError(null);
     setIsPremiereImportSubmitting(false);
@@ -1517,6 +1631,160 @@ export function useVideoAuditAppController(): VideoAuditAppController {
     }
   }, [previewClipJobId]);
 
+  const setMigrationNewEditedDir = useCallback((value: string): void => {
+    setMigrationNewEditedDirState(value);
+    setMigrationScan(null);
+    setMigrationScanError(null);
+    setMigrationResult(null);
+    setMigrationResultError(null);
+  }, []);
+
+  const openMigrationDialog = useCallback((): void => {
+    if (!auditedRootDirectory) {
+      setWorkflowMessage('Migration needs a single audited root folder. Run or refresh an audit from one folder first.');
+      return;
+    }
+
+    setMigrationScan(null);
+    setMigrationScanError(null);
+    setMigrationProgress(null);
+    setMigrationResult(null);
+    setMigrationResultError(null);
+    setIsMigrationResultDialogVisible(false);
+    setIsMigrationScanDialogVisible(true);
+  }, [auditedRootDirectory]);
+
+  const closeMigrationDialog = useCallback((): void => {
+    if (isMigrationActive) {
+      return;
+    }
+
+    setIsMigrationScanDialogVisible(false);
+    setMigrationScanError(null);
+    setMigrationResultError(null);
+  }, [isMigrationActive]);
+
+  const selectMigrationFolder = useCallback(async (): Promise<void> => {
+    setActiveAction('migrationScan');
+    setMigrationScanError(null);
+
+    try {
+      const result = await window.videoAudit.dialog.chooseFolders();
+
+      if (result.canceled) {
+        return;
+      }
+
+      const selectedPath = result.paths[0];
+
+      if (selectedPath) {
+        setMigrationNewEditedDir(selectedPath);
+      }
+
+      if (result.invalidPaths.length > 0) {
+        setMigrationScanError(`${result.invalidPaths.length.toLocaleString()} selected path(s) could not be used.`);
+      }
+    } catch (error: unknown) {
+      setMigrationScanError(getErrorMessage(error, 'Could not choose a new edits folder.'));
+    } finally {
+      setActiveAction(null);
+    }
+  }, [setMigrationNewEditedDir]);
+
+  const startMigrationScan = useCallback(async (): Promise<void> => {
+    const newEditedDir = migrationNewEditedDir.trim();
+
+    if (!auditedRootDirectory) {
+      setMigrationScanError('Migration needs a single audited root folder.');
+      return;
+    }
+
+    if (!newEditedDir) {
+      setMigrationScanError('Choose the folder that contains the new edited videos.');
+      return;
+    }
+
+    setActiveAction('migrationScan');
+    setMigrationScan(null);
+    setMigrationScanError(null);
+    setMigrationProgress(null);
+    setMigrationResult(null);
+    setMigrationResultError(null);
+
+    try {
+      const response = await window.videoAudit.migration.scan({
+        newEditedDir,
+        destinationRoot: auditedRootDirectory
+      });
+
+      if (response.status !== 'complete' || !response.result) {
+        setMigrationScanError(response.message ?? 'Migration scan failed.');
+        return;
+      }
+
+      setMigrationScan(response.result);
+      setWorkflowMessage(
+        `Migration scan complete. ${response.result.summary.newFilesFound.toLocaleString()} new file(s) found.`
+      );
+    } catch (error: unknown) {
+      setMigrationScanError(getErrorMessage(error, 'Migration scan failed.'));
+    } finally {
+      setActiveAction(null);
+    }
+  }, [auditedRootDirectory, migrationNewEditedDir]);
+
+  const executeMigration = useCallback(async (): Promise<void> => {
+    if (!migrationScan) {
+      setMigrationResultError('Run a migration scan before executing.');
+      return;
+    }
+
+    setMigrationResult(null);
+    setMigrationResultError(null);
+    setMigrationProgress({
+      jobId: null,
+      migrationId: migrationScan.migrationId,
+      status: 'starting',
+      phase: 'validating',
+      totalFiles: migrationScan.items.length,
+      processedFiles: 0,
+      copiedCount: 0,
+      archivedCount: 0,
+      failedCount: 0,
+      currentFile: null,
+      message: 'Starting migration.',
+      error: null
+    });
+    setActiveAction('migrationExecute');
+
+    try {
+      const response = await window.videoAudit.migration.execute({
+        migrationId: migrationScan.migrationId
+      });
+
+      if (response.status !== 'started' || !response.jobId) {
+        setActiveAction(null);
+        setMigrationResultError(response.message ?? 'Could not start migration.');
+        return;
+      }
+
+      setMigrationJobId(response.jobId);
+      setWorkflowMessage(response.message ?? 'Migration started.');
+    } catch (error: unknown) {
+      setActiveAction(null);
+      setMigrationResultError(getErrorMessage(error, 'Could not start migration.'));
+    }
+  }, [migrationScan]);
+
+  const closeMigrationResultDialog = useCallback((): void => {
+    if (isMigrationActive) {
+      return;
+    }
+
+    setIsMigrationResultDialogVisible(false);
+    setMigrationResultError(null);
+  }, [isMigrationActive]);
+
   const editSelectedInPremiere = useCallback(async (): Promise<void> => {
     if (selectedVideos.length === 0) {
       setPremiereImportError('Select at least one video to import into Premiere.');
@@ -1631,6 +1899,20 @@ export function useVideoAuditAppController(): VideoAuditAppController {
     previewClipResult,
     previewClipError,
     isPreviewClipActive,
+    migrationNewEditedDir,
+    migrationScan,
+    migrationScanError,
+    migrationProgress,
+    migrationPercent,
+    migrationResult,
+    migrationResultError,
+    auditedRootDirectory,
+    isMigrationScanDialogVisible,
+    isMigrationResultDialogVisible,
+    isMigrationScanning,
+    isMigrationExecuting,
+    isMigrationActive,
+    canStartMigration,
     premiereStatus,
     premiereStatusError,
     isPremiereStatusLoading,
@@ -1674,6 +1956,13 @@ export function useVideoAuditAppController(): VideoAuditAppController {
     cancelThumbnailGeneration,
     startPreviewClipGeneration,
     cancelPreviewClipGeneration,
+    setMigrationNewEditedDir,
+    openMigrationDialog,
+    closeMigrationDialog,
+    selectMigrationFolder,
+    startMigrationScan,
+    executeMigration,
+    closeMigrationResultDialog,
     refreshPremiereStatus,
     editSelectedInPremiere
   };
@@ -1790,6 +2079,27 @@ function toPremiereRequestVideo(row: VideoRow): PremiereRequestVideo {
     displayAspectRatio: row.displayAspectRatio || null,
     frameRate: row.frameRate
   };
+}
+
+function getAuditedRootDirectory(
+  request: AuditRequest | null,
+  summary: AuditSummary | null
+): string | null {
+  if (request?.folderPaths.length === 1) {
+    return request.folderPaths[0];
+  }
+
+  if (request?.folderPaths && request.folderPaths.length !== 1) {
+    return null;
+  }
+
+  const summaryPath = summary?.resolvedDirectory ?? summary?.directoryPath ?? null;
+
+  if (!summaryPath || summaryPath === 'Selected files') {
+    return null;
+  }
+
+  return summaryPath;
 }
 
 function settingsToAuditOptions(settings: AppSettings): AuditOptions {

@@ -6,6 +6,7 @@ import { registerAutoCropIpcHandlers } from './autoCropIpc';
 import { registerAutoFixIpcHandlers } from './autoFixIpc';
 import { registerDialogIpcHandlers } from './dialogIpc';
 import { registerMediaPreviewIpcHandlers } from './mediaPreviewIpc';
+import { registerMigrationIpcHandlers } from './migrationIpc';
 import { registerPremiereIpcHandlers } from './premiereIpc';
 import { registerSettingsIpcHandlers } from './settingsIpc';
 
@@ -24,6 +25,7 @@ export function registerIpcHandlers(): void {
   registerAutoFixIpcHandlers();
   registerDialogIpcHandlers();
   registerMediaPreviewIpcHandlers();
+  registerMigrationIpcHandlers();
   registerPremiereIpcHandlers();
   registerSettingsIpcHandlers();
 }

@@ -7,6 +7,15 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.15.0] - 2026-05-17
+
+### Added
+
+- Added the Electron migration workflow for scanning a new edited folder against the audited root, reviewing exact filename matches, and executing the migration.
+- Added main-process migration file operations that copy new edits, archive old destination matches, refuse unsafe overwrites, and write manifest and operation log artifacts.
+- Added migration IPC and preload APIs for scan, execute, progress, and result retrieval.
+- Added renderer migration scan and result dialogs with proposed-change summaries, execution progress, failure details, and archive reveal actions.
+
 ## [0.14.0] - 2026-05-17
 
 ### Added
