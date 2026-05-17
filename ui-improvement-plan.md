@@ -216,7 +216,7 @@ Settings groups:
 
 ---
 
-## Stage UI-1 — Layout Audit and Cleanup Plan
+## Stage 1 — Layout Audit and Cleanup Plan
 
 **Intelligence Level: High**
 
@@ -272,7 +272,7 @@ docs/ui-layout-audit.md
 
 ---
 
-## Stage UI-2 — App Shell and Results-First Layout Foundation
+## Stage 2 — App Shell and Results-First Layout Foundation
 
 **Intelligence Level: Extra High**
 
@@ -346,7 +346,7 @@ or similar.
 
 ---
 
-## Stage UI-3 — Source Configuration Modal
+## Stage 3 — Source Configuration Modal
 
 **Intelligence Level: High**
 
@@ -411,7 +411,7 @@ No sources selected    [Choose Sources]
 
 ---
 
-## Stage UI-4 — Status Strip and Diagnostics Drawer
+## Stage 4 — Status Strip and Diagnostics Drawer
 
 **Intelligence Level: Medium**
 
@@ -467,7 +467,7 @@ Add a diagnostics drawer/modal if useful:
 
 ---
 
-## Stage UI-5 — Results Toolbar and View Filters
+## Stage 5 — Results Toolbar and View Filters
 
 **Intelligence Level: High**
 
@@ -530,7 +530,7 @@ Search videos...        All | Flagged | Low-res | Aspect | Crop | Errors        
 
 ---
 
-## Stage UI-6 — Results Table Visual Redesign
+## Stage 6 — Results Table Visual Redesign
 
 **Intelligence Level: Extra High**
 
@@ -641,7 +641,7 @@ No videos found in selected sources.
 
 ---
 
-## Stage UI-7 — Contextual Selection Action Bar
+## Stage 7 — Contextual Selection Action Bar
 
 **Intelligence Level: High**
 
@@ -697,7 +697,7 @@ Possible `More` menu:
 
 ---
 
-## Stage UI-8 — Settings Modal/Drawer Redesign
+## Stage 8 — Settings Modal/Drawer Redesign
 
 **Intelligence Level: High**
 
@@ -747,7 +747,7 @@ Do not change app defaults unless explicitly useful.
 
 ---
 
-## Stage UI-9 — Source/Audit Empty State and First-Run Experience
+## Stage 9 — Source/Audit Empty State and First-Run Experience
 
 **Intelligence Level: Medium**
 
@@ -799,7 +799,7 @@ When audit is running:
 
 ---
 
-## Stage UI-10 — Dialog and Modal Polish Pass
+## Stage 10 — Dialog and Modal Polish Pass
 
 **Intelligence Level: High**
 
@@ -849,7 +849,7 @@ Standardize:
 
 ---
 
-## Stage UI-11 — Visual Theme and Component System Cleanup
+## Stage 11 — Visual Theme and Component System Cleanup
 
 **Intelligence Level: High**
 
@@ -908,7 +908,7 @@ Do not blindly replace PrimeReact theming if PrimeReact already handles most com
 
 ---
 
-## Stage UI-12 — Responsive and Window-Size Polish
+## Stage 12 — Responsive and Window-Size Polish
 
 **Intelligence Level: Medium**
 
@@ -952,7 +952,7 @@ Requirements:
 
 ---
 
-## Stage UI-13 — Final UX Review and Cleanup
+## Stage 13 — Final UX Review and Cleanup
 
 **Intelligence Level: High**
 
@@ -1003,112 +1003,6 @@ Include:
 * Core workflows are discoverable.
 * UI no longer appears crowded or overlapping.
 * App is ready for file-management workflows later.
-
----
-
-## Recommended Implementation Sequence
-
-Run stages in order:
-
-```txt
-Stage UI-1   Layout audit and cleanup plan
-Stage UI-2   App shell and results-first layout foundation
-Stage UI-3   Source configuration modal
-Stage UI-4   Status strip and diagnostics drawer
-Stage UI-5   Results toolbar and view filters
-Stage UI-6   Results table visual redesign
-Stage UI-7   Contextual selection action bar
-Stage UI-8   Settings modal/drawer redesign
-Stage UI-9   Source/audit empty state and first-run experience
-Stage UI-10  Dialog and modal polish pass
-Stage UI-11  Visual theme and component system cleanup
-Stage UI-12  Responsive and window-size polish
-Stage UI-13  Final UX review and cleanup
-```
-
-## Suggested Intelligence Levels
-
-```txt
-Stage UI-1   High
-Stage UI-2   Extra High
-Stage UI-3   High
-Stage UI-4   Medium
-Stage UI-5   High
-Stage UI-6   Extra High
-Stage UI-7   High
-Stage UI-8   High
-Stage UI-9   Medium
-Stage UI-10  High
-Stage UI-11  High
-Stage UI-12  Medium
-Stage UI-13  High
-```
-
-## Prompt Template
-
-Use this prompt for each stage:
-
-```md
-# Context & Problem
-
-This is the standalone `video-audit-electron` app after completion of the initial Electron conversion plan.
-
-The current UI is functional but too crowded and has layout overlap issues. The goal of this plan is to redesign the app as a slick results-first macOS utility where the results table is the primary workspace.
-
-Use:
-
-- `.codex-instructions.md`
-- `CONTRIBUTING.md`
-- `electron-conversion-plan.md`
-- `ui-improvement-plan.md`
-
-# Task
-
-Please implement Stage UI-X of `ui-improvement-plan.md`.
-
-# Design Direction
-
-Use the "Results-first Pro Tool" design direction:
-
-- table/results are the primary surface
-- setup controls are compact
-- settings are modal/drawer-based, not permanently visible
-- action buttons are contextual
-- status is compact
-- dialogs are polished
-- no overlapping panels
-- no unnecessary always-visible controls
-
-# Critical Requirements
-
-- Preserve existing app behavior.
-- Do not remove features; relocate or progressively disclose them.
-- Do not rewrite core audit, ffmpeg, thumbnail, Premiere, or migration logic unless required for UI integration.
-- Do not add file-management workflows yet.
-- Do not expose Node APIs to the renderer.
-- Do not write tests unless explicitly requested.
-
-# Changelog, Versioning, and Commit
-
-After implementation:
-
-- Update `CHANGELOG.md`.
-- Bump `package.json` version according to SemVer.
-- Ensure `package.json` version matches the latest changelog entry.
-- Stage all changes.
-- Commit with a clear contextual commit message.
-
-# Output
-
-After making changes, summarize:
-
-1. Files created/changed
-2. Commands run
-3. UI behavior changed
-4. Any assumptions made
-5. Manual verification steps
-6. Any follow-up notes before the next UI stage
-```
 
 ## Definition of Done
 
