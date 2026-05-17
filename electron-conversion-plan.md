@@ -53,6 +53,7 @@ video-audit-electron/
 │  │  │  ├─ settingsIpc.ts
 │  │  │  ├─ ffmpegIpc.ts
 │  │  │  ├─ thumbnailIpc.ts
+│  │  │  ├─ mediaPreviewIpc.ts
 │  │  │  ├─ migrationIpc.ts
 │  │  │  └─ premiereIpc.ts
 │  │  ├─ services/
@@ -63,6 +64,7 @@ video-audit-electron/
 │  │  │  ├─ autoFixService.ts
 │  │  │  ├─ autoCropService.ts
 │  │  │  ├─ thumbnailService.ts
+│  │  │  ├─ mediaPreviewService.ts
 │  │  │  ├─ migrationService.ts
 │  │  │  ├─ premiereBridgeService.ts
 │  │  │  ├─ settingsService.ts
@@ -99,6 +101,7 @@ video-audit-electron/
 │     │  ├─ settings.ts
 │     │  ├─ autoFix.ts
 │     │  ├─ thumbnails.ts
+│     │  ├─ mediaPreview.ts
 │     │  ├─ migration.ts
 │     │  └─ premiere.ts
 │     └─ schemas/
@@ -106,6 +109,8 @@ video-audit-electron/
 │
 ├─ electron-conversion-plan.md
 ├─ .codex-instructions.md
+├─ CONTRIBUTING.md
+├─ CHANGELOG.md
 ├─ package.json
 ├─ vite.config.ts
 ├─ tsconfig.json
@@ -113,6 +118,8 @@ video-audit-electron/
 ```
 
 This structure may be adjusted slightly if the chosen Electron/Vite scaffold requires it, but the responsibilities must remain the same.
+
+Thumbnail generation may remain in `thumbnailService.ts`, but the implementation should be structured so it can evolve into or delegate to `mediaPreviewService.ts`. Preview clip generation in Stage 12.5 should reuse the same cache, manifest, timestamp, and safe asset URL strategy where practical.
 
 ## Global Rules for Every Stage
 
@@ -131,6 +138,8 @@ This structure may be adjusted slightly if the chosen Electron/Vite scaffold req
 13. Keep `contextIsolation: true`.
 14. Do not enable `nodeIntegration` in the renderer.
 15. Preserve the useful behavior of the legacy app, but do not preserve browser/backend workaround architecture unless explicitly needed.
+16. Follow `CONTRIBUTING.md` for changelog, versioning, commit, safety, dependency, and documentation rules.
+17. Every implementation stage that changes files must update `CHANGELOG.md`, keep `package.json` version aligned with the latest changelog version when `package.json` exists, and commit the completed changes.
 
 ## Legacy App Summary
 
@@ -156,6 +165,7 @@ Important legacy behaviors to preserve or adapt:
 * Support auto-fix via ffmpeg.
 * Support auto-crop via ffmpeg when black-border data has usable crop information.
 * Support thumbnail generation.
+* Support short preview clip generation from thumbnail timestamps.
 * Support migration scan/execute workflows.
 * Support Premiere Pro bridge status and selected-video import request flow.
 
@@ -189,6 +199,8 @@ Important legacy files to inspect when implementing relevant stages:
 * `video-audit/src/components/PremiereStatusBanner.tsx`
 
 ## Stage 1 — Electron/Vite/React Scaffold
+
+**Intelligence Level: Medium**
 
 ### Goal
 
@@ -249,6 +261,8 @@ The exact scripts may vary depending on the scaffold, but the repo should suppor
 
 ## Stage 2 — Native Folder and File Selection
 
+**Intelligence Level: Medium**
+
 ### Goal
 
 Replace browser folder-selection workarounds with native Electron dialogs.
@@ -285,7 +299,6 @@ window.videoAudit.shell.revealPath(path)
 * `dialogIpc.ts`
 * typed preload methods
 * renderer UI buttons:
-
   * Choose Folder
   * Choose Files
   * Choose Output Folder
@@ -300,6 +313,8 @@ window.videoAudit.shell.revealPath(path)
 * Renderer receives paths only through preload API.
 
 ## Stage 3 — Shared Types and Constants
+
+**Intelligence Level: High**
 
 ### Goal
 
@@ -323,6 +338,8 @@ Create shared types for:
 * auto-fix request/progress/result
 * auto-crop request/progress/result
 * thumbnail request/progress/result
+* media preview request/progress/result
+* preview clip request/progress/result
 * migration request/progress/result
 * Premiere bridge status/request/result
 * app settings
@@ -387,6 +404,7 @@ Preserve these fields where practical.
 * `src/shared/types/settings.ts`
 * `src/shared/types/autoFix.ts`
 * `src/shared/types/thumbnails.ts`
+* `src/shared/types/mediaPreview.ts`
 * `src/shared/types/migration.ts`
 * `src/shared/types/premiere.ts`
 * `src/shared/constants/videoExtensions.ts`
@@ -401,6 +419,8 @@ Preserve these fields where practical.
 * Do not introduce runtime validation libraries unless clearly useful.
 
 ## Stage 4 — Settings and Local Persistence
+
+**Intelligence Level: Medium**
 
 ### Goal
 
@@ -421,6 +441,8 @@ Persist:
 * default auto-fix destination root
 * ffmpeg path override, optional
 * ffprobe path override, optional
+* preview clip duration default, optional
+* preview clip width default, optional
 * last audit result summary, optional
 * latest selected folder, optional
 
@@ -449,6 +471,8 @@ window.videoAudit.settings.reset()
 * Renderer can view and update settings through preload only.
 
 ## Stage 5 — File Discovery Service
+
+**Intelligence Level: High**
 
 ### Goal
 
@@ -493,6 +517,8 @@ Must support:
 * No ffprobe integration yet.
 
 ## Stage 6 — ffprobe Service
+
+**Intelligence Level: High**
 
 ### Goal
 
@@ -548,6 +574,8 @@ Must support:
 
 ## Stage 7 — Core Audit Engine
 
+**Intelligence Level: Extra High**
+
 ### Goal
 
 Recreate the core audit behavior from the legacy app.
@@ -595,7 +623,6 @@ Use:
 * `auditService.ts`
 * `jobRegistry.ts`
 * audit IPC handlers:
-
   * start audit
   * cancel audit
   * get result
@@ -612,6 +639,8 @@ Use:
 * Results match legacy behavior for low-resolution/wrong-aspect-ratio detection as closely as possible.
 
 ## Stage 8 — Renderer UI Migration
+
+**Intelligence Level: Extra High**
 
 ### Goal
 
@@ -658,6 +687,7 @@ Bring over or recreate:
 * clear data action
 * restore removed videos if practical
 * show/hide thumbnails if practical
+* video details modal if practical
 
 ### PrimeReact
 
@@ -680,6 +710,8 @@ Use PrimeReact components where appropriate.
 * App remains responsive during audits.
 
 ## Stage 9 — Black-Border Analysis
+
+**Intelligence Level: Extra High**
 
 ### Goal
 
@@ -720,6 +752,8 @@ Implement:
 * Existing auto-crop/auto-fix future stages can consume `adjustments.blackBorder`.
 
 ## Stage 10 — Auto-Fix Service
+
+**Intelligence Level: Extra High**
 
 ### Goal
 
@@ -774,6 +808,8 @@ Never overwrite source videos unless a future stage explicitly implements a user
 
 ## Stage 11 — Auto-Crop Service
 
+**Intelligence Level: Extra High**
+
 ### Goal
 
 Implement ffmpeg auto-crop for eligible black-border videos.
@@ -826,9 +862,13 @@ Implement:
 
 ## Stage 12 — Thumbnail Generation
 
+**Intelligence Level: High**
+
 ### Goal
 
-Migrate thumbnail generation.
+Migrate thumbnail generation and structure it as the first part of a broader media-preview system.
+
+The next stage, Stage 12.5, will add short preview clips generated from the same thumbnail timestamps, so this stage should avoid a dead-end thumbnail-only architecture.
 
 ### Legacy Context
 
@@ -842,31 +882,197 @@ Inspect and adapt:
 * `video-audit/src/components/ThumbnailGenerationDialog.tsx`
 * thumbnail-related helpers/types
 
-Implement:
+Implement either:
 
 * `thumbnailService.ts`
-* thumbnail output directory under app userData or another configured cache directory
-* generate preview frame(s)
+
+or, preferably:
+
+* `mediaPreviewService.ts`
+
+The service should support thumbnail generation now and be structured so preview clip generation can be added cleanly in Stage 12.5.
+
+Implement:
+
+* thumbnail output/cache directory under Electron `userData` or another configured cache directory
+* generate preview frame thumbnails
+* store thumbnail metadata in a manifest
+* include source file identity metadata for cache invalidation:
+  * source path
+  * source size
+  * source modified timestamp
+  * duration if available
 * associate thumbnails with video rows
 * dedupe thumbnail work
 * progress events
 * cancellation
 * clear thumbnail cache if useful
+* a safe way for the renderer to display generated thumbnail assets without exposing arbitrary filesystem access
+
+### Important Architecture Note
+
+Do not design thumbnails as a one-off feature. Design the generated thumbnail metadata so a later preview-clip stage can attach short video clips to the same timestamps.
+
+A generated preview item should be able to evolve toward this shape:
+
+```ts
+type MediaPreviewItem = {
+  id: string;
+  timestampSeconds: number;
+  thumbnailPath: string;
+  thumbnailUrl?: string;
+  previewClipPath?: string;
+  previewClipUrl?: string;
+  previewClipStatus?: 'not-generated' | 'generating' | 'ready' | 'failed';
+};
+```
 
 ### Deliverables
 
-* thumbnail IPC handlers
+* thumbnail/media preview IPC handlers
 * thumbnail renderer flow
 * result row thumbnail display
+* video details modal thumbnail carousel if practical
+* preview manifest structure that can support future preview clips
 
 ### Acceptance Criteria
 
 * User can generate thumbnails for selected or all eligible rows.
-* Thumbnails display in the table.
+* Thumbnails display in the table or details modal.
 * Progress is visible.
 * Errors are per-file, not fatal to the whole batch.
+* Thumbnail cache is stable across app restarts.
+* Cache invalidates when source file size or modified timestamp changes.
+* The implementation is ready for preview clip generation in Stage 12.5.
+
+## Stage 12.5 — Preview Clip Generation
+
+**Intelligence Level: Extra High**
+
+### Goal
+
+Generate short 5- or 10-second preview clips from the same timestamps used for generated thumbnails, then allow the renderer to play those clips from the video details modal.
+
+### Context
+
+The app already supports or will support thumbnail generation from selected timestamps in each video.
+
+This stage extends the media-preview system so each thumbnail can optionally have a short muted preview clip associated with it.
+
+### Requirements
+
+Implement preview clip generation in Electron main.
+
+Support:
+
+* generating preview clips for a selected video
+* generating preview clips for selected thumbnail timestamps
+* default clip duration of 5 seconds
+* optional setting for 5 or 10 seconds
+* low-resolution preview output, preferably 480px or 640px wide
+* muted clips by default
+* MP4/H.264 output suitable for playback in the Electron renderer
+* cache preview clips under the same media-preview cache structure as thumbnails
+* update preview manifests with clip metadata
+* avoid regenerating clips when valid cached clips already exist
+* invalidate clips when source file size or modified timestamp changes
+* progress events
+* cancellation
+* per-clip errors
+
+### Suggested ffmpeg Behavior
+
+Use ffmpeg to create short muted MP4 clips.
+
+Suggested defaults:
+
+```txt
+duration: 5 seconds
+width: 640px
+audio: disabled
+video codec: libx264
+preset: veryfast
+crf: 24
+pix_fmt: yuv420p
+```
+
+Suggested command shape:
+
+```bash
+ffmpeg \
+  -ss <timestamp> \
+  -i <inputPath> \
+  -t <durationSeconds> \
+  -vf "scale=640:-2" \
+  -an \
+  -c:v libx264 \
+  -preset veryfast \
+  -crf 24 \
+  -pix_fmt yuv420p \
+  <outputPath>
+```
+
+Use fast seek for responsiveness. Frame-accurate seeking is not required for hover previews.
+
+### Timestamp Rules
+
+If a preview timestamp is near the end of the source video, adjust the start time so the clip does not exceed the video duration.
+
+Use logic like:
+
+```ts
+const start = Math.max(
+  0,
+  Math.min(timestampSeconds, durationSeconds - clipDurationSeconds)
+);
+```
+
+If duration is unknown, use the requested timestamp and allow ffmpeg to fail gracefully if needed.
+
+### Renderer Requirements
+
+In the video details modal:
+
+* show thumbnail carousel
+* show selected thumbnail in a main preview area
+* if a preview clip exists for the selected thumbnail:
+  * hover over the main preview to play the muted preview
+  * mouse leave should stop/reset preview
+  * click may toggle pinned playback if practical
+* if no preview clip exists:
+  * show a "Generate preview clip" or "Generate preview clips" action
+* show clip generation status clearly
+
+### Asset Safety
+
+Do not expose arbitrary local file reads to the renderer.
+
+Use the existing safe thumbnail/preview asset strategy from Stage 12. If needed, add or extend a controlled custom protocol or safe asset URL resolver for preview media.
+
+### Deliverables
+
+* preview clip generation service methods
+* preview clip IPC handlers
+* shared preview clip/media preview types
+* preview manifest updates
+* video details modal preview player behavior
+* cache validation
+* progress/cancellation handling
+
+### Acceptance Criteria
+
+* User can generate short preview clips from thumbnail timestamps.
+* Preview clips are cached and reused.
+* Preview clips are invalidated when the source file changes.
+* The selected thumbnail in the details modal can play its associated preview clip.
+* Preview playback does not require opening the full source video.
+* Clip generation does not block the UI.
+* Cancellation works.
+* Errors are shown per clip or per video without crashing the app.
 
 ## Stage 13 — Premiere Bridge
+
+**Intelligence Level: High**
 
 ### Goal
 
@@ -928,6 +1134,8 @@ Implement:
 
 ## Stage 14 — Migration Workflow
 
+**Intelligence Level: Extra High**
+
 ### Goal
 
 Migrate the “new edited videos” migration workflow.
@@ -966,6 +1174,8 @@ Implement:
 
 ## Stage 15 — App Polish and macOS Utility Features
 
+**Intelligence Level: Medium**
+
 ### Goal
 
 Make the app feel like a proper private macOS utility.
@@ -1003,6 +1213,8 @@ Add:
 
 ## Stage 16 — Build Script
 
+**Intelligence Level: Medium**
+
 ### Goal
 
 Add a simple local macOS build.
@@ -1032,6 +1244,8 @@ Do not spend time on:
 
 ## Stage 17 — Legacy Parity Review
 
+**Intelligence Level: High**
+
 ### Goal
 
 Compare the Electron app against the legacy app and close gaps.
@@ -1049,6 +1263,7 @@ Inspect the legacy app and compare feature parity:
 * auto-fix
 * auto-crop
 * thumbnails
+* preview clips
 * migration
 * Premiere bridge
 * local persistence
@@ -1082,6 +1297,8 @@ Document:
 
 ## Stage 18 — Cleanup
 
+**Intelligence Level: High**
+
 ### Goal
 
 Remove migration scaffolding and tighten the implementation.
@@ -1104,69 +1321,3 @@ Remove migration scaffolding and tighten the implementation.
 * Codebase is understandable.
 * README explains how to run the private app.
 * No hidden dependency on sibling `video-audit`.
-
-```
-
----
-
-# How I’d actually sequence Codex prompts
-
-I would **not** ask Codex to jump straight to Stage 8 or 10. I’d go in this order:
-
-```txt
-Stage 1  Scaffold
-Stage 2  Native folder/file selection
-Stage 3  Shared types/constants
-Stage 4  Settings/persistence
-Stage 5  File discovery
-Stage 6  ffprobe
-Stage 7  Core audit engine
-Stage 8  UI migration
-Stage 9  Black-border analysis
-Stage 10 Auto-fix
-Stage 11 Auto-crop
-Stage 13 Premiere bridge
-Stage 12 Thumbnails
-Stage 14 Migration
-Stage 15 Polish
-Stage 16 Build
-Stage 17 Parity review
-Stage 18 Cleanup
-```
-
-I slightly reorder 12/13 because Premiere handoff is more central to your current workflow than thumbnails.
-
-## The prompt I’d use for every stage
-
-Use this template:
-
-```md
-# Context & Problem
-
-I have two VS Code workspace folders open:
-
-1. `video-audit` — legacy Vite + React + local Node/Express app. You may inspect this only as a reference.
-2. `video-audit-electron` — new Electron app. You must implement changes only here.
-
-Use `.codex-instructions.md` and `electron-conversion-plan.md`.
-
-# Task
-
-Please implement Stage X of `electron-conversion-plan.md`.
-
-# Critical Boundaries
-
-- Only modify files inside `video-audit-electron`.
-- Do not modify `video-audit`.
-- Do not import from `video-audit`.
-- Do not create cross-repo dependencies.
-- The new app must remain standalone.
-- Do not write tests.
-
-# Output
-
-After making changes, summarize:
-1. Files created/changed
-2. Commands I should run
-3. Any assumptions made
-4. Any follow-up notes before the next stage
