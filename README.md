@@ -63,3 +63,6 @@ The current app includes:
 - cancellable file discovery progress reported through Electron IPC
 - ffprobe metadata extraction for discovered videos
 - cancellable child-process metadata progress reported through Electron IPC
+- Electron-native core audits for selected folders and selected files
+- low-resolution and wrong-aspect-ratio detection using per-file ffprobe results
+- cancellable audit progress, result retrieval, flagged rows, and per-file errors through IPC

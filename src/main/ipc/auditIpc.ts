@@ -2,6 +2,12 @@ import { BrowserWindow, ipcMain } from 'electron';
 import { randomUUID } from 'node:crypto';
 import { IPC_CHANNELS } from '../../shared/constants/ipcChannels';
 import type {
+  AuditJobSnapshot,
+  AuditProgress,
+  AuditRequest,
+  AuditResult,
+  AuditResultResponse,
+  AuditStartResponse,
   FileDiscoveryJobSnapshot,
   FileDiscoveryProgress,
   FileDiscoveryRequest,
@@ -13,9 +19,11 @@ import type {
   FfprobeMetadataResult,
   FfprobeMetadataStartResponse
 } from '../../shared/types/audit';
+import { normalizeAuditOptions, runAudit } from '../services/auditService';
 import { discoverVideoFiles } from '../services/fileDiscoveryService';
 import { probeVideoFiles } from '../services/ffprobeService';
-import { getSettings } from '../services/settingsService';
+import { JobRegistry, type JobRecord } from '../services/jobRegistry';
+import { getSettings, updateSettings } from '../services/settingsService';
 
 interface FileDiscoveryJob {
   id: string;
@@ -36,6 +44,8 @@ interface FfprobeMetadataJob {
 }
 
 const ffprobeJobs = new Map<string, FfprobeMetadataJob>();
+
+const auditJobs = new JobRegistry<AuditRequest, AuditJobSnapshot, AuditResult>();
 
 export function registerAuditIpcHandlers(): void {
   ipcMain.handle(
@@ -120,6 +130,100 @@ export function registerAuditIpcHandlers(): void {
       return job.snapshot;
     }
   );
+
+  ipcMain.handle(
+    IPC_CHANNELS.auditStart,
+    async (event, request: AuditRequest): Promise<AuditStartResponse> => {
+      const normalizedRequest = normalizeAuditRequest(request);
+      const validationMessage = validateAuditRequest(normalizedRequest);
+
+      if (validationMessage) {
+        return {
+          status: 'invalid_request',
+          message: validationMessage
+        };
+      }
+
+      const browserWindow = BrowserWindow.fromWebContents(event.sender);
+      const job = auditJobs.create(normalizedRequest, {
+        jobId: null,
+        status: 'starting',
+        phase: 'validating',
+        resolvedDirectory: getAuditResolvedDirectory(normalizedRequest),
+        totalFiles: null,
+        processedFiles: 0,
+        skippedFiles: 0,
+        flaggedCount: 0,
+        errorCount: 0,
+        currentFile: null,
+        message: 'Starting audit.',
+        error: null
+      });
+
+      sendAuditProgress(browserWindow, job.snapshot);
+      void runAuditJob(job, browserWindow);
+
+      return {
+        jobId: job.id,
+        status: 'started',
+        message: 'Audit started.',
+        resolvedDirectory: job.snapshot.resolvedDirectory
+      };
+    }
+  );
+
+  ipcMain.handle(IPC_CHANNELS.auditCancel, (_event, jobId: string): AuditJobSnapshot => {
+    const job = auditJobs.get(jobId);
+
+    if (!job) {
+      return createMissingAuditJobSnapshot(jobId);
+    }
+
+    if (
+      job.snapshot.status === 'complete' ||
+      job.snapshot.status === 'error' ||
+      job.snapshot.status === 'canceled'
+    ) {
+      return job.snapshot;
+    }
+
+    job.abortController.abort();
+    const snapshot = auditJobs.patchSnapshot(job, {
+      status: 'canceled',
+      phase: 'canceled',
+      currentFile: null,
+      message: 'Audit canceled.'
+    });
+
+    sendAuditProgress(BrowserWindow.fromWebContents(_event.sender), snapshot);
+    return snapshot;
+  });
+
+  ipcMain.handle(IPC_CHANNELS.auditGetResult, (_event, jobId: string): AuditResultResponse => {
+    const job = auditJobs.get(jobId);
+
+    if (!job) {
+      return {
+        jobId,
+        status: 'not_found',
+        message: 'Audit job not found.'
+      };
+    }
+
+    if (!job.result) {
+      return {
+        jobId,
+        status: 'not_ready',
+        message: 'Audit result is not ready.'
+      };
+    }
+
+    return {
+      jobId,
+      status: 'complete',
+      result: job.result
+    };
+  });
 
   ipcMain.handle(
     IPC_CHANNELS.ffprobeStart,
@@ -292,6 +396,97 @@ function sendProgress(
   browserWindow?.webContents.send(IPC_CHANNELS.auditDiscoveryProgress, snapshot);
 }
 
+async function runAuditJob(
+  job: JobRecord<AuditRequest, AuditJobSnapshot, AuditResult>,
+  browserWindow: BrowserWindow | null
+): Promise<void> {
+  try {
+    const settings = await getSettings();
+    const serviceResult = await runAudit({
+      ...job.request,
+      ffprobePath: settings.ffprobePathOverride,
+      signal: job.abortController.signal,
+      onProgress: (progress) =>
+        updateAuditProgress(job, browserWindow, {
+          ...progress,
+          jobId: job.id,
+          status: 'running'
+        })
+    });
+
+    const result: AuditResult = {
+      jobId: job.id,
+      status: 'complete',
+      ...serviceResult
+    };
+
+    auditJobs.setResult(job, result);
+    updateAuditProgress(job, browserWindow, {
+      jobId: job.id,
+      status: 'complete',
+      phase: 'complete',
+      resolvedDirectory: result.summary.resolvedDirectory ?? null,
+      totalFiles: result.summary.totalFiles,
+      processedFiles: result.summary.scannedVideos,
+      skippedFiles: job.snapshot.skippedFiles,
+      flaggedCount: result.summary.flaggedCount,
+      errorCount: result.summary.errorCount,
+      currentFile: null,
+      message: 'Audit complete.',
+      result
+    });
+
+    await persistLastAuditSummary(result);
+  } catch (error: unknown) {
+    const wasCanceled = job.abortController.signal.aborted || isAbortError(error);
+    updateAuditProgress(job, browserWindow, {
+      ...job.snapshot,
+      jobId: job.id,
+      status: wasCanceled ? 'canceled' : 'error',
+      phase: wasCanceled ? 'canceled' : 'error',
+      currentFile: null,
+      message: wasCanceled ? 'Audit canceled.' : 'Audit failed.',
+      error: error instanceof Error ? error.message : 'Audit failed.'
+    });
+  }
+}
+
+function updateAuditProgress(
+  job: JobRecord<AuditRequest, AuditJobSnapshot, AuditResult>,
+  browserWindow: BrowserWindow | null,
+  progress: AuditJobSnapshot | AuditProgress
+): void {
+  auditJobs.patchSnapshot(job, progress);
+  sendAuditProgress(browserWindow, job.snapshot);
+}
+
+function sendAuditProgress(
+  browserWindow: BrowserWindow | null,
+  snapshot: AuditJobSnapshot
+): void {
+  if (browserWindow?.isDestroyed()) {
+    return;
+  }
+
+  browserWindow?.webContents.send(IPC_CHANNELS.auditProgress, snapshot);
+}
+
+async function persistLastAuditSummary(result: AuditResult): Promise<void> {
+  try {
+    await updateSettings({
+      lastAuditResultSummary: {
+        jobId: result.jobId,
+        completedAt: new Date().toISOString(),
+        totalFiles: result.summary.totalFiles,
+        flaggedCount: result.summary.flaggedCount,
+        errorCount: result.summary.errorCount
+      }
+    });
+  } catch {
+    // A failed settings write should not change a completed audit into a failed audit.
+  }
+}
+
 async function runFfprobeJob(
   job: FfprobeMetadataJob,
   browserWindow: BrowserWindow | null
@@ -382,6 +577,60 @@ function normalizeDiscoveryRequest(request: FileDiscoveryRequest): FileDiscovery
   };
 }
 
+function normalizeAuditRequest(request: Partial<AuditRequest> | null | undefined): AuditRequest {
+  const options = isRecord(request?.options) ? request.options : {};
+
+  return {
+    folderPaths: normalizeStringArray(request?.folderPaths),
+    filePaths: normalizeStringArray(request?.filePaths),
+    options: normalizeAuditOptions(options as Partial<AuditRequest['options']>)
+  };
+}
+
+function validateAuditRequest(request: AuditRequest): string | null {
+  if (request.folderPaths.length === 0 && request.filePaths.length === 0) {
+    return 'Choose at least one folder or video file before running an audit.';
+  }
+
+  if (
+    !request.options.includeLowResolutionAnalysis &&
+    !request.options.includeBlackBorderAnalysis
+  ) {
+    return 'At least one audit option must be selected.';
+  }
+
+  return null;
+}
+
+function getAuditResolvedDirectory(request: AuditRequest): string | null {
+  if (request.folderPaths.length === 1 && request.filePaths.length === 0) {
+    return request.folderPaths[0];
+  }
+
+  if (request.folderPaths.length > 0) {
+    return request.folderPaths[0];
+  }
+
+  return request.filePaths.length > 0 ? 'Selected files' : null;
+}
+
+function createMissingAuditJobSnapshot(jobId: string): AuditJobSnapshot {
+  return {
+    jobId,
+    status: 'error',
+    phase: 'error',
+    resolvedDirectory: null,
+    totalFiles: null,
+    processedFiles: 0,
+    skippedFiles: 0,
+    flaggedCount: 0,
+    errorCount: 0,
+    currentFile: null,
+    message: 'Audit job not found.',
+    error: 'Audit job not found.'
+  };
+}
+
 function normalizeFfprobeRequest(request: FfprobeMetadataRequest): FfprobeMetadataRequest {
   return {
     filePaths: normalizeStringArray(request?.filePaths),
@@ -398,6 +647,10 @@ function normalizeStringArray(value: unknown): string[] {
   }
 
   return [...new Set(value.filter((item): item is string => typeof item === 'string' && item.trim() !== ''))];
+}
+
+function isRecord(value: unknown): value is Record<string, unknown> {
+  return Boolean(value) && typeof value === 'object' && !Array.isArray(value);
 }
 
 function isAbortError(error: unknown): boolean {

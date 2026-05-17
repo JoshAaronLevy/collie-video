@@ -2,6 +2,10 @@ import { ipcRenderer } from 'electron';
 import { IPC_CHANNELS } from '../shared/constants/ipcChannels';
 import type { AppInfo } from '../shared/types/app';
 import type {
+  AuditJobSnapshot,
+  AuditRequest,
+  AuditResultResponse,
+  AuditStartResponse,
   FileDiscoveryJobSnapshot,
   FileDiscoveryRequest,
   FileDiscoveryStartResponse,
@@ -33,6 +37,12 @@ export interface VideoAuditApi {
     start: (request: FileDiscoveryRequest) => Promise<FileDiscoveryStartResponse>;
     cancel: (jobId: string) => Promise<FileDiscoveryJobSnapshot>;
     onProgress: (callback: (progress: FileDiscoveryJobSnapshot) => void) => () => void;
+  };
+  audit: {
+    start: (request: AuditRequest) => Promise<AuditStartResponse>;
+    cancel: (jobId: string) => Promise<AuditJobSnapshot>;
+    getResult: (jobId: string) => Promise<AuditResultResponse>;
+    onProgress: (callback: (progress: AuditJobSnapshot) => void) => () => void;
   };
   ffprobe: {
     start: (request: FfprobeMetadataRequest) => Promise<FfprobeMetadataStartResponse>;
@@ -72,6 +82,22 @@ export const videoAuditApi: VideoAuditApi = {
 
       return () => {
         ipcRenderer.removeListener(IPC_CHANNELS.auditDiscoveryProgress, listener);
+      };
+    }
+  },
+  audit: {
+    start: (request: AuditRequest) => ipcRenderer.invoke(IPC_CHANNELS.auditStart, request),
+    cancel: (jobId: string) => ipcRenderer.invoke(IPC_CHANNELS.auditCancel, jobId),
+    getResult: (jobId: string) => ipcRenderer.invoke(IPC_CHANNELS.auditGetResult, jobId),
+    onProgress: (callback: (progress: AuditJobSnapshot) => void) => {
+      const listener = (_event: Electron.IpcRendererEvent, progress: AuditJobSnapshot): void => {
+        callback(progress);
+      };
+
+      ipcRenderer.on(IPC_CHANNELS.auditProgress, listener);
+
+      return () => {
+        ipcRenderer.removeListener(IPC_CHANNELS.auditProgress, listener);
       };
     }
   },

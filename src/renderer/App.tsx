@@ -2,13 +2,19 @@ import { type ReactElement, useEffect, useState } from 'react';
 import { Button } from 'primereact/button';
 import { Card } from 'primereact/card';
 import { Checkbox } from 'primereact/checkbox';
+import { Column } from 'primereact/column';
+import { DataTable } from 'primereact/datatable';
 import { Divider } from 'primereact/divider';
 import { InputText } from 'primereact/inputtext';
 import { Message } from 'primereact/message';
 import { ProgressBar } from 'primereact/progressbar';
 import { Tag } from 'primereact/tag';
+import { useAuditLifecycle } from './hooks/useAuditLifecycle';
 import type { AppInfo } from '../shared/types/app';
 import type {
+  AuditJobSnapshot,
+  AuditRequest,
+  AuditResult,
   FileDiscoveryJobSnapshot,
   FileDiscoveryRequest,
   FfprobeMetadataJobSnapshot,
@@ -16,7 +22,7 @@ import type {
 } from '../shared/types/audit';
 import type { PathSelectionResult } from '../shared/types/dialog';
 import type { AppSettings, AppSettingsUpdate } from '../shared/types/settings';
-import type { FfprobeResult } from '../shared/types/video';
+import type { FfprobeResult, VideoRow } from '../shared/types/video';
 
 type DialogAction = 'folders' | 'files' | 'output' | 'reveal' | 'settings' | 'discovery' | 'ffprobe';
 
@@ -36,6 +42,15 @@ export function App(): ReactElement {
   const [ffprobeJobId, setFfprobeJobId] = useState<string | null>(null);
   const [ffprobeProgress, setFfprobeProgress] = useState<FfprobeMetadataJobSnapshot | null>(null);
   const [activeAction, setActiveAction] = useState<DialogAction | null>(null);
+  const {
+    auditProgress,
+    auditResult,
+    auditMessage,
+    isAuditActive,
+    auditProgressValue,
+    startAudit,
+    cancelAudit
+  } = useAuditLifecycle();
 
   useEffect(() => {
     let isMounted = true;
@@ -357,6 +372,27 @@ export function App(): ReactElement {
     }
   };
 
+  const startAuditRun = async (): Promise<void> => {
+    const request: AuditRequest = {
+      folderPaths: selectedFolders,
+      filePaths: selectedFiles,
+      options: {
+        includeSubfolders: settings?.includeSubfoldersDefault ?? true,
+        includeLowResolutionAnalysis: settings?.lowResolutionAnalysisEnabledDefault ?? true,
+        includeBlackBorderAnalysis: settings?.blackBorderAnalysisEnabledDefault ?? true,
+        minHeight: 720,
+        targetAspectRatio: 16 / 9,
+        aspectRatioTolerance: 0.01
+      }
+    };
+
+    try {
+      await startAudit(request);
+    } catch (error: unknown) {
+      setSelectionMessage(error instanceof Error ? error.message : 'Could not start audit.');
+    }
+  };
+
   return (
     <main className="app-shell">
       <section className="hero-band">
@@ -367,15 +403,15 @@ export function App(): ReactElement {
             A private macOS utility for finding video files that need review before editing.
           </p>
         </div>
-        <Button label="Stage 4 ready" icon="pi pi-save" disabled />
+        <Button label="Stage 7 ready" icon="pi pi-verified" disabled />
       </section>
 
       <section className="content-grid">
         <Card title="Select Sources">
           <div className="selection-panel">
             <p className="body-copy">
-              Choose local folders or individual video files with native macOS dialogs. Auditing
-              starts in a later stage; this screen only captures validated absolute paths.
+              Choose local folders or individual video files with native macOS dialogs, then run
+              the Electron audit pass locally.
             </p>
 
             <div className="button-row">
@@ -404,7 +440,7 @@ export function App(): ReactElement {
             <BooleanSetting
               label="Include subfolders"
               checked={settings?.includeSubfoldersDefault ?? true}
-              disabled={activeAction === 'settings' || isDiscoveryActive}
+              disabled={activeAction === 'settings' || isDiscoveryActive || isAuditActive}
               onChange={(checked) => updateSettingsField('includeSubfoldersDefault', checked)}
             />
 
@@ -441,11 +477,33 @@ export function App(): ReactElement {
                 disabled={!isFfprobeActive}
                 onClick={cancelFfprobe}
               />
+              <Button
+                label="Run Audit"
+                icon="pi pi-verified"
+                severity="success"
+                loading={isAuditActive}
+                disabled={
+                  isAuditActive ||
+                  isDiscoveryActive ||
+                  isFfprobeActive ||
+                  (selectedFolders.length === 0 && selectedFiles.length === 0)
+                }
+                onClick={startAuditRun}
+              />
+              <Button
+                label="Cancel Audit"
+                icon="pi pi-times"
+                severity="danger"
+                outlined
+                disabled={!isAuditActive}
+                onClick={cancelAudit}
+              />
             </div>
 
             {selectionMessage ? <Message severity="warn" text={selectionMessage} /> : null}
             {discoveryMessage ? <Message severity="info" text={discoveryMessage} /> : null}
             {ffprobeMessage ? <Message severity="info" text={ffprobeMessage} /> : null}
+            {auditMessage ? <Message severity="info" text={auditMessage} /> : null}
 
             {discoveryProgress ? (
               <section className="discovery-panel" aria-label="File discovery progress">
@@ -500,6 +558,32 @@ export function App(): ReactElement {
               </section>
             ) : null}
 
+            {auditProgress ? (
+              <section className="discovery-panel" aria-label="Audit progress">
+                <div className="path-section-header">
+                  <h2>Audit</h2>
+                  <Tag value={auditProgress.status} severity={getJobSeverity(auditProgress.status)} />
+                </div>
+                <ProgressBar
+                  mode={auditProgressValue === null && isAuditActive ? 'indeterminate' : 'determinate'}
+                  value={auditProgressValue ?? 0}
+                  showValue={auditProgressValue !== null}
+                />
+                <div className="metric-grid">
+                  <Metric label="Flagged" value={String(auditProgress.flaggedCount)} />
+                  <Metric label="Errors" value={String(auditProgress.errorCount)} />
+                  <Metric label="Processed" value={String(auditProgress.processedFiles)} />
+                  <Metric label="Skipped" value={String(auditProgress.skippedFiles)} />
+                </div>
+                <p className="empty-copy">{auditProgress.message}</p>
+                {auditProgress.currentFile ? (
+                  <p className="path-hint" title={auditProgress.currentFile}>
+                    {auditProgress.currentFile}
+                  </p>
+                ) : null}
+              </section>
+            ) : null}
+
             <div className="path-grid">
               <SelectedPathList
                 title="Folders"
@@ -531,6 +615,12 @@ export function App(): ReactElement {
               />
               <MetadataList items={metadataItems} />
             </div>
+
+            <AuditResultsPanel
+              result={auditResult}
+              onReveal={revealPath}
+              revealDisabled={activeAction === 'reveal'}
+            />
           </div>
         </Card>
 
@@ -557,13 +647,13 @@ export function App(): ReactElement {
                 <BooleanSetting
                   label="Include subfolders"
                   checked={settings.includeSubfoldersDefault}
-                  disabled={activeAction === 'settings' || isDiscoveryActive}
+                  disabled={activeAction === 'settings' || isDiscoveryActive || isAuditActive}
                   onChange={(checked) => updateSettingsField('includeSubfoldersDefault', checked)}
                 />
                 <BooleanSetting
                   label="Low-resolution analysis"
                   checked={settings.lowResolutionAnalysisEnabledDefault}
-                  disabled={activeAction === 'settings'}
+                  disabled={activeAction === 'settings' || isAuditActive}
                   onChange={(checked) =>
                     updateSettingsField('lowResolutionAnalysisEnabledDefault', checked)
                   }
@@ -571,7 +661,7 @@ export function App(): ReactElement {
                 <BooleanSetting
                   label="Black-border analysis"
                   checked={settings.blackBorderAnalysisEnabledDefault}
-                  disabled={activeAction === 'settings'}
+                  disabled={activeAction === 'settings' || isAuditActive}
                   onChange={(checked) =>
                     updateSettingsField('blackBorderAnalysisEnabledDefault', checked)
                   }
@@ -721,7 +811,10 @@ function getDiscoverySeverity(
 }
 
 function getJobSeverity(
-  status: FileDiscoveryJobSnapshot['status'] | FfprobeMetadataJobSnapshot['status']
+  status:
+    | FileDiscoveryJobSnapshot['status']
+    | FfprobeMetadataJobSnapshot['status']
+    | AuditJobSnapshot['status']
 ): 'success' | 'secondary' | 'info' | 'warning' | 'danger' | 'contrast' {
   if (status === 'complete') {
     return 'success';
@@ -766,6 +859,75 @@ function MetadataList({ items }: { items: FfprobeResult[] }): ReactElement {
   );
 }
 
+function AuditResultsPanel({
+  result,
+  onReveal,
+  revealDisabled
+}: {
+  result: AuditResult | null;
+  onReveal: (path: string) => void;
+  revealDisabled: boolean;
+}): ReactElement {
+  const rows = result?.videos ?? [];
+  const errors = result?.errors ?? [];
+
+  return (
+    <section className="audit-results" aria-label="Audit results">
+      <div className="path-section-header">
+        <h2>Audit Results</h2>
+        <Tag value={String(rows.length)} severity={rows.length > 0 ? 'warning' : 'secondary'} />
+      </div>
+
+      {result ? (
+        <div className="metric-grid">
+          <Metric label="Scanned" value={String(result.summary.scannedVideos)} />
+          <Metric label="Flagged" value={String(result.summary.flaggedCount)} />
+          <Metric label="Errors" value={String(result.summary.errorCount)} />
+        </div>
+      ) : null}
+
+      <DataTable
+        value={rows}
+        dataKey="path"
+        size="small"
+        emptyMessage="No flagged videos yet"
+        scrollable
+        scrollHeight="320px"
+      >
+        <Column field="fileName" header="File" body={fileNameTemplate} />
+        <Column header="Resolution" body={resolutionTemplate} />
+        <Column header="Aspect" body={aspectTemplate} />
+        <Column field="reasons" header="Reasons" body={reasonsTemplate} />
+        <Column header="Size" body={sizeTemplate} />
+        <Column header="" body={(row: VideoRow) => revealTemplate(row, onReveal, revealDisabled)} />
+      </DataTable>
+
+      {errors.length > 0 ? <AuditErrorList errors={errors} /> : null}
+    </section>
+  );
+}
+
+function AuditErrorList({ errors }: { errors: AuditResult['errors'] }): ReactElement {
+  return (
+    <section className="path-section" aria-label="Audit errors">
+      <div className="path-section-header">
+        <h2>Errors</h2>
+        <Tag value={String(errors.length)} severity="danger" />
+      </div>
+      <ul className="metadata-list">
+        {errors.map((error) => (
+          <li key={`${error.path}-${error.error}`} className="metadata-item">
+            <span className="metadata-title" title={error.path}>
+              {error.fileName}
+            </span>
+            <span className="metadata-error">{error.error}</span>
+          </li>
+        ))}
+      </ul>
+    </section>
+  );
+}
+
 function formatMetadataSummary(item: FfprobeResult): string {
   const width = item.stream?.width;
   const height = item.stream?.height;
@@ -776,6 +938,56 @@ function formatMetadataSummary(item: FfprobeResult): string {
   const frameRate = item.stream?.avg_frame_rate ?? item.stream?.r_frame_rate ?? 'unknown frame rate';
 
   return `${resolution} · ${codec} · ${durationLabel} · ${frameRate}`;
+}
+
+function fileNameTemplate(row: VideoRow): ReactElement {
+  return (
+    <span className="table-cell-strong" title={row.path}>
+      {row.fileName}
+    </span>
+  );
+}
+
+function resolutionTemplate(row: VideoRow): string {
+  return row.resolution || 'Unknown';
+}
+
+function aspectTemplate(row: VideoRow): string {
+  return row.calculatedAspectRatio === null ? 'Unknown' : String(row.calculatedAspectRatio);
+}
+
+function reasonsTemplate(row: VideoRow): string {
+  return row.reasons || 'Review needed';
+}
+
+function sizeTemplate(row: VideoRow): string {
+  if (row.sizeGB !== null && row.sizeGB >= 1) {
+    return `${row.sizeGB} GB`;
+  }
+
+  if (row.sizeMB !== null) {
+    return `${row.sizeMB} MB`;
+  }
+
+  return 'Unknown';
+}
+
+function revealTemplate(
+  row: VideoRow,
+  onReveal: (path: string) => void,
+  revealDisabled: boolean
+): ReactElement {
+  return (
+    <Button
+      aria-label={`Reveal ${row.fileName} in Finder`}
+      icon="pi pi-external-link"
+      severity="secondary"
+      text
+      rounded
+      disabled={revealDisabled}
+      onClick={() => onReveal(row.path)}
+    />
+  );
 }
 
 function SelectedPathList({

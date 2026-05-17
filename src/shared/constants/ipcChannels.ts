@@ -10,6 +10,10 @@ export const IPC_CHANNELS = {
   auditDiscoveryStart: 'audit:discovery:start',
   auditDiscoveryCancel: 'audit:discovery:cancel',
   auditDiscoveryProgress: 'audit:discovery:progress',
+  auditStart: 'audit:start',
+  auditCancel: 'audit:cancel',
+  auditGetResult: 'audit:get-result',
+  auditProgress: 'audit:progress',
   ffprobeStart: 'ffprobe:start',
   ffprobeCancel: 'ffprobe:cancel',
   ffprobeProgress: 'ffprobe:progress'

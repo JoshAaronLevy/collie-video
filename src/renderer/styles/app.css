@@ -244,6 +244,48 @@ select {
   color: #b42318;
 }
 
+.audit-results {
+  display: grid;
+  gap: 0.9rem;
+  min-width: 0;
+  padding: 1rem;
+  background: #ffffff;
+  border: 1px solid #cbd5e1;
+  border-radius: 8px;
+}
+
+.audit-results h2 {
+  margin: 0;
+  color: #334155;
+  font-size: 0.95rem;
+  letter-spacing: 0;
+}
+
+.audit-results .p-datatable {
+  min-width: 0;
+}
+
+.audit-results .p-datatable-wrapper {
+  border: 1px solid #e2e8f0;
+  border-radius: 8px;
+}
+
+.audit-results .p-datatable-thead > tr > th,
+.audit-results .p-datatable-tbody > tr > td {
+  white-space: nowrap;
+}
+
+.table-cell-strong {
+  display: inline-block;
+  max-width: 260px;
+  overflow: hidden;
+  color: #172033;
+  font-weight: 700;
+  text-overflow: ellipsis;
+  vertical-align: bottom;
+  white-space: nowrap;
+}
+
 .path-hint {
   min-width: 0;
   margin: 0;

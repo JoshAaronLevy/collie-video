@@ -67,6 +67,18 @@ export interface AuditResult {
   errors: AuditError[];
 }
 
+export interface AuditJobSnapshot extends AuditProgress {
+  result?: AuditResult;
+  error?: string | null;
+}
+
+export interface AuditResultResponse {
+  jobId?: string;
+  status: AuditResult['status'] | 'not_found' | 'not_ready' | 'error' | string;
+  message?: string;
+  result?: AuditResult;
+}
+
 export interface FileDiscoveryRequest {
   folderPaths: string[];
   filePaths: string[];

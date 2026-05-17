@@ -7,6 +7,16 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.7.0] - 2026-05-17
+
+### Added
+
+- Added the Electron-native core audit engine for selected folders and selected files.
+- Added low-resolution and wrong-aspect-ratio detection using per-file ffprobe metadata.
+- Added audit job start, cancel, progress, and result retrieval IPC through the typed preload API.
+- Added a renderer audit lifecycle hook with progress, cancellation, flagged rows, and per-file errors.
+- Added persistence of the latest completed audit summary in local app settings.
+
 ## [0.6.0] - 2026-05-17
 
 ### Added
