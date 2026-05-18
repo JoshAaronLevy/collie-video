@@ -74,6 +74,7 @@ body {
   min-width: 320px;
   min-height: 100vh;
   margin: 0;
+  overflow-x: hidden;
   background: var(--app-bg);
 }
 
@@ -194,7 +195,7 @@ select {
   grid-template-rows: auto auto auto minmax(0, 1fr) auto;
   gap: 0.75rem;
   min-width: 0;
-  min-height: calc(100vh - 112px);
+  min-height: calc(100dvh - 112px);
 }
 
 .workspace-card.p-card,
@@ -360,6 +361,7 @@ select {
   display: flex;
   gap: 0.45rem;
   justify-content: flex-end;
+  min-width: 0;
 }
 
 .diagnostics-dialog {
@@ -367,7 +369,8 @@ select {
 }
 
 .app-dialog.p-dialog {
-  max-height: calc(100vh - 48px);
+  max-width: calc(100vw - 32px);
+  max-height: calc(100dvh - 48px);
   overflow: hidden;
   background: var(--surface);
   border: 1px solid var(--border);
@@ -383,7 +386,7 @@ select {
 }
 
 .app-dialog .p-dialog-content {
-  max-height: min(72vh, 760px);
+  max-height: min(72dvh, 760px);
   padding: 1rem 1.1rem;
   overflow-y: auto;
   background: var(--surface);
@@ -598,6 +601,8 @@ select {
 
 .results-view-filter {
   min-width: 0;
+  max-width: 100%;
+  overflow-x: auto;
 }
 
 .results-view-filter .p-button {
@@ -613,6 +618,8 @@ select {
 }
 
 .selection-action-bar {
+  position: relative;
+  z-index: 1;
   display: grid;
   grid-template-columns: minmax(220px, 1fr) auto;
   gap: 0.75rem;
@@ -662,6 +669,10 @@ select {
 .selection-action-buttons {
   justify-content: flex-end;
   min-width: 0;
+}
+
+.selection-action-buttons .p-button-label {
+  white-space: nowrap;
 }
 
 .selection-action-buttons .p-button.p-button-secondary.p-button-outlined {
@@ -1051,7 +1062,7 @@ select {
 
 .video-table .p-datatable-wrapper {
   max-width: 100%;
-  max-height: clamp(340px, calc(100vh - 430px), 760px);
+  max-height: clamp(320px, calc(100dvh - 430px), 760px);
   overflow-x: auto;
   overflow-y: auto;
   border: 1px solid var(--border);
@@ -1645,7 +1656,7 @@ select {
 .auto-fix-dialog .p-dialog-content,
 .auto-crop-dialog .p-dialog-content,
 .thumbnail-dialog .p-dialog-content {
-  max-height: min(68vh, 620px);
+  max-height: min(68dvh, 620px);
 }
 
 .source-config-dialog .p-dialog-content,
@@ -1655,7 +1666,7 @@ select {
 .migration-dialog .p-dialog-content,
 .migration-result-dialog .p-dialog-content,
 .video-details-dialog .p-dialog-content {
-  max-height: min(74vh, 780px);
+  max-height: min(74dvh, 780px);
 }
 
 .app-dialog .workspace-card.p-card {
@@ -1919,18 +1930,62 @@ select {
   gap: 0.2rem;
 }
 
-@media (max-width: 1320px) {
+@media (max-width: 1512px) {
+  .app-shell {
+    width: min(100vw - 28px, 1480px);
+  }
+
+  .status-strip {
+    grid-template-columns: repeat(4, minmax(0, 1fr));
+  }
+
+  .status-strip-actions {
+    grid-column: 1 / -1;
+    justify-content: flex-start;
+  }
+}
+
+@media (max-width: 1440px) {
+  .source-summary-bar {
+    grid-template-columns: minmax(260px, 1fr) auto;
+  }
+
+  .source-option-strip {
+    justify-content: flex-end;
+  }
+
+  .source-summary-actions {
+    grid-column: 1 / -1;
+    justify-content: flex-start;
+  }
+
+  .results-toolbar {
+    grid-template-columns: 1fr;
+  }
+
+  .results-toolbar-secondary {
+    justify-content: flex-start;
+  }
+}
+
+@media (max-width: 1280px) {
   .source-summary-bar,
-  .results-toolbar,
   .selection-action-bar {
     grid-template-columns: 1fr;
   }
 
   .source-option-strip,
   .source-summary-actions,
-  .results-toolbar-secondary,
   .selection-action-buttons {
     justify-content: flex-start;
+  }
+
+  .source-option-strip,
+  .source-summary-actions,
+  .selection-action-buttons,
+  .results-toolbar-primary,
+  .results-toolbar-secondary {
+    width: 100%;
   }
 
   .status-strip {
@@ -1939,6 +1994,56 @@ select {
 
   .status-strip-actions {
     justify-content: flex-start;
+  }
+
+  .table-search {
+    width: min(460px, 100%);
+  }
+}
+
+@media (max-height: 760px) {
+  .app-shell {
+    gap: 0.55rem;
+    padding: 10px 0 12px;
+  }
+
+  .app-header,
+  .source-summary-bar,
+  .results-toolbar,
+  .selection-action-bar {
+    padding-block: 0.55rem;
+  }
+
+  .app-workspace,
+  .results-workspace,
+  .table-header {
+    gap: 0.55rem;
+  }
+
+  .results-panel {
+    gap: 0.6rem;
+    padding: 0.72rem;
+  }
+
+  .video-table .p-datatable-wrapper {
+    max-height: clamp(260px, calc(100dvh - 360px), 560px);
+  }
+
+  .app-dialog.p-dialog {
+    max-height: calc(100dvh - 24px);
+  }
+
+  .app-dialog .p-dialog-header {
+    padding: 0.75rem 0.9rem 0.65rem;
+  }
+
+  .app-dialog .p-dialog-content {
+    max-height: min(62dvh, 620px);
+    padding: 0.75rem 0.9rem;
+  }
+
+  .app-dialog .p-dialog-footer {
+    padding: 0.6rem 0.9rem;
   }
 }
 

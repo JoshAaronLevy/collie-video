@@ -7,6 +7,13 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.28.0] - 2026-05-17
+
+### Changed
+
+- Improved responsive behavior for MacBook-sized windows with explicit 1512px, 1440px, 1280px, and short-height layout handling.
+- Tightened table, dialog, source summary, status strip, toolbar, and contextual action bar constraints to reduce overlap and avoid page-level horizontal scrolling.
+
 ## [0.27.0] - 2026-05-17
 
 ### Added
