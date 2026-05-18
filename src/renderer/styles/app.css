@@ -1630,6 +1630,7 @@ select {
 .thumbnail-dialog,
 .migration-dialog,
 .migration-result-dialog,
+.file-operation-dialog,
 .app-dialog {
   width: min(760px, calc(100vw - 32px));
 }
@@ -1665,6 +1666,7 @@ select {
 .utility-dialog .p-dialog-content,
 .migration-dialog .p-dialog-content,
 .migration-result-dialog .p-dialog-content,
+.file-operation-dialog .p-dialog-content,
 .video-details-dialog .p-dialog-content {
   max-height: min(74dvh, 780px);
 }
@@ -1689,7 +1691,9 @@ select {
 .thumbnail-failed-items,
 .migration-dialog-content,
 .migration-progress,
-.migration-failed-items {
+.migration-failed-items,
+.file-operation-content,
+.file-operation-attention-list {
   display: grid;
   gap: 0.85rem;
 }
@@ -1698,7 +1702,8 @@ select {
 .auto-fix-progress-counts,
 .auto-crop-progress-counts,
 .thumbnail-progress-counts,
-.migration-progress-counts {
+.migration-progress-counts,
+.file-operation-summary-grid {
   display: flex;
   flex-wrap: wrap;
   justify-content: flex-end;
@@ -1714,7 +1719,8 @@ select {
 .auto-crop-summary-grid,
 .auto-crop-current-grid,
 .thumbnail-summary-grid,
-.migration-summary-grid {
+.migration-summary-grid,
+.file-operation-summary-grid {
   display: grid;
   grid-template-columns: repeat(3, minmax(0, 1fr));
   gap: 0.65rem;
@@ -1731,7 +1737,9 @@ select {
 .thumbnail-scope-option,
 .migration-summary-grid > div,
 .migration-path-panel,
-.migration-result-path-row {
+.migration-result-path-row,
+.file-operation-summary-grid > div,
+.typed-confirmation-row {
   display: grid;
   gap: 0.25rem;
   min-width: 0;
@@ -1752,7 +1760,9 @@ select {
 .thumbnail-scope-option small,
 .migration-summary-grid span,
 .migration-path-panel span,
-.migration-result-path-row span {
+.migration-result-path-row span,
+.file-operation-summary-grid span,
+.typed-confirmation-row span {
   color: var(--text-muted);
   font-size: 0.78rem;
   font-weight: 800;
@@ -1764,7 +1774,8 @@ select {
 .auto-crop-current-grid strong,
 .thumbnail-summary-grid strong,
 .thumbnail-current-file strong,
-.migration-summary-grid strong {
+.migration-summary-grid strong,
+.file-operation-summary-grid strong {
   min-width: 0;
   overflow: hidden;
   color: var(--text);
@@ -1797,7 +1808,8 @@ select {
 .auto-crop-item-list h3,
 .thumbnail-failed-items h3,
 .migration-warning-panel h3,
-.migration-failed-items h3 {
+.migration-failed-items h3,
+.file-operation-attention-list h3 {
   margin: 0;
   color: var(--text-heading);
   font-size: 0.95rem;
@@ -1808,7 +1820,8 @@ select {
 .thumbnail-failed-items ul,
 .migration-warning-panel ul,
 .migration-match-list,
-.migration-warning-list {
+.migration-warning-list,
+.file-operation-attention-list ul {
   display: grid;
   gap: 0.5rem;
   padding: 0;
@@ -1819,7 +1832,8 @@ select {
 .auto-fix-failed-items li,
 .auto-crop-item-list li,
 .thumbnail-failed-items li,
-.migration-warning-panel li {
+.migration-warning-panel li,
+.file-operation-attention-list li {
   display: grid;
   gap: 0.2rem;
   padding: 0.6rem;
@@ -1833,6 +1847,30 @@ select {
 .thumbnail-failed-items small,
 .migration-failed-item small {
   color: var(--warning-text);
+}
+
+.file-operation-attention-list li > div {
+  display: flex;
+  gap: 0.5rem;
+  align-items: center;
+  justify-content: space-between;
+  min-width: 0;
+}
+
+.file-operation-attention-list strong,
+.file-operation-attention-list small {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.file-operation-attention-list small {
+  color: var(--warning-text);
+}
+
+.typed-confirmation-row .p-inputtext {
+  width: 100%;
 }
 
 .thumbnail-summary-grid,
@@ -2141,7 +2179,8 @@ select {
   .migration-summary-grid,
   .migration-path-grid,
   .migration-folder-row,
-  .migration-result-path-row {
+  .migration-result-path-row,
+  .file-operation-summary-grid {
     grid-template-columns: 1fr;
   }
 }

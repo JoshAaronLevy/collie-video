@@ -40,6 +40,8 @@ export const IPC_CHANNELS = {
   fileOperationRevealFile: 'file-operation:reveal-file',
   fileOperationRevealFolder: 'file-operation:reveal-folder',
   fileOperationValidateKnownPaths: 'file-operation:validate-known-paths',
+  fileOperationCreateTrashPlan: 'file-operation:trash:create-plan',
+  fileOperationExecuteTrashPlan: 'file-operation:trash:execute-plan',
   migrationScan: 'migration:scan',
   migrationExecuteStart: 'migration:execute:start',
   migrationExecuteGetResult: 'migration:execute:get-result',

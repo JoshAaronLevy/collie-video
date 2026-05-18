@@ -30,6 +30,8 @@ export type FileOperationWarningCode =
   | 'source-is-not-video'
   | 'source-outside-audit'
   | 'output-outside-managed-folder'
+  | 'external-volume'
+  | 'outside-known-roots'
   | 'requires-user-confirmation'
   | 'partial-plan';
 
@@ -115,10 +117,12 @@ export interface RevealKnownPathResponse {
 }
 
 export interface KnownFileOperationItem {
+  id?: string;
   sourcePath: string;
   fileName?: string;
   expectedSizeBytes?: number | null;
   expectedModifiedAtMs?: number | null;
+  allowUnsupportedFileType?: boolean;
   identity?: FileIdentity | null;
 }
 
@@ -139,6 +143,7 @@ export interface FileOperationPlanItem {
   fileName: string;
   expectedSizeBytes?: number | null;
   expectedModifiedAtMs?: number | null;
+  allowUnsupportedFileType?: boolean;
   sourceIdentity?: FileIdentity | null;
   outputIdentity?: FileIdentity | null;
   destinationIdentity?: FileIdentity | null;
@@ -157,6 +162,12 @@ export interface FileOperationPlanSummary {
   totalSizeBytes: number;
 }
 
+export interface FileOperationPlanConfirmation {
+  isRequired: boolean;
+  phrase: 'Move to Trash';
+  reasons: string[];
+}
+
 export interface FileOperationPlan {
   id: string;
   type: FileOperationType;
@@ -167,6 +178,7 @@ export interface FileOperationPlan {
 
 export interface TrashOperationPlan extends FileOperationPlan {
   type: 'trash';
+  confirmation: FileOperationPlanConfirmation;
 }
 
 export interface MoveOperationPlan extends FileOperationPlan {
@@ -206,6 +218,8 @@ export type AnyFileOperationPlan =
 export interface CreateTrashOperationPlanRequest {
   operationType: 'trash';
   items: KnownFileOperationItem[];
+  knownRootDirectories?: string[];
+  knownOutputDirectories?: string[];
 }
 
 export interface CreateMoveOperationPlanRequest {
@@ -281,4 +295,22 @@ export interface FileOperationResult {
   completedAt?: string | null;
   summary: FileOperationResultSummary;
   items: FileOperationResultItem[];
+}
+
+export interface CreateTrashOperationPlanResponse {
+  status: 'planned' | 'invalid_request' | 'error';
+  plan?: TrashOperationPlan;
+  message?: string;
+}
+
+export interface ExecuteTrashOperationPlanRequest {
+  planId: string;
+  confirmed: boolean;
+  typedConfirmation?: string | null;
+}
+
+export interface ExecuteTrashOperationPlanResponse {
+  status: 'complete' | 'partial' | 'failed' | 'not_found' | 'invalid_request' | 'error';
+  result?: FileOperationResult;
+  message?: string;
 }

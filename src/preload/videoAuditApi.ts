@@ -29,6 +29,10 @@ import type {
 import type { PathSelectionResult, RevealPathResult } from '../shared/types/dialog';
 import type { ToolDiagnosticsResult } from '../shared/types/diagnostics';
 import type {
+  CreateTrashOperationPlanRequest,
+  CreateTrashOperationPlanResponse,
+  ExecuteTrashOperationPlanRequest,
+  ExecuteTrashOperationPlanResponse,
   KnownPathValidationRequest,
   KnownPathValidationResponse,
   RevealKnownPathRequest,
@@ -86,6 +90,8 @@ export interface VideoAuditApi {
     revealFile: (request: RevealKnownPathRequest) => Promise<RevealKnownPathResponse>;
     revealFolder: (request: RevealKnownPathRequest) => Promise<RevealKnownPathResponse>;
     validateKnownPaths: (request: KnownPathValidationRequest) => Promise<KnownPathValidationResponse>;
+    createTrashPlan: (request: CreateTrashOperationPlanRequest) => Promise<CreateTrashOperationPlanResponse>;
+    executeTrashPlan: (request: ExecuteTrashOperationPlanRequest) => Promise<ExecuteTrashOperationPlanResponse>;
   };
   settings: {
     get: () => Promise<AppSettings>;
@@ -180,7 +186,11 @@ export const videoAuditApi: VideoAuditApi = {
     revealFolder: (request: RevealKnownPathRequest) =>
       ipcRenderer.invoke(IPC_CHANNELS.fileOperationRevealFolder, request),
     validateKnownPaths: (request: KnownPathValidationRequest) =>
-      ipcRenderer.invoke(IPC_CHANNELS.fileOperationValidateKnownPaths, request)
+      ipcRenderer.invoke(IPC_CHANNELS.fileOperationValidateKnownPaths, request),
+    createTrashPlan: (request: CreateTrashOperationPlanRequest) =>
+      ipcRenderer.invoke(IPC_CHANNELS.fileOperationCreateTrashPlan, request),
+    executeTrashPlan: (request: ExecuteTrashOperationPlanRequest) =>
+      ipcRenderer.invoke(IPC_CHANNELS.fileOperationExecuteTrashPlan, request)
   },
   settings: {
     get: () => ipcRenderer.invoke(IPC_CHANNELS.settingsGet),

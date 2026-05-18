@@ -16,7 +16,12 @@ import type { AutoCropJobSnapshot, AutoCropResult } from '../../shared/types/aut
 import type { PathSelectionResult } from '../../shared/types/dialog';
 import type { ToolDiagnosticsResult } from '../../shared/types/diagnostics';
 import type { AutoFixJobSnapshot, AutoFixResult } from '../../shared/types/autoFix';
-import type { KnownPathValidationItem } from '../../shared/types/fileOperations';
+import type {
+  FileOperationResult,
+  KnownFileOperationItem,
+  KnownPathValidationItem,
+  TrashOperationPlan
+} from '../../shared/types/fileOperations';
 import type {
   MediaPreviewJobSnapshot,
   MediaPreviewResult,
@@ -59,6 +64,8 @@ type ActiveAction =
   | 'previewClip'
   | 'migrationScan'
   | 'migrationExecute'
+  | 'trashPlan'
+  | 'trashExecute'
   | 'premiereStatus'
   | 'premiereImport'
   | null;
@@ -156,6 +163,15 @@ export interface VideoAuditAppController {
   isMigrationScanning: boolean;
   isMigrationExecuting: boolean;
   isMigrationActive: boolean;
+  trashPlan: TrashOperationPlan | null;
+  trashPlanError: string | null;
+  trashResult: FileOperationResult | null;
+  trashResultError: string | null;
+  isTrashConfirmDialogVisible: boolean;
+  isTrashResultDialogVisible: boolean;
+  isTrashPlanning: boolean;
+  isTrashExecuting: boolean;
+  canMoveSelectedToTrash: boolean;
   canStartMigration: boolean;
   premiereStatus: PremiereStatusResponse | null;
   premiereStatusError: string | null;
@@ -213,6 +229,10 @@ export interface VideoAuditAppController {
   startMigrationScan: () => Promise<void>;
   executeMigration: () => Promise<void>;
   closeMigrationResultDialog: () => void;
+  openTrashDialog: () => Promise<void>;
+  closeTrashDialog: () => void;
+  executeTrashPlan: (typedConfirmation: string | null) => Promise<void>;
+  closeTrashResultDialog: () => void;
   refreshPremiereStatus: () => Promise<void>;
   editSelectedInPremiere: () => Promise<void>;
 }
@@ -280,6 +300,12 @@ export function useVideoAuditAppController(): VideoAuditAppController {
   const [migrationResultError, setMigrationResultError] = useState<string | null>(null);
   const [isMigrationScanDialogVisible, setIsMigrationScanDialogVisible] = useState(false);
   const [isMigrationResultDialogVisible, setIsMigrationResultDialogVisible] = useState(false);
+  const [trashPlan, setTrashPlan] = useState<TrashOperationPlan | null>(null);
+  const [trashPlanError, setTrashPlanError] = useState<string | null>(null);
+  const [trashResult, setTrashResult] = useState<FileOperationResult | null>(null);
+  const [trashResultError, setTrashResultError] = useState<string | null>(null);
+  const [isTrashConfirmDialogVisible, setIsTrashConfirmDialogVisible] = useState(false);
+  const [isTrashResultDialogVisible, setIsTrashResultDialogVisible] = useState(false);
   const [premiereStatus, setPremiereStatus] = useState<PremiereStatusResponse | null>(null);
   const [premiereStatusError, setPremiereStatusError] = useState<string | null>(null);
   const [isPremiereStatusLoading, setIsPremiereStatusLoading] = useState(false);
@@ -537,6 +563,9 @@ export function useVideoAuditAppController(): VideoAuditAppController {
     migrationProgress?.status === 'starting' ||
     migrationProgress?.status === 'running';
   const isMigrationActive = isMigrationScanning || isMigrationExecuting;
+  const isTrashPlanning = activeAction === 'trashPlan';
+  const isTrashExecuting = activeAction === 'trashExecute';
+  const isTrashActive = isTrashPlanning || isTrashExecuting;
   const isPremiereImportActive = activeAction === 'premiereImport' || isPremiereImportSubmitting;
   const auditPercent = getProgressPercent(auditProgress?.processedFiles, auditProgress?.totalFiles);
   const discoveryPercent = getProgressPercent(
@@ -568,6 +597,7 @@ export function useVideoAuditAppController(): VideoAuditAppController {
     !isMediaPreviewActive &&
     !isPreviewClipActive &&
     !isMigrationActive &&
+    !isTrashActive &&
     !isPremiereImportActive &&
     (selectedFolders.length > 0 || selectedFiles.length > 0) &&
     (auditOptions.includeLowResolutionAnalysis || auditOptions.includeBlackBorderAnalysis);
@@ -581,6 +611,7 @@ export function useVideoAuditAppController(): VideoAuditAppController {
     !isMediaPreviewActive &&
     !isPreviewClipActive &&
     !isMigrationActive &&
+    !isTrashActive &&
     !isPremiereImportActive;
   const canAutoFixSelected =
     selectedVideos.length > 0 &&
@@ -592,6 +623,7 @@ export function useVideoAuditAppController(): VideoAuditAppController {
     !isMediaPreviewActive &&
     !isPreviewClipActive &&
     !isMigrationActive &&
+    !isTrashActive &&
     !isPremiereImportActive;
   const canOpenCropOptions =
     selectedVideos.length > 0 &&
@@ -603,6 +635,7 @@ export function useVideoAuditAppController(): VideoAuditAppController {
     !isMediaPreviewActive &&
     !isPreviewClipActive &&
     !isMigrationActive &&
+    !isTrashActive &&
     !isPremiereImportActive;
   const canGenerateThumbnails =
     visibleVideoRows.length > 0 &&
@@ -614,6 +647,19 @@ export function useVideoAuditAppController(): VideoAuditAppController {
     !isMediaPreviewActive &&
     !isPreviewClipActive &&
     !isMigrationActive &&
+    !isTrashActive &&
+    !isPremiereImportActive;
+  const canMoveSelectedToTrash =
+    selectedVideos.length > 0 &&
+    !isAuditActive &&
+    !isDiscoveryActive &&
+    !isFfprobeActive &&
+    !isAutoFixActive &&
+    !isAutoCropActive &&
+    !isMediaPreviewActive &&
+    !isPreviewClipActive &&
+    !isMigrationActive &&
+    !isTrashActive &&
     !isPremiereImportActive;
   const canStartMigration =
     Boolean(auditedRootDirectory) &&
@@ -626,6 +672,7 @@ export function useVideoAuditAppController(): VideoAuditAppController {
     !isMediaPreviewActive &&
     !isPreviewClipActive &&
     !isMigrationActive &&
+    !isTrashActive &&
     !isPremiereImportActive;
   const canEditSelectedInPremiere =
     selectedVideos.length > 0 &&
@@ -638,6 +685,7 @@ export function useVideoAuditAppController(): VideoAuditAppController {
     !isMediaPreviewActive &&
     !isPreviewClipActive &&
     !isMigrationActive &&
+    !isTrashActive &&
     !isPremiereImportActive;
 
   const persistSettings = useCallback(async (partialSettings: AppSettingsUpdate): Promise<AppSettings | null> => {
@@ -1024,6 +1072,110 @@ export function useVideoAuditAppController(): VideoAuditAppController {
     },
     [auditResult, persistCurrentResult]
   );
+
+  const openTrashDialog = useCallback(async (): Promise<void> => {
+    if (selectedVideos.length === 0) {
+      setWorkflowMessage('Select at least one video before moving files to Trash.');
+      return;
+    }
+
+    setTrashPlan(null);
+    setTrashPlanError(null);
+    setTrashResult(null);
+    setTrashResultError(null);
+    setActiveAction('trashPlan');
+
+    try {
+      const response = await window.videoAudit.fileOperations.createTrashPlan({
+        operationType: 'trash',
+        items: selectedVideos.map(toKnownFileOperationItem),
+        knownRootDirectories: getKnownDirectories({
+          auditedRootDirectory,
+          selectedFolders,
+          selectedVideos
+        }),
+        knownOutputDirectories: outputFolder ? [outputFolder] : []
+      });
+
+      if (response.status !== 'planned' || !response.plan) {
+        setTrashPlanError(response.message ?? 'Could not create a Move to Trash plan.');
+        setWorkflowMessage(response.message ?? 'Could not create a Move to Trash plan.');
+        return;
+      }
+
+      setTrashPlan(response.plan);
+      setIsTrashConfirmDialogVisible(true);
+      setWorkflowMessage(null);
+    } catch (error: unknown) {
+      const message = getErrorMessage(error, 'Could not create a Move to Trash plan.');
+      setTrashPlanError(message);
+      setWorkflowMessage(message);
+    } finally {
+      setActiveAction(null);
+    }
+  }, [auditedRootDirectory, outputFolder, selectedFolders, selectedVideos]);
+
+  const closeTrashDialog = useCallback((): void => {
+    if (isTrashExecuting) {
+      return;
+    }
+
+    setIsTrashConfirmDialogVisible(false);
+    setTrashPlanError(null);
+  }, [isTrashExecuting]);
+
+  const executeTrashPlan = useCallback(
+    async (typedConfirmation: string | null): Promise<void> => {
+      if (!trashPlan) {
+        setTrashPlanError('Create a Move to Trash plan before executing.');
+        return;
+      }
+
+      setTrashPlanError(null);
+      setTrashResult(null);
+      setTrashResultError(null);
+      setActiveAction('trashExecute');
+
+      try {
+        const response = await window.videoAudit.fileOperations.executeTrashPlan({
+          planId: trashPlan.id,
+          confirmed: true,
+          typedConfirmation
+        });
+
+        if (!response.result) {
+          const message = response.message ?? 'Move to Trash did not complete.';
+          setTrashPlanError(message);
+          setWorkflowMessage(message);
+          return;
+        }
+
+        setTrashResult(response.result);
+        setIsTrashConfirmDialogVisible(false);
+        setIsTrashResultDialogVisible(true);
+        setTrashPlan(null);
+        setWorkflowMessage(response.message ?? 'Move to Trash complete.');
+
+        const trashedPaths = response.result.items
+          .filter((item) => item.status === 'success')
+          .map((item) => item.sourcePath);
+        await hideVideoPathsFromTable(trashedPaths);
+      } catch (error: unknown) {
+        const message = getErrorMessage(error, 'Could not move selected files to Trash.');
+        setTrashPlanError(message);
+        setTrashResultError(message);
+        setWorkflowMessage(message);
+      } finally {
+        setActiveAction(null);
+      }
+    },
+    [hideVideoPathsFromTable, trashPlan]
+  );
+
+  const closeTrashResultDialog = useCallback((): void => {
+    setIsTrashResultDialogVisible(false);
+    setTrashResultError(null);
+  }, []);
 
   useEffect(() => {
     return window.videoAudit.autoFix.onProgress((progress) => {
@@ -1948,6 +2100,16 @@ export function useVideoAuditAppController(): VideoAuditAppController {
       return;
     }
 
+    if (isTrashConfirmDialogVisible) {
+      closeTrashDialog();
+      return;
+    }
+
+    if (isTrashResultDialogVisible) {
+      closeTrashResultDialog();
+      return;
+    }
+
     if (isThumbnailDialogVisible) {
       closeThumbnailDialog();
       return;
@@ -1971,6 +2133,8 @@ export function useVideoAuditAppController(): VideoAuditAppController {
     closeAutoFixDialog,
     closeMigrationDialog,
     closeMigrationResultDialog,
+    closeTrashDialog,
+    closeTrashResultDialog,
     closeThumbnailDialog,
     isAuditActive,
     isAutoCropActive,
@@ -1981,6 +2145,8 @@ export function useVideoAuditAppController(): VideoAuditAppController {
     isMigrationResultDialogVisible,
     isMigrationScanDialogVisible,
     isPreviewClipActive,
+    isTrashConfirmDialogVisible,
+    isTrashResultDialogVisible,
     isThumbnailDialogVisible
   ]);
 
@@ -2169,6 +2335,15 @@ export function useVideoAuditAppController(): VideoAuditAppController {
     isMigrationScanning,
     isMigrationExecuting,
     isMigrationActive,
+    trashPlan,
+    trashPlanError,
+    trashResult,
+    trashResultError,
+    isTrashConfirmDialogVisible,
+    isTrashResultDialogVisible,
+    isTrashPlanning,
+    isTrashExecuting,
+    canMoveSelectedToTrash,
     canStartMigration,
     premiereStatus,
     premiereStatusError,
@@ -2226,6 +2401,10 @@ export function useVideoAuditAppController(): VideoAuditAppController {
     startMigrationScan,
     executeMigration,
     closeMigrationResultDialog,
+    openTrashDialog,
+    closeTrashDialog,
+    executeTrashPlan,
+    closeTrashResultDialog,
     refreshPremiereStatus,
     editSelectedInPremiere
   };
@@ -2328,6 +2507,44 @@ function mergePreviewFrames(
 
 function getPreviewFrameKey(frame: VideoPreviewFrame): string {
   return `${frame.batchId}:${frame.index}:${frame.timestampSeconds}`;
+}
+
+function toKnownFileOperationItem(row: VideoRow): KnownFileOperationItem {
+  return {
+    id: row.id ?? row.path,
+    sourcePath: row.path,
+    fileName: row.fileName,
+    expectedSizeBytes: row.fileSystemSizeBytes ?? row.sizeBytes ?? row.sourceSizeBytes ?? null,
+    expectedModifiedAtMs: row.modifiedAtMs ?? null,
+    identity: {
+      path: row.path,
+      fileName: row.fileName,
+      extension: row.extension || row.fileExtension || '',
+      sizeBytes: row.fileSystemSizeBytes ?? row.sizeBytes ?? row.sourceSizeBytes ?? null,
+      modifiedAtMs: row.modifiedAtMs ?? null,
+      createdAtMs: row.createdAtMs ?? null,
+      isDirectory: false,
+      isFile: true
+    }
+  };
+}
+
+function getKnownDirectories({
+  auditedRootDirectory,
+  selectedFolders,
+  selectedVideos
+}: {
+  auditedRootDirectory: string | null;
+  selectedFolders: string[];
+  selectedVideos: VideoRow[];
+}): string[] {
+  return [
+    ...new Set([
+      auditedRootDirectory,
+      ...selectedFolders,
+      ...selectedVideos.map((video) => video.directory)
+    ].filter((value): value is string => Boolean(value)))
+  ];
 }
 
 function toPremiereRequestVideo(row: VideoRow): PremiereRequestVideo {

@@ -13,10 +13,13 @@ interface SelectionActionBarProps {
   isAutoCropActive: boolean;
   isMediaPreviewActive: boolean;
   isMigrationActive: boolean;
+  isTrashPlanning: boolean;
+  isTrashExecuting: boolean;
   isPremiereImportSubmitting: boolean;
   canAutoFixSelected: boolean;
   canOpenCropOptions: boolean;
   canGenerateThumbnails: boolean;
+  canMoveSelectedToTrash: boolean;
   canStartMigration: boolean;
   canEditSelectedInPremiere: boolean;
   onRemoveSelectedVideos: () => void;
@@ -25,6 +28,7 @@ interface SelectionActionBarProps {
   onOpenAutoCropDialog: () => void;
   onOpenThumbnailDialog: () => void;
   onOpenMigrationDialog: () => void;
+  onOpenTrashDialog: () => void;
   onEditSelectedInPremiere: () => void;
 }
 
@@ -37,10 +41,13 @@ export function SelectionActionBar({
   isAutoCropActive,
   isMediaPreviewActive,
   isMigrationActive,
+  isTrashPlanning,
+  isTrashExecuting,
   isPremiereImportSubmitting,
   canAutoFixSelected,
   canOpenCropOptions,
   canGenerateThumbnails,
+  canMoveSelectedToTrash,
   canStartMigration,
   canEditSelectedInPremiere,
   onRemoveSelectedVideos,
@@ -49,6 +56,7 @@ export function SelectionActionBar({
   onOpenAutoCropDialog,
   onOpenThumbnailDialog,
   onOpenMigrationDialog,
+  onOpenTrashDialog,
   onEditSelectedInPremiere
 }: SelectionActionBarProps): ReactElement | null {
   const menuRef = useRef<Menu>(null);
@@ -84,6 +92,13 @@ export function SelectionActionBar({
 
       if (hasSelection) {
         items.push({
+          label: `Move to Trash (${selectedCount.toLocaleString()})`,
+          icon: 'pi pi-trash',
+          disabled: !canMoveSelectedToTrash || isTrashPlanning || isTrashExecuting,
+          command: onOpenTrashDialog
+        });
+
+        items.push({
           label: `Remove from Table (${selectedCount.toLocaleString()})`,
           icon: 'pi pi-eye-slash',
           disabled: isAuditActive,
@@ -104,13 +119,17 @@ export function SelectionActionBar({
     },
     [
       canGenerateThumbnails,
+      canMoveSelectedToTrash,
       canStartMigration,
       hasSelection,
       isAuditActive,
       isMediaPreviewActive,
       isMigrationActive,
+      isTrashExecuting,
+      isTrashPlanning,
       onOpenMigrationDialog,
       onOpenThumbnailDialog,
+      onOpenTrashDialog,
       onRemoveSelectedVideos,
       onRestoreRemovedVideos,
       removedVideoCount,

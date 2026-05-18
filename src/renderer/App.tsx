@@ -6,6 +6,8 @@ import { AutoCropDialog } from './components/AutoCropDialog';
 import { AutoFixDialog } from './components/AutoFixDialog';
 import { DiagnosticsDialog } from './components/DiagnosticsDialog';
 import { DialogHeader } from './components/DialogChrome';
+import { FileOperationConfirmDialog } from './components/FileOperationConfirmDialog';
+import { FileOperationResultDialog } from './components/FileOperationResultDialog';
 import { MigrationResultDialog } from './components/MigrationResultDialog';
 import { MigrationScanDialog } from './components/MigrationScanDialog';
 import { ResultsToolbar } from './components/ResultsToolbar';
@@ -141,10 +143,13 @@ export function App(): ReactElement {
           isAutoCropActive={controller.isAutoCropActive}
           isMediaPreviewActive={controller.isMediaPreviewActive}
           isMigrationActive={controller.isMigrationActive}
+          isTrashPlanning={controller.isTrashPlanning}
+          isTrashExecuting={controller.isTrashExecuting}
           isPremiereImportSubmitting={controller.isPremiereImportSubmitting}
           canAutoFixSelected={controller.canAutoFixSelected}
           canOpenCropOptions={controller.canOpenCropOptions}
           canGenerateThumbnails={controller.canGenerateThumbnails}
+          canMoveSelectedToTrash={controller.canMoveSelectedToTrash}
           canStartMigration={controller.canStartMigration}
           canEditSelectedInPremiere={controller.canEditSelectedInPremiere}
           onRemoveSelectedVideos={controller.removeSelectedVideos}
@@ -153,6 +158,7 @@ export function App(): ReactElement {
           onOpenAutoCropDialog={controller.openAutoCropDialog}
           onOpenThumbnailDialog={controller.openThumbnailDialog}
           onOpenMigrationDialog={controller.openMigrationDialog}
+          onOpenTrashDialog={controller.openTrashDialog}
           onEditSelectedInPremiere={controller.editSelectedInPremiere}
         />
       </section>
@@ -322,6 +328,22 @@ export function App(): ReactElement {
         error={controller.migrationResultError}
         onHide={controller.closeMigrationResultDialog}
         onRevealPath={controller.revealPath}
+      />
+
+      <FileOperationConfirmDialog
+        visible={controller.isTrashConfirmDialogVisible}
+        plan={controller.trashPlan}
+        error={controller.trashPlanError}
+        isSubmitting={controller.isTrashExecuting}
+        onConfirm={controller.executeTrashPlan}
+        onHide={controller.closeTrashDialog}
+      />
+
+      <FileOperationResultDialog
+        visible={controller.isTrashResultDialogVisible}
+        result={controller.trashResult}
+        error={controller.trashResultError}
+        onHide={controller.closeTrashResultDialog}
       />
     </main>
   );

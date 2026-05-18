@@ -1,11 +1,19 @@
 import { ipcMain, shell } from 'electron';
 import { IPC_CHANNELS } from '../../shared/constants/ipcChannels';
 import type {
+  CreateTrashOperationPlanRequest,
+  CreateTrashOperationPlanResponse,
+  ExecuteTrashOperationPlanRequest,
+  ExecuteTrashOperationPlanResponse,
   KnownPathValidationRequest,
   KnownPathValidationResponse,
   RevealKnownPathRequest,
   RevealKnownPathResponse
 } from '../../shared/types/fileOperations';
+import {
+  createTrashPlan,
+  executeTrashPlan
+} from '../services/fileOperationService';
 import {
   validateKnownPath,
   validateKnownPaths
@@ -61,6 +69,18 @@ export function registerFileOperationIpcHandlers(): void {
         ...request,
         expectedKind: 'directory'
       })
+  );
+
+  ipcMain.handle(
+    IPC_CHANNELS.fileOperationCreateTrashPlan,
+    async (_event, request: CreateTrashOperationPlanRequest): Promise<CreateTrashOperationPlanResponse> =>
+      createTrashPlan(request)
+  );
+
+  ipcMain.handle(
+    IPC_CHANNELS.fileOperationExecuteTrashPlan,
+    async (_event, request: ExecuteTrashOperationPlanRequest): Promise<ExecuteTrashOperationPlanResponse> =>
+      executeTrashPlan(request)
   );
 }
 

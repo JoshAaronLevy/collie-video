@@ -7,6 +7,14 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.33.0] - 2026-05-18
+
+### Added
+
+- Added a two-step Move to Trash workflow for selected known video rows, with a safe trash plan, confirmation dialog, execution result dialog, and partial-failure reporting.
+- Added main-process trash execution through macOS Trash with immediate revalidation, itemized outcomes, and operation history records.
+- Added typed preload and IPC methods for creating and executing trash plans without exposing arbitrary filesystem APIs to the renderer.
+
 ## [0.32.0] - 2026-05-18
 
 ### Added
