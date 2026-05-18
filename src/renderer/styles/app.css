@@ -111,6 +111,10 @@ select {
   line-height: 1;
 }
 
+.p-tag-value {
+  color: #FFFFFF !important;
+}
+
 .app-shell {
   display: grid;
   grid-template-rows: auto minmax(0, 1fr);
@@ -343,7 +347,7 @@ select {
 }
 
 .status-label {
-  color: var(--text-muted);
+  /* color: var(--text-muted); */
   font-size: 0.76rem;
   font-weight: 800;
 }
@@ -608,6 +612,7 @@ select {
 .results-view-filter .p-button {
   min-width: 4.7rem;
   padding-inline: 0.7rem;
+  margin-right: 0.75rem;
 }
 
 .results-filter-count {
@@ -786,7 +791,7 @@ select {
 }
 
 .source-config-picker span {
-  color: var(--text-muted);
+  /* color: var(--text-muted); */
   font-size: 0.8rem;
   font-weight: 800;
 }
@@ -1053,11 +1058,16 @@ select {
 }
 
 .table-search {
-  width: min(380px, 100%);
+  min-width: 350px !important;
+}
+
+.table-search .pi {
+  padding-left: 0.75rem;
 }
 
 .table-search .p-inputtext {
   width: 100%;
+  padding-left: 2rem;
 }
 
 .video-table .p-datatable-wrapper {
@@ -1247,7 +1257,7 @@ select {
 
 .table-empty-state span {
   max-width: 32rem;
-  color: var(--text-muted);
+  /* color: var(--text-muted); */
   font-size: 0.85rem;
   font-weight: 700;
   line-height: 1.4;
