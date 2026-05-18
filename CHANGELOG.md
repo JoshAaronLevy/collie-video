@@ -7,6 +7,17 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.29.0] - 2026-05-17
+
+### Added
+
+- Added a final UI polish review document covering completed changes, known rough edges, and future workflow recommendations.
+
+### Changed
+
+- Cleaned up the contextual action bar so it only appears for selected rows or available table-wide actions.
+- Updated README scope notes to reflect the results-first desktop layout.
+
 ## [0.28.0] - 2026-05-17
 
 ### Changed

@@ -81,6 +81,8 @@ killall Dock
   internal workflows.
 - Generated thumbnails and preview clips are loaded through the controlled
   `media-preview://` protocol.
+- The renderer uses a results-first desktop layout with compact source/status
+  bars, contextual row actions, and modal workflow configuration.
 
 ## Current Scope
 

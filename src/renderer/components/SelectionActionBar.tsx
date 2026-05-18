@@ -54,7 +54,8 @@ export function SelectionActionBar({
   const menuRef = useRef<Menu>(null);
   const selectedCount = selectedVideos.length;
   const hasSelection = selectedCount > 0;
-  const hasOverflowActions = hasSelection || removedVideoCount > 0 || canStartMigration || canGenerateThumbnails;
+  const hasTableActions = removedVideoCount > 0 || canStartMigration || canGenerateThumbnails;
+  const hasOverflowActions = hasSelection || hasTableActions;
   const overflowItems = useMemo<MenuItem[]>(
     () => {
       const items: MenuItem[] = [];
@@ -117,7 +118,7 @@ export function SelectionActionBar({
     ]
   );
 
-  if (!rowsExist && removedVideoCount === 0) {
+  if (!hasSelection && !hasTableActions) {
     return null;
   }
 
@@ -130,10 +131,12 @@ export function SelectionActionBar({
         <strong>
           {hasSelection
             ? `${selectedCount.toLocaleString()} selected`
-            : 'No videos selected'}
+            : 'Results actions'}
         </strong>
         <span>
-          {hasSelection ? formatSelectedSummary(selectedVideos) : getNoSelectionMessage(rowsExist, removedVideoCount)}
+          {hasSelection
+            ? formatSelectedSummary(selectedVideos)
+            : getNoSelectionMessage(rowsExist, removedVideoCount, hasTableActions)}
         </span>
       </div>
 
@@ -215,9 +218,13 @@ function formatSelectedSize(rows: VideoRow[]): string {
   return `${sizeMB.toFixed(1)} MB`;
 }
 
-function getNoSelectionMessage(rowsExist: boolean, removedVideoCount: number): string {
+function getNoSelectionMessage(rowsExist: boolean, removedVideoCount: number, hasTableActions: boolean): string {
   if (removedVideoCount > 0) {
     return `${removedVideoCount.toLocaleString()} removed row(s) can be restored from More.`;
+  }
+
+  if (hasTableActions) {
+    return 'Use More for table-wide workflows or select rows for row actions.';
   }
 
   if (rowsExist) {
