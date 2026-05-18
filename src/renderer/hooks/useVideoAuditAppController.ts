@@ -44,6 +44,7 @@ import type {
   MigrationResult,
   MigrationScanResult
 } from '../../shared/types/migration';
+import type { ReplacementPlan } from '../../shared/types/replacementWorkflow';
 import type { AppSettings, AppSettingsUpdate } from '../../shared/types/settings';
 import type { FfprobeResult, VideoPreviewFrame, VideoRow } from '../../shared/types/video';
 import {
@@ -73,9 +74,12 @@ type ActiveAction =
   | 'moveExecute'
   | 'archivePlan'
   | 'archiveExecute'
+  | 'replacementPlan'
   | 'premiereStatus'
   | 'premiereImport'
   | null;
+
+type PostConversionDialogMode = 'choices' | 'manual-review';
 
 const DEFAULT_AUDIT_OPTIONS: AuditOptions = {
   includeSubfolders: true,
@@ -197,6 +201,13 @@ export interface VideoAuditAppController {
   isArchivePlanning: boolean;
   isArchiveExecuting: boolean;
   canArchiveSelectedOriginals: boolean;
+  postConversionPlan: ReplacementPlan | null;
+  postConversionSourceLabel: string | null;
+  postConversionMode: PostConversionDialogMode;
+  postConversionError: string | null;
+  postConversionMessage: string | null;
+  isPostConversionDialogVisible: boolean;
+  isReplacementPlanning: boolean;
   canStartMigration: boolean;
   premiereStatus: PremiereStatusResponse | null;
   premiereStatusError: string | null;
@@ -266,6 +277,11 @@ export interface VideoAuditAppController {
   closeArchiveDialog: () => void;
   executeArchivePlan: () => Promise<void>;
   closeArchiveResultDialog: () => void;
+  replacePostConversionOriginals: (typedConfirmation: string | null) => void;
+  reviewPostConversionPlan: () => void;
+  leavePostConversionOutputs: () => void;
+  backToPostConversionChoices: () => void;
+  closePostConversionDialog: () => void;
   refreshPremiereStatus: () => Promise<void>;
   editSelectedInPremiere: () => Promise<void>;
 }
@@ -351,6 +367,12 @@ export function useVideoAuditAppController(): VideoAuditAppController {
   const [archiveResultError, setArchiveResultError] = useState<string | null>(null);
   const [isArchiveConfirmDialogVisible, setIsArchiveConfirmDialogVisible] = useState(false);
   const [isArchiveResultDialogVisible, setIsArchiveResultDialogVisible] = useState(false);
+  const [postConversionPlan, setPostConversionPlan] = useState<ReplacementPlan | null>(null);
+  const [postConversionSourceLabel, setPostConversionSourceLabel] = useState<string | null>(null);
+  const [postConversionMode, setPostConversionMode] = useState<PostConversionDialogMode>('choices');
+  const [postConversionError, setPostConversionError] = useState<string | null>(null);
+  const [postConversionMessage, setPostConversionMessage] = useState<string | null>(null);
+  const [isPostConversionDialogVisible, setIsPostConversionDialogVisible] = useState(false);
   const [premiereStatus, setPremiereStatus] = useState<PremiereStatusResponse | null>(null);
   const [premiereStatusError, setPremiereStatusError] = useState<string | null>(null);
   const [isPremiereStatusLoading, setIsPremiereStatusLoading] = useState(false);
@@ -617,6 +639,7 @@ export function useVideoAuditAppController(): VideoAuditAppController {
   const isArchivePlanning = activeAction === 'archivePlan';
   const isArchiveExecuting = activeAction === 'archiveExecute';
   const isArchiveActive = isArchivePlanning || isArchiveExecuting;
+  const isReplacementPlanning = activeAction === 'replacementPlan';
   const isPremiereImportActive = activeAction === 'premiereImport' || isPremiereImportSubmitting;
   const auditPercent = getProgressPercent(auditProgress?.processedFiles, auditProgress?.totalFiles);
   const discoveryPercent = getProgressPercent(
@@ -651,6 +674,7 @@ export function useVideoAuditAppController(): VideoAuditAppController {
     !isTrashActive &&
     !isMoveActive &&
     !isArchiveActive &&
+    !isReplacementPlanning &&
     !isPremiereImportActive &&
     (selectedFolders.length > 0 || selectedFiles.length > 0) &&
     (auditOptions.includeLowResolutionAnalysis || auditOptions.includeBlackBorderAnalysis);
@@ -667,6 +691,7 @@ export function useVideoAuditAppController(): VideoAuditAppController {
     !isTrashActive &&
     !isMoveActive &&
     !isArchiveActive &&
+    !isReplacementPlanning &&
     !isPremiereImportActive;
   const canAutoFixSelected =
     selectedVideos.length > 0 &&
@@ -681,6 +706,7 @@ export function useVideoAuditAppController(): VideoAuditAppController {
     !isTrashActive &&
     !isMoveActive &&
     !isArchiveActive &&
+    !isReplacementPlanning &&
     !isPremiereImportActive;
   const canOpenCropOptions =
     selectedVideos.length > 0 &&
@@ -695,6 +721,7 @@ export function useVideoAuditAppController(): VideoAuditAppController {
     !isTrashActive &&
     !isMoveActive &&
     !isArchiveActive &&
+    !isReplacementPlanning &&
     !isPremiereImportActive;
   const canGenerateThumbnails =
     visibleVideoRows.length > 0 &&
@@ -709,6 +736,7 @@ export function useVideoAuditAppController(): VideoAuditAppController {
     !isTrashActive &&
     !isMoveActive &&
     !isArchiveActive &&
+    !isReplacementPlanning &&
     !isPremiereImportActive;
   const canMoveSelectedToTrash =
     selectedVideos.length > 0 &&
@@ -723,6 +751,7 @@ export function useVideoAuditAppController(): VideoAuditAppController {
     !isTrashActive &&
     !isMoveActive &&
     !isArchiveActive &&
+    !isReplacementPlanning &&
     !isPremiereImportActive;
   const canMoveSelectedToFolder =
     selectedVideos.length > 0 &&
@@ -737,6 +766,7 @@ export function useVideoAuditAppController(): VideoAuditAppController {
     !isTrashActive &&
     !isMoveActive &&
     !isArchiveActive &&
+    !isReplacementPlanning &&
     !isPremiereImportActive;
   const canArchiveSelectedOriginals =
     selectedVideos.length > 0 &&
@@ -751,6 +781,7 @@ export function useVideoAuditAppController(): VideoAuditAppController {
     !isTrashActive &&
     !isMoveActive &&
     !isArchiveActive &&
+    !isReplacementPlanning &&
     !isPremiereImportActive;
   const canStartMigration =
     Boolean(auditedRootDirectory) &&
@@ -766,6 +797,7 @@ export function useVideoAuditAppController(): VideoAuditAppController {
     !isTrashActive &&
     !isMoveActive &&
     !isArchiveActive &&
+    !isReplacementPlanning &&
     !isPremiereImportActive;
   const canEditSelectedInPremiere =
     selectedVideos.length > 0 &&
@@ -781,6 +813,7 @@ export function useVideoAuditAppController(): VideoAuditAppController {
     !isTrashActive &&
     !isMoveActive &&
     !isArchiveActive &&
+    !isReplacementPlanning &&
     !isPremiereImportActive;
 
   const persistSettings = useCallback(async (partialSettings: AppSettingsUpdate): Promise<AppSettings | null> => {
@@ -1480,6 +1513,110 @@ export function useVideoAuditAppController(): VideoAuditAppController {
     setArchiveResultError(null);
   }, []);
 
+  const createPostConversionPlan = useCallback(
+    async ({
+      sourceLabel,
+      autoFixResult,
+      autoCropResult
+    }: {
+      sourceLabel: string;
+      autoFixResult?: AutoFixResult;
+      autoCropResult?: AutoCropResult;
+    }): Promise<boolean> => {
+      const source = autoFixResult ? 'auto-fix-result' : 'auto-crop-result';
+
+      if (!hasSuccessfulConversionOutputs(autoFixResult ?? autoCropResult ?? null)) {
+        return false;
+      }
+
+      setPostConversionPlan(null);
+      setPostConversionSourceLabel(sourceLabel);
+      setPostConversionMode('choices');
+      setPostConversionError(null);
+      setPostConversionMessage(null);
+      setIsPostConversionDialogVisible(true);
+      setActiveAction('replacementPlan');
+
+      try {
+        const response = await window.videoAudit.replacement.createPlan({
+          source,
+          defaultAction: 'replace-original',
+          autoFixResult: autoFixResult ?? null,
+          autoCropResult: autoCropResult ?? null
+        });
+
+        if (response.status !== 'planned' || !response.plan) {
+          setPostConversionError(response.message ?? 'Could not create a replacement plan.');
+          return true;
+        }
+
+        setPostConversionPlan(response.plan);
+        return true;
+      } catch (error: unknown) {
+        setPostConversionError(getErrorMessage(error, 'Could not create a replacement plan.'));
+        return true;
+      } finally {
+        setActiveAction(null);
+      }
+    },
+    []
+  );
+
+  const replacePostConversionOriginals = useCallback(
+    (typedConfirmation: string | null): void => {
+      if (!postConversionPlan) {
+        setPostConversionError('Create a replacement plan before replacing originals.');
+        return;
+      }
+
+      if (postConversionPlan.summary.ready === 0) {
+        setPostConversionError('No replacement items are ready.');
+        return;
+      }
+
+      if (
+        requiresReplacementConfirmation(postConversionPlan) &&
+        typedConfirmation !== REPLACE_CONFIRMATION_PHRASE
+      ) {
+        setPostConversionError('Type REPLACE before replacing originals.');
+        return;
+      }
+
+      const message =
+        `Replacement execution will be enabled in Stage 9. ` +
+        `${postConversionPlan.summary.ready.toLocaleString()} ready item(s) were identified; no files were changed.`;
+      setPostConversionError(null);
+      setPostConversionMessage(message);
+      setWorkflowMessage(message);
+    },
+    [postConversionPlan]
+  );
+
+  const reviewPostConversionPlan = useCallback((): void => {
+    setPostConversionError(null);
+    setPostConversionMessage(null);
+    setPostConversionMode('manual-review');
+  }, []);
+
+  const leavePostConversionOutputs = useCallback((): void => {
+    setIsPostConversionDialogVisible(false);
+    setPostConversionError(null);
+    setPostConversionMessage(null);
+    setWorkflowMessage('Converted files were left in the output folder.');
+  }, []);
+
+  const backToPostConversionChoices = useCallback((): void => {
+    setPostConversionMode('choices');
+    setPostConversionError(null);
+    setPostConversionMessage(null);
+  }, []);
+
+  const closePostConversionDialog = useCallback((): void => {
+    setIsPostConversionDialogVisible(false);
+    setPostConversionError(null);
+    setPostConversionMessage(null);
+  }, []);
+
   useEffect(() => {
     return window.videoAudit.autoFix.onProgress((progress) => {
       setAutoFixProgress(progress);
@@ -1505,6 +1642,14 @@ export function useVideoAuditAppController(): VideoAuditAppController {
           const removedText =
             hiddenCount > 0 ? ` ${hiddenCount.toLocaleString()} video(s) were removed from the table.` : '';
           setWorkflowMessage(`Auto-Fix complete.${removedText}`);
+          void createPostConversionPlan({
+            sourceLabel: 'Auto-Fix',
+            autoFixResult: progress.result
+          }).then((opened) => {
+            if (opened) {
+              setIsAutoFixDialogVisible(false);
+            }
+          });
         });
       }
 
@@ -1520,7 +1665,7 @@ export function useVideoAuditAppController(): VideoAuditAppController {
         setWorkflowMessage(progress.message ?? 'Auto-Fix canceled.');
       }
     });
-  }, [hideVideoPathsFromTable]);
+  }, [createPostConversionPlan, hideVideoPathsFromTable]);
 
   useEffect(() => {
     return window.videoAudit.autoCrop.onProgress((progress) => {
@@ -1543,6 +1688,14 @@ export function useVideoAuditAppController(): VideoAuditAppController {
         setWorkflowMessage(
           `Auto-Crop complete. ${croppedCount.toLocaleString()} ${croppedLabel} created.`
         );
+        void createPostConversionPlan({
+          sourceLabel: 'Auto-Crop',
+          autoCropResult: progress.result
+        }).then((opened) => {
+          if (opened) {
+            setIsAutoCropDialogVisible(false);
+          }
+        });
       }
 
       if (progress.status === 'error') {
@@ -1557,7 +1710,7 @@ export function useVideoAuditAppController(): VideoAuditAppController {
         setWorkflowMessage(progress.message ?? 'Auto-Crop canceled.');
       }
     });
-  }, []);
+  }, [createPostConversionPlan]);
 
   const applyMediaPreviewResult = useCallback(
     async (result: MediaPreviewResult): Promise<void> => {
@@ -1790,6 +1943,12 @@ export function useVideoAuditAppController(): VideoAuditAppController {
     setMigrationResultError(null);
     setIsMigrationScanDialogVisible(false);
     setIsMigrationResultDialogVisible(false);
+    setPostConversionPlan(null);
+    setPostConversionSourceLabel(null);
+    setPostConversionMode('choices');
+    setPostConversionError(null);
+    setPostConversionMessage(null);
+    setIsPostConversionDialogVisible(false);
     setPremiereImportResult(null);
     setPremiereImportError(null);
     setIsPremiereImportSubmitting(false);
@@ -2433,6 +2592,11 @@ export function useVideoAuditAppController(): VideoAuditAppController {
       return;
     }
 
+    if (isPostConversionDialogVisible) {
+      closePostConversionDialog();
+      return;
+    }
+
     if (isThumbnailDialogVisible) {
       closeThumbnailDialog();
       return;
@@ -2460,6 +2624,7 @@ export function useVideoAuditAppController(): VideoAuditAppController {
     closeMigrationResultDialog,
     closeMoveDialog,
     closeMoveResultDialog,
+    closePostConversionDialog,
     closeTrashDialog,
     closeTrashResultDialog,
     closeThumbnailDialog,
@@ -2475,6 +2640,7 @@ export function useVideoAuditAppController(): VideoAuditAppController {
     isMigrationScanDialogVisible,
     isMoveConfirmDialogVisible,
     isMoveResultDialogVisible,
+    isPostConversionDialogVisible,
     isPreviewClipActive,
     isTrashConfirmDialogVisible,
     isTrashResultDialogVisible,
@@ -2693,6 +2859,13 @@ export function useVideoAuditAppController(): VideoAuditAppController {
     isArchivePlanning,
     isArchiveExecuting,
     canArchiveSelectedOriginals,
+    postConversionPlan,
+    postConversionSourceLabel,
+    postConversionMode,
+    postConversionError,
+    postConversionMessage,
+    isPostConversionDialogVisible,
+    isReplacementPlanning,
     canStartMigration,
     premiereStatus,
     premiereStatusError,
@@ -2762,9 +2935,38 @@ export function useVideoAuditAppController(): VideoAuditAppController {
     closeArchiveDialog,
     executeArchivePlan,
     closeArchiveResultDialog,
+    replacePostConversionOriginals,
+    reviewPostConversionPlan,
+    leavePostConversionOutputs,
+    backToPostConversionChoices,
+    closePostConversionDialog,
     refreshPremiereStatus,
     editSelectedInPremiere
   };
+}
+
+const REPLACE_CONFIRMATION_PHRASE = 'REPLACE';
+const TEN_GB_BYTES = 10 * 1024 * 1024 * 1024;
+
+function hasSuccessfulConversionOutputs(result: AutoFixResult | AutoCropResult | null): boolean {
+  return Boolean(
+    result?.items.some((item) => item.status === 'success' && Boolean(item.outputPath))
+  );
+}
+
+function requiresReplacementConfirmation(plan: ReplacementPlan): boolean {
+  return (
+    plan.summary.ready > 10 ||
+    plan.summary.totalOriginalSizeBytes > TEN_GB_BYTES ||
+    plan.summary.warning > 0 ||
+    plan.summary.destinationConflicts > 0 ||
+    plan.items.some((item) => isExternalVolumePath(item.originalPath) || isExternalVolumePath(item.outputPath)) ||
+    plan.items.some((item) => item.warningCodes.includes('extension-changed'))
+  );
+}
+
+function isExternalVolumePath(path: string): boolean {
+  return path.startsWith('/Volumes/');
 }
 
 function mergeMediaPreviewItems(rows: VideoRow[], items: MediaPreviewResultItem[]): VideoRow[] {

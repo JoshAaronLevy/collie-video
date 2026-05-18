@@ -7,6 +7,14 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.37.0] - 2026-05-18
+
+### Added
+
+- Added a post-conversion cleanup dialog after successful Auto-Fix and Auto-Crop runs with Replace Originals, Review Manually, and Leave Files Where They Are options.
+- Added replacement-plan summaries and a manual review view for ready, warning, blocked, original-size, and output-size counts before any replacement action.
+- Added high-risk `REPLACE` confirmation gating for replacement intent while leaving actual replacement execution for the next stage.
+
 ## [0.36.0] - 2026-05-18
 
 ### Added

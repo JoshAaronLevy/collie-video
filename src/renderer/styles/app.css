@@ -1630,6 +1630,7 @@ select {
 .thumbnail-dialog,
 .migration-dialog,
 .migration-result-dialog,
+.post-conversion-dialog,
 .file-operation-dialog,
 .app-dialog {
   width: min(760px, calc(100vw - 32px));
@@ -1666,6 +1667,7 @@ select {
 .utility-dialog .p-dialog-content,
 .migration-dialog .p-dialog-content,
 .migration-result-dialog .p-dialog-content,
+.post-conversion-dialog .p-dialog-content,
 .file-operation-dialog .p-dialog-content,
 .video-details-dialog .p-dialog-content {
   max-height: min(74dvh, 780px);
@@ -1694,7 +1696,9 @@ select {
 .migration-failed-items,
 .file-operation-content,
 .file-operation-path-panel,
-.file-operation-attention-list {
+.file-operation-attention-list,
+.post-conversion-content,
+.replacement-review-list {
   display: grid;
   gap: 0.85rem;
 }
@@ -1721,6 +1725,7 @@ select {
 .auto-crop-current-grid,
 .thumbnail-summary-grid,
 .migration-summary-grid,
+.replacement-summary-grid,
 .file-operation-summary-grid {
   display: grid;
   grid-template-columns: repeat(3, minmax(0, 1fr));
@@ -1741,7 +1746,9 @@ select {
 .migration-result-path-row,
 .file-operation-summary-grid > div,
 .file-operation-path-panel,
-.typed-confirmation-row {
+.typed-confirmation-row,
+.replacement-summary-grid > div,
+.post-conversion-option {
   display: grid;
   gap: 0.25rem;
   min-width: 0;
@@ -1765,7 +1772,9 @@ select {
 .migration-result-path-row span,
 .file-operation-path-panel span,
 .file-operation-summary-grid span,
-.typed-confirmation-row span {
+.typed-confirmation-row span,
+.replacement-summary-grid span,
+.post-conversion-option span {
   color: var(--text-muted);
   font-size: 0.78rem;
   font-weight: 800;
@@ -1779,7 +1788,9 @@ select {
 .thumbnail-current-file strong,
 .migration-summary-grid strong,
 .file-operation-path-panel strong,
-.file-operation-summary-grid strong {
+.file-operation-summary-grid strong,
+.replacement-summary-grid strong,
+.post-conversion-option strong {
   min-width: 0;
   overflow: hidden;
   color: var(--text);
@@ -1791,7 +1802,8 @@ select {
 .auto-crop-paths code,
 .migration-path-panel code,
 .migration-result-path-row code,
-.file-operation-path-panel code {
+.file-operation-path-panel code,
+.replacement-review-list code {
   min-width: 0;
   overflow: hidden;
   color: var(--text);
@@ -1814,7 +1826,8 @@ select {
 .thumbnail-failed-items h3,
 .migration-warning-panel h3,
 .migration-failed-items h3,
-.file-operation-attention-list h3 {
+.file-operation-attention-list h3,
+.replacement-review-list h3 {
   margin: 0;
   color: var(--text-heading);
   font-size: 0.95rem;
@@ -1826,7 +1839,8 @@ select {
 .migration-warning-panel ul,
 .migration-match-list,
 .migration-warning-list,
-.file-operation-attention-list ul {
+.file-operation-attention-list ul,
+.replacement-review-list ul {
   display: grid;
   gap: 0.5rem;
   padding: 0;
@@ -1838,7 +1852,8 @@ select {
 .auto-crop-item-list li,
 .thumbnail-failed-items li,
 .migration-warning-panel li,
-.file-operation-attention-list li {
+.file-operation-attention-list li,
+.replacement-review-list li {
   display: grid;
   gap: 0.2rem;
   padding: 0.6rem;
@@ -1854,7 +1869,8 @@ select {
   color: var(--warning-text);
 }
 
-.file-operation-attention-list li > div {
+.file-operation-attention-list li > div,
+.replacement-review-list li > div {
   display: flex;
   gap: 0.5rem;
   align-items: center;
@@ -1863,7 +1879,11 @@ select {
 }
 
 .file-operation-attention-list strong,
-.file-operation-attention-list small {
+.file-operation-attention-list small,
+.replacement-review-list strong,
+.replacement-review-list span,
+.replacement-review-list small,
+.replacement-review-list code {
   min-width: 0;
   overflow: hidden;
   text-overflow: ellipsis;
@@ -1878,8 +1898,28 @@ select {
   width: 100%;
 }
 
+.post-conversion-option-grid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 0.65rem;
+}
+
+.post-conversion-option {
+  appearance: none;
+  color: inherit;
+  font: inherit;
+  text-align: left;
+  cursor: pointer;
+}
+
+.post-conversion-option small {
+  color: var(--text-muted-strong);
+  line-height: 1.4;
+}
+
 .thumbnail-summary-grid,
-.migration-summary-grid {
+.migration-summary-grid,
+.replacement-summary-grid {
   grid-template-columns: repeat(4, minmax(0, 1fr));
 }
 
@@ -2185,7 +2225,9 @@ select {
   .migration-path-grid,
   .migration-folder-row,
   .migration-result-path-row,
-  .file-operation-summary-grid {
+  .file-operation-summary-grid,
+  .replacement-summary-grid,
+  .post-conversion-option-grid {
     grid-template-columns: 1fr;
   }
 }

@@ -10,6 +10,7 @@ import { FileOperationConfirmDialog } from './components/FileOperationConfirmDia
 import { FileOperationResultDialog } from './components/FileOperationResultDialog';
 import { MigrationResultDialog } from './components/MigrationResultDialog';
 import { MigrationScanDialog } from './components/MigrationScanDialog';
+import { PostConversionDialog } from './components/PostConversionDialog';
 import { ResultsToolbar } from './components/ResultsToolbar';
 import { SelectionActionBar } from './components/SelectionActionBar';
 import { SettingsDialog } from './components/SettingsDialog';
@@ -293,6 +294,21 @@ export function App(): ReactElement {
         onCancel={controller.cancelAutoCrop}
         onHide={controller.closeAutoCropDialog}
         onRevealOutputDir={controller.revealPath}
+      />
+
+      <PostConversionDialog
+        visible={controller.isPostConversionDialogVisible}
+        sourceLabel={controller.postConversionSourceLabel}
+        plan={controller.postConversionPlan}
+        mode={controller.postConversionMode}
+        error={controller.postConversionError}
+        message={controller.postConversionMessage}
+        isPlanning={controller.isReplacementPlanning}
+        onReplaceOriginals={controller.replacePostConversionOriginals}
+        onReviewManually={controller.reviewPostConversionPlan}
+        onLeaveOutputs={controller.leavePostConversionOutputs}
+        onBackToChoices={controller.backToPostConversionChoices}
+        onHide={controller.closePostConversionDialog}
       />
 
       <ThumbnailGenerationDialog
