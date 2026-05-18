@@ -7,6 +7,13 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.42.2] - 2026-05-18
+
+### Added
+
+- Added shared folder-tree source selection types for scan status, progress, results, warnings, nodes, and selected-folder summaries.
+- Added shared folder-tree constants for default root metadata, skipped system/app folders, skipped file patterns, and display limits.
+
 ## [0.42.1] - 2026-05-18
 
 ### Added
