@@ -7,6 +7,13 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.30.0] - 2026-05-18
+
+### Added
+
+- Added shared file-operation safety types, status vocabulary, and constants for future trash, move, archive, and replacement workflows.
+- Added operation history record types for future persistent file-management logs.
+
 ## [0.29.0] - 2026-05-17
 
 ### Added
