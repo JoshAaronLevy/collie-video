@@ -7,6 +7,16 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.27.0] - 2026-05-17
+
+### Added
+
+- Added app-level CSS theme tokens for surfaces, borders, typography, status colors, radii, spacing, shadows, and fonts.
+
+### Changed
+
+- Consolidated custom renderer styling around shared theme variables and PrimeReact-compatible button, input, message, and tag conventions.
+
 ## [0.26.0] - 2026-05-17
 
 ### Added
