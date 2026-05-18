@@ -11,6 +11,12 @@ interface PathRecord {
   depth: number;
 }
 
+interface FolderTreeSelectionRestoreResult {
+  selectionKeys: FolderTreeSelectionKeys;
+  matchedFolderPaths: string[];
+  missingFolderPaths: string[];
+}
+
 export function getSelectedFolderPathsFromTree(
   selectionKeys: FolderTreeSelectionKeys,
   root: FolderTreeNode | null
@@ -31,6 +37,53 @@ export function getDedupedSelectedFolderPathsFromTree(
   root: FolderTreeNode | null
 ): string[] {
   return dedupeOverlappingFolderPaths(getSelectedFolderPathsFromTree(selectionKeys, root));
+}
+
+export function getFolderTreeSelectionKeysForPaths(
+  folderPaths: string[],
+  root: FolderTreeNode | null
+): FolderTreeSelectionRestoreResult {
+  if (!root) {
+    return {
+      selectionKeys: {},
+      matchedFolderPaths: [],
+      missingFolderPaths: folderPaths
+    };
+  }
+
+  const nodeByPath = buildFolderNodeByPath(root);
+  const selectionKeys: FolderTreeSelectionKeys = {};
+  const matchedFolderPaths: string[] = [];
+  const missingFolderPaths: string[] = [];
+  const seenPaths = new Set<string>();
+
+  folderPaths.forEach((folderPath) => {
+    const normalizedPath = normalizeFolderPath(folderPath);
+
+    if (!normalizedPath || seenPaths.has(normalizedPath)) {
+      return;
+    }
+
+    seenPaths.add(normalizedPath);
+    const node = nodeByPath.get(normalizedPath);
+
+    if (!node) {
+      missingFolderPaths.push(folderPath);
+      return;
+    }
+
+    selectionKeys[node.key] = {
+      checked: true,
+      partialChecked: false
+    };
+    matchedFolderPaths.push(node.path);
+  });
+
+  return {
+    selectionKeys,
+    matchedFolderPaths,
+    missingFolderPaths
+  };
 }
 
 export function getFolderTreeSelectionSummary(

@@ -21,11 +21,13 @@ import { StatusStrip } from './components/StatusStrip';
 import { ThumbnailGenerationDialog } from './components/ThumbnailGenerationDialog';
 import { UtilityPanel } from './components/UtilityPanel';
 import { VideoResultsTable } from './components/VideoResultsTable';
+import { FolderTreeSelectorDialog } from './components/source/FolderTreeSelectorDialog';
 import { useVideoAuditAppController } from './hooks/useVideoAuditAppController';
 
 export function App(): ReactElement {
   const controller = useVideoAuditAppController();
   const [isSourceSetupVisible, setIsSourceSetupVisible] = useState(false);
+  const [isFolderTreeSelectorVisible, setIsFolderTreeSelectorVisible] = useState(false);
   const [isUtilitiesVisible, setIsUtilitiesVisible] = useState(false);
   const [isSettingsVisible, setIsSettingsVisible] = useState(false);
   const [isDiagnosticsVisible, setIsDiagnosticsVisible] = useState(false);
@@ -186,7 +188,7 @@ export function App(): ReactElement {
         activeAction={controller.activeAction}
         selectionMessage={controller.selectionMessage}
         workflowMessage={controller.workflowMessage}
-        onChooseFolders={controller.chooseFolders}
+        onChooseFolders={() => setIsFolderTreeSelectorVisible(true)}
         onChooseFiles={controller.chooseFiles}
         onChooseOutputFolder={controller.chooseOutputFolder}
         onChooseRecentFolder={controller.chooseRecentFolder}
@@ -196,6 +198,17 @@ export function App(): ReactElement {
         onRevealPath={controller.revealPath}
         onAuditOptionChange={controller.updateAuditOption}
         onHide={() => setIsSourceSetupVisible(false)}
+      />
+
+      <FolderTreeSelectorDialog
+        visible={isFolderTreeSelectorVisible}
+        selectedFolderPaths={controller.selectedFolders}
+        isAuditActive={controller.isAuditActive}
+        onConfirm={async (selection) => {
+          await controller.applyFolderTreeSelection(selection.selectedFolderPaths, selection.rootPath);
+          setIsFolderTreeSelectorVisible(false);
+        }}
+        onHide={() => setIsFolderTreeSelectorVisible(false)}
       />
 
       <Dialog

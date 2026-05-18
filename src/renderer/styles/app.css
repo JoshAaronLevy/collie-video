@@ -930,6 +930,103 @@ select {
   white-space: nowrap;
 }
 
+.folder-tree-selector-content {
+  display: grid;
+  gap: 0.85rem;
+}
+
+.folder-tree-root-panel,
+.folder-tree-scan-status,
+.folder-tree-selected-summary,
+.folder-tree-empty-state {
+  min-width: 0;
+  padding: 0.85rem;
+  background: var(--surface-muted);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-lg);
+}
+
+.folder-tree-root-panel,
+.folder-tree-scan-status,
+.folder-tree-selected-summary {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  gap: 0.75rem;
+  align-items: center;
+}
+
+.folder-tree-root-copy {
+  display: grid;
+  gap: 0.2rem;
+  min-width: 0;
+}
+
+.folder-tree-root-copy span,
+.folder-tree-scan-status span,
+.folder-tree-selected-summary span {
+  color: var(--text-muted);
+  font-size: 0.76rem;
+  font-weight: 850;
+  text-transform: uppercase;
+}
+
+.folder-tree-root-copy strong,
+.folder-tree-scan-status strong,
+.folder-tree-selected-summary strong {
+  min-width: 0;
+  overflow: hidden;
+  color: var(--text);
+  font-size: 0.9rem;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.folder-tree-root-copy strong {
+  font-family: var(--font-mono);
+  font-size: 0.82rem;
+}
+
+.folder-tree-root-actions,
+.folder-tree-scan-counts {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.5rem;
+  justify-content: flex-end;
+  min-width: 0;
+}
+
+.folder-tree-progress-bar {
+  height: 0.45rem;
+  overflow: hidden;
+  border-radius: var(--radius-pill);
+}
+
+.folder-tree-empty-state {
+  display: grid;
+  justify-items: center;
+  gap: 0.35rem;
+  min-height: 220px;
+  align-content: center;
+  text-align: center;
+}
+
+.folder-tree-empty-state i {
+  color: var(--brand);
+  font-size: 1.8rem;
+}
+
+.folder-tree-empty-state strong {
+  color: var(--text);
+  font-size: 1rem;
+}
+
+.folder-tree-empty-state span {
+  max-width: 34rem;
+  color: var(--text-muted);
+  font-size: 0.86rem;
+  font-weight: 750;
+}
+
 .recent-folder-strip {
   display: flex;
   flex-wrap: wrap;
@@ -1727,9 +1824,14 @@ select {
 }
 
 .source-config-dialog,
+.folder-tree-selector-dialog,
 .utility-dialog,
 .settings-dialog {
   width: min(980px, calc(100vw - 32px));
+}
+
+.folder-tree-selector-dialog {
+  width: min(1120px, calc(100vw - 32px));
 }
 
 .settings-dialog {
@@ -1743,6 +1845,7 @@ select {
 }
 
 .source-config-dialog .p-dialog-content,
+.folder-tree-selector-dialog .p-dialog-content,
 .settings-dialog .p-dialog-content,
 .diagnostics-dialog .p-dialog-content,
 .utility-dialog .p-dialog-content,
@@ -2479,6 +2582,9 @@ select {
   .source-config-hero,
   .source-config-picker-grid,
   .source-config-paths,
+  .folder-tree-root-panel,
+  .folder-tree-scan-status,
+  .folder-tree-selected-summary,
   .metric-grid,
   .settings-section-grid,
   .video-details-main,
@@ -2493,6 +2599,7 @@ select {
   .source-summary-actions .p-button,
   .source-config-picker .p-button,
   .source-config-recent-list .p-button,
+  .folder-tree-root-actions .p-button,
   .settings-hero-actions .p-button,
   .results-toolbar-secondary .p-button,
   .selection-action-buttons .p-button,

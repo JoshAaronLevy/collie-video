@@ -7,6 +7,12 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.47.0] - 2026-05-18
+
+### Added
+
+- Added a folder-tree selector dialog for choosing a root folder, running eager full-tree scans, showing scan progress and warnings, selecting folders in the TreeTable, deduping selected folders, and applying selected folder sources without mutating state on cancel.
+
 ## [0.46.0] - 2026-05-18
 
 ### Added

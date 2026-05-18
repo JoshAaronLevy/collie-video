@@ -239,6 +239,7 @@ export interface VideoAuditAppController {
   premiereImportError: string | null;
   canEditSelectedInPremiere: boolean;
   canGenerateThumbnails: boolean;
+  applyFolderTreeSelection: (folderPaths: string[], rootPath: string) => Promise<void>;
   chooseFolders: () => Promise<void>;
   chooseFiles: () => Promise<void>;
   chooseOutputFolder: () => Promise<void>;
@@ -918,6 +919,26 @@ export function useVideoAuditAppController(): VideoAuditAppController {
       setActiveAction(null);
     }
   }, [handleSelectionResult, persistSettings, settings?.recentFolders]);
+
+  const applyFolderTreeSelection = useCallback(
+    async (folderPaths: string[], rootPath: string): Promise<void> => {
+      setSelectedFolders(folderPaths);
+      setSelectionMessage(null);
+      setWorkflowMessage(
+        folderPaths.length > 0
+          ? `${folderPaths.length.toLocaleString()} folder tree source(s) selected.`
+          : 'No folder tree sources selected.'
+      );
+
+      if (folderPaths.length > 0) {
+        await persistSettings({
+          recentFolders: mergeRecentPaths([rootPath, ...folderPaths], settings?.recentFolders ?? []),
+          latestSelectedFolder: rootPath
+        });
+      }
+    },
+    [persistSettings, settings?.recentFolders]
+  );
 
   const chooseRecentFolder = useCallback(
     async (path: string): Promise<void> => {
@@ -3246,6 +3267,7 @@ export function useVideoAuditAppController(): VideoAuditAppController {
     premiereImportError,
     canEditSelectedInPremiere,
     canGenerateThumbnails,
+    applyFolderTreeSelection,
     chooseFolders,
     chooseFiles,
     chooseOutputFolder,
