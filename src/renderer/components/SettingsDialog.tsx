@@ -4,6 +4,7 @@ import type { AppInfo } from '../../shared/types/app';
 import type { ToolDiagnosticsResult } from '../../shared/types/diagnostics';
 import type { PremiereStatusResponse } from '../../shared/types/premiere';
 import type { AppSettings } from '../../shared/types/settings';
+import { DialogHeader } from './DialogChrome';
 import { SettingsPanel } from './SettingsPanel';
 
 interface SettingsDialogProps {
@@ -41,10 +42,17 @@ export function SettingsDialog({
 }: SettingsDialogProps): ReactElement {
   return (
     <Dialog
-      header="Settings"
+      header={
+        <DialogHeader
+          eyebrow="App"
+          title="Settings"
+          description="Manage defaults, paths, media tools, and diagnostics."
+        />
+      }
       visible={visible}
       className="app-dialog settings-dialog"
       modal
+      draggable={false}
       onHide={onHide}
     >
       <SettingsPanel

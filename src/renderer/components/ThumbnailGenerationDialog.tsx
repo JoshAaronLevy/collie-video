@@ -10,6 +10,7 @@ import type {
   MediaPreviewResult,
   MediaPreviewScope
 } from '../../shared/types/mediaPreview';
+import { DialogFooter, DialogHeader } from './DialogChrome';
 
 interface ThumbnailGenerationDialogProps {
   visible: boolean;
@@ -49,15 +50,15 @@ export function ThumbnailGenerationDialog({
       .filter((item) => item.thumbnail.generated !== true)
       .slice(0, 6) ?? [];
   const footer = result ? (
-    <div className="dialog-actions">
+    <DialogFooter>
       <Button label="Close" icon="pi pi-check" severity="info" onClick={onHide} />
-    </div>
+    </DialogFooter>
   ) : isSubmitting ? (
-    <div className="dialog-actions">
+    <DialogFooter>
       <Button label="Cancel Generation" icon="pi pi-times" severity="danger" onClick={onCancel} />
-    </div>
+    </DialogFooter>
   ) : (
-    <div className="dialog-actions">
+    <DialogFooter>
       <Button label="Cancel" icon="pi pi-times" severity="secondary" outlined onClick={onHide} />
       <Button
         label={hasSelection ? 'Generate' : 'Generate for All'}
@@ -66,16 +67,22 @@ export function ThumbnailGenerationDialog({
         disabled={requestedCount === 0}
         onClick={onSubmit}
       />
-    </div>
+    </DialogFooter>
   );
 
   return (
     <Dialog
-      header={result ? 'Thumbnail Generation Complete' : 'Generate Thumbnails'}
+      header={
+        <DialogHeader
+          eyebrow="Thumbnails"
+          title={result ? 'Generation Complete' : 'Generate Thumbnails'}
+          description="Create cached preview stills for selected rows or the full current table."
+        />
+      }
       visible={visible}
       modal
       draggable={false}
-      className="thumbnail-dialog"
+      className="app-dialog thumbnail-dialog"
       footer={footer}
       onHide={() => {
         if (!isSubmitting) {

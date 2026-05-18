@@ -10,6 +10,7 @@ import type {
   AutoFixProfileId,
   AutoFixResult
 } from '../../shared/types/autoFix';
+import { DialogFooter, DialogHeader } from './DialogChrome';
 
 interface AutoFixDialogProps {
   visible: boolean;
@@ -45,23 +46,27 @@ export function AutoFixDialog({
   const requestedCount = progress?.totalVideos ?? selectedCount;
   const canSubmit = selectedCount > 0 && Boolean(outputDirectory) && !isSubmitting;
   const footer = result ? (
-    <div className="dialog-actions">
-      {activeOutputDirectory ? (
-        <Button
-          label="Reveal Output"
-          icon="pi pi-folder-open"
-          severity="help"
-          onClick={() => onRevealOutputDirectory(activeOutputDirectory)}
-        />
-      ) : null}
+    <DialogFooter
+      left={
+        activeOutputDirectory ? (
+          <Button
+            label="Reveal Output"
+            icon="pi pi-folder-open"
+            severity="secondary"
+            outlined
+            onClick={() => onRevealOutputDirectory(activeOutputDirectory)}
+          />
+        ) : null
+      }
+    >
       <Button label="Close" icon="pi pi-check" severity="info" onClick={onHide} />
-    </div>
+    </DialogFooter>
   ) : isSubmitting ? (
-    <div className="dialog-actions">
+    <DialogFooter>
       <Button label="Cancel Auto-Fix" icon="pi pi-times" severity="danger" onClick={onCancel} />
-    </div>
+    </DialogFooter>
   ) : (
-    <div className="dialog-actions">
+    <DialogFooter>
       <Button label="Cancel" icon="pi pi-times" severity="secondary" outlined onClick={onHide} />
       <Button
         label="Fix Videos"
@@ -70,16 +75,22 @@ export function AutoFixDialog({
         disabled={!canSubmit}
         onClick={onSubmit}
       />
-    </div>
+    </DialogFooter>
   );
 
   return (
     <Dialog
-      header={result ? 'Auto-Fix Complete' : 'Auto-Fix Selected Videos'}
+      header={
+        <DialogHeader
+          eyebrow="Auto-Fix"
+          title={result ? 'Complete' : 'Selected Videos'}
+          description="Normalize selected videos with FFmpeg while leaving source files untouched."
+        />
+      }
       visible={visible}
       modal
       draggable={false}
-      className="auto-fix-dialog"
+      className="app-dialog auto-fix-dialog"
       footer={footer}
       onHide={() => {
         if (!isSubmitting) {

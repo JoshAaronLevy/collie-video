@@ -282,6 +282,98 @@ select {
   width: min(920px, calc(100vw - 40px));
 }
 
+.app-dialog.p-dialog {
+  max-height: calc(100vh - 48px);
+  overflow: hidden;
+  background: #ffffff;
+  border: 1px solid #dbe3ee;
+  border-radius: 14px;
+  box-shadow: 0 24px 70px rgba(15, 23, 42, 0.18);
+}
+
+.app-dialog .p-dialog-header {
+  align-items: flex-start;
+  padding: 1rem 1.1rem 0.9rem;
+  background: #ffffff;
+  border-bottom: 1px solid #e5ebf3;
+}
+
+.app-dialog .p-dialog-content {
+  max-height: min(72vh, 760px);
+  padding: 1rem 1.1rem;
+  overflow-y: auto;
+  background: #ffffff;
+}
+
+.app-dialog .p-dialog-footer {
+  padding: 0.75rem 1.1rem;
+  background: #f8fafc;
+  border-top: 1px solid #e5ebf3;
+}
+
+.dialog-header,
+.dialog-footer,
+.dialog-footer-actions {
+  display: flex;
+  gap: 0.7rem;
+  align-items: center;
+}
+
+.dialog-header {
+  justify-content: space-between;
+  width: 100%;
+  min-width: 0;
+}
+
+.dialog-header > div:first-child {
+  min-width: 0;
+}
+
+.dialog-header h2 {
+  margin: 0;
+  overflow: hidden;
+  color: #172033;
+  font-size: 1.15rem;
+  letter-spacing: 0;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.dialog-header span {
+  display: block;
+  max-width: 42rem;
+  margin-top: 0.18rem;
+  color: #64748b;
+  font-size: 0.84rem;
+  font-weight: 750;
+  line-height: 1.35;
+}
+
+.dialog-header-meta,
+.dialog-footer-left {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.5rem;
+  align-items: center;
+  justify-content: flex-end;
+}
+
+.dialog-footer {
+  justify-content: space-between;
+  width: 100%;
+}
+
+.dialog-footer-left {
+  justify-content: flex-start;
+  min-width: 0;
+}
+
+.dialog-footer-actions {
+  flex-wrap: wrap;
+  justify-content: flex-end;
+  margin-left: auto;
+}
+
 .diagnostics-content {
   display: grid;
   gap: 0.85rem;
@@ -570,8 +662,7 @@ select {
 }
 
 .source-config-counts,
-.source-config-recent-list,
-.source-config-footer {
+.source-config-recent-list {
   display: flex;
   flex-wrap: wrap;
   gap: 0.55rem;
@@ -611,8 +702,7 @@ select {
 }
 
 .source-config-picker .p-button,
-.source-config-recent-list .p-button,
-.source-config-footer .p-button {
+.source-config-recent-list .p-button {
   width: fit-content;
   max-width: 100%;
 }
@@ -667,13 +757,6 @@ select {
   color: #64748b;
   font-family: inherit;
   font-weight: 800;
-}
-
-.source-config-footer {
-  display: grid;
-  grid-template-columns: auto minmax(0, 1fr) auto auto auto;
-  justify-content: end;
-  padding-top: 0.25rem;
 }
 
 .recent-folder-strip {
@@ -1456,6 +1539,10 @@ select {
   width: min(760px, calc(100vw - 32px));
 }
 
+.video-details-dialog {
+  width: min(940px, calc(100vw - 32px));
+}
+
 .migration-dialog,
 .migration-result-dialog {
   width: min(980px, calc(100vw - 32px));
@@ -1469,6 +1556,22 @@ select {
 
 .settings-dialog {
   width: min(860px, calc(100vw - 32px));
+}
+
+.auto-fix-dialog .p-dialog-content,
+.auto-crop-dialog .p-dialog-content,
+.thumbnail-dialog .p-dialog-content {
+  max-height: min(68vh, 620px);
+}
+
+.source-config-dialog .p-dialog-content,
+.settings-dialog .p-dialog-content,
+.diagnostics-dialog .p-dialog-content,
+.utility-dialog .p-dialog-content,
+.migration-dialog .p-dialog-content,
+.migration-result-dialog .p-dialog-content,
+.video-details-dialog .p-dialog-content {
+  max-height: min(74vh, 780px);
 }
 
 .app-dialog .workspace-card.p-card {
@@ -1505,6 +1608,10 @@ select {
   flex-wrap: wrap;
   justify-content: flex-end;
   gap: 0.6rem;
+}
+
+.dialog-actions {
+  width: 100%;
 }
 
 .auto-fix-summary-grid,
@@ -1787,7 +1894,6 @@ select {
   .source-summary-actions .p-button,
   .source-config-picker .p-button,
   .source-config-recent-list .p-button,
-  .source-config-footer .p-button,
   .settings-hero-actions .p-button,
   .results-toolbar-secondary .p-button,
   .selection-action-buttons .p-button,
@@ -1810,18 +1916,22 @@ select {
   .diagnostics-card-header,
   .diagnostics-actions,
   .settings-hero,
-  .settings-hero-actions {
+  .settings-hero-actions,
+  .dialog-header,
+  .dialog-footer,
+  .dialog-footer-actions {
     align-items: flex-start;
     flex-direction: column;
   }
 
-  .source-config-counts,
-  .source-config-footer {
+  .source-config-counts {
     justify-content: flex-start;
   }
 
-  .source-config-footer {
-    display: flex;
+  .dialog-footer-left,
+  .dialog-footer-actions,
+  .dialog-footer .p-button {
+    width: 100%;
   }
 
   .text-setting-row {

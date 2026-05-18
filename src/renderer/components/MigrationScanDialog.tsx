@@ -12,6 +12,7 @@ import type {
   MigrationScanItem,
   MigrationScanResult
 } from '../../shared/types/migration';
+import { DialogFooter, DialogHeader } from './DialogChrome';
 
 interface MigrationScanDialogProps {
   visible: boolean;
@@ -53,7 +54,7 @@ export function MigrationScanDialog({
   const canStartScan = Boolean(auditedRootDirectory && newEditedDir.trim()) && !isBusy;
   const canExecute = Boolean(scan) && executableItems > 0 && !isBusy;
   const footer = scan ? (
-    <div className="dialog-actions">
+    <DialogFooter>
       <Button label="Cancel" icon="pi pi-times" severity="secondary" outlined disabled={isBusy} onClick={onHide} />
       <Button
         label="Copy New Files and Archive Old Copies"
@@ -63,9 +64,9 @@ export function MigrationScanDialog({
         disabled={!canExecute}
         onClick={onExecute}
       />
-    </div>
+    </DialogFooter>
   ) : (
-    <div className="dialog-actions">
+    <DialogFooter>
       <Button label="Cancel" icon="pi pi-times" severity="secondary" outlined disabled={isBusy} onClick={onHide} />
       <Button
         label="Scan New Edits"
@@ -75,16 +76,22 @@ export function MigrationScanDialog({
         disabled={!canStartScan}
         onClick={onStartScan}
       />
-    </div>
+    </DialogFooter>
   );
 
   return (
     <Dialog
-      header="Migrate New Edits"
+      header={
+        <DialogHeader
+          eyebrow="Migration"
+          title="Migrate New Edits"
+          description="Copy new edited videos into the audited destination and archive previous exact filename matches."
+        />
+      }
       visible={visible}
       modal
       draggable={false}
-      className="migration-dialog"
+      className="app-dialog migration-dialog"
       footer={footer}
       onHide={() => {
         if (!isBusy) {

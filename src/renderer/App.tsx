@@ -5,6 +5,7 @@ import { AuditProgressPanel } from './components/AuditProgressPanel';
 import { AutoCropDialog } from './components/AutoCropDialog';
 import { AutoFixDialog } from './components/AutoFixDialog';
 import { DiagnosticsDialog } from './components/DiagnosticsDialog';
+import { DialogHeader } from './components/DialogChrome';
 import { MigrationResultDialog } from './components/MigrationResultDialog';
 import { MigrationScanDialog } from './components/MigrationScanDialog';
 import { ResultsToolbar } from './components/ResultsToolbar';
@@ -181,10 +182,17 @@ export function App(): ReactElement {
       />
 
       <Dialog
-        header="Utilities"
+        header={
+          <DialogHeader
+            eyebrow="Utilities"
+            title="Discovery"
+            description="Run supporting discovery and metadata reads without leaving the results workspace."
+          />
+        }
         visible={isUtilitiesVisible}
         className="app-dialog utility-dialog"
         modal
+        draggable={false}
         onHide={() => setIsUtilitiesVisible(false)}
       >
         <UtilityPanel

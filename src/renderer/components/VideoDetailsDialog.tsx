@@ -6,6 +6,7 @@ import { ProgressBar } from 'primereact/progressbar';
 import { Tag } from 'primereact/tag';
 import type { PreviewClipJobSnapshot } from '../../shared/types/mediaPreview';
 import type { VideoPreviewFrame, VideoRow } from '../../shared/types/video';
+import { DialogHeader } from './DialogChrome';
 
 interface VideoDetailsDialogProps {
   visible: boolean;
@@ -56,10 +57,17 @@ export function VideoDetailsDialog({
 
   return (
     <Dialog
-      header={video?.fileName ?? 'Video Details'}
+      header={
+        <DialogHeader
+          eyebrow="Result Details"
+          title={video?.fileName ?? 'Video Details'}
+          description="Inspect preview frames, key media facts, and preview clip generation."
+        />
+      }
       visible={visible}
       modal
-      className="video-details-dialog"
+      draggable={false}
+      className="app-dialog video-details-dialog"
       onHide={onHide}
     >
       {video ? (

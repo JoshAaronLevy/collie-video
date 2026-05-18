@@ -5,6 +5,7 @@ import { Dialog } from 'primereact/dialog';
 import { Message } from 'primereact/message';
 import { Tag } from 'primereact/tag';
 import type { AuditOptions } from '../../shared/types/audit';
+import { DialogFooter, DialogHeader } from './DialogChrome';
 
 interface SourceConfigDialogProps {
   visible: boolean;
@@ -54,13 +55,54 @@ export function SourceConfigDialog({
   onHide
 }: SourceConfigDialogProps): ReactElement {
   const sourceCount = selectedFolders.length + selectedFiles.length;
+  const footer = (
+    <DialogFooter
+      left={
+        <Button
+          label="Clear Sources"
+          icon="pi pi-times"
+          severity="danger"
+          outlined
+          disabled={sourceCount === 0 || isAuditActive}
+          onClick={onClearSelectedSources}
+        />
+      }
+    >
+      <Button label="Cancel" icon="pi pi-ban" severity="secondary" outlined onClick={onHide} />
+      <Button label="Apply" icon="pi pi-check" severity="info" outlined onClick={onHide} />
+      {isAuditActive ? (
+        <Button
+          label="Cancel Audit"
+          icon="pi pi-times"
+          severity="danger"
+          onClick={onCancelAudit}
+        />
+      ) : (
+        <Button
+          label="Run Audit"
+          icon="pi pi-verified"
+          severity="success"
+          disabled={!canRunAudit}
+          onClick={onRunAudit}
+        />
+      )}
+    </DialogFooter>
+  );
 
   return (
     <Dialog
-      header="Configure Sources"
+      header={
+        <DialogHeader
+          eyebrow="Sources"
+          title="Configure Sources"
+          description="Choose audit inputs, output location, and scan options."
+        />
+      }
       visible={visible}
       className="app-dialog source-config-dialog"
       modal
+      draggable={false}
+      footer={footer}
       onHide={onHide}
     >
       <div className="source-config-content">
@@ -221,35 +263,6 @@ export function SourceConfigDialog({
 
         {selectionMessage ? <Message severity="warn" text={selectionMessage} /> : null}
         {workflowMessage ? <Message severity="info" text={workflowMessage} /> : null}
-
-        <div className="source-config-footer">
-          <Button
-            label="Clear Sources"
-            icon="pi pi-times"
-            severity="danger"
-            disabled={sourceCount === 0 || isAuditActive}
-            onClick={onClearSelectedSources}
-          />
-          <span />
-          <Button label="Cancel" icon="pi pi-ban" severity="secondary" onClick={onHide} />
-          <Button label="Apply" icon="pi pi-check" severity="info" onClick={onHide} />
-          {isAuditActive ? (
-            <Button
-              label="Cancel Audit"
-              icon="pi pi-times"
-              severity="danger"
-              onClick={onCancelAudit}
-            />
-          ) : (
-            <Button
-              label="Run Audit"
-              icon="pi pi-verified"
-              severity="success"
-              disabled={!canRunAudit}
-              onClick={onRunAudit}
-            />
-          )}
-        </div>
       </div>
     </Dialog>
   );

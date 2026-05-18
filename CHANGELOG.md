@@ -7,6 +7,16 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.26.0] - 2026-05-17
+
+### Added
+
+- Added shared dialog header and footer chrome for major renderer dialogs.
+
+### Changed
+
+- Standardized dialog spacing, scroll behavior, max heights, and primary/secondary action placement across source setup, settings, diagnostics, Auto-Fix, Auto-Crop, thumbnail, migration, utility, and video-details dialogs.
+
 ## [0.25.0] - 2026-05-17
 
 ### Added

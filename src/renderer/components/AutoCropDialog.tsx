@@ -10,6 +10,7 @@ import type {
   AutoCropResultItem
 } from '../../shared/types/autoCrop';
 import type { CropRectangle, VideoRow } from '../../shared/types/video';
+import { DialogFooter, DialogHeader } from './DialogChrome';
 
 interface AutoCropDialogProps {
   visible: boolean;
@@ -56,23 +57,27 @@ export function AutoCropDialog({
       .slice(0, 8) ?? [];
   const canSubmit = selectedCount > 0 && Boolean(outputRootDir) && !isSubmitting;
   const footer = result ? (
-    <div className="dialog-actions">
-      {activeOutputDir ? (
-        <Button
-          label="Reveal Output"
-          icon="pi pi-folder-open"
-          severity="help"
-          onClick={() => onRevealOutputDir(activeOutputDir)}
-        />
-      ) : null}
+    <DialogFooter
+      left={
+        activeOutputDir ? (
+          <Button
+            label="Reveal Output"
+            icon="pi pi-folder-open"
+            severity="secondary"
+            outlined
+            onClick={() => onRevealOutputDir(activeOutputDir)}
+          />
+        ) : null
+      }
+    >
       <Button label="Close" icon="pi pi-check" severity="info" onClick={onHide} />
-    </div>
+    </DialogFooter>
   ) : isSubmitting ? (
-    <div className="dialog-actions">
+    <DialogFooter>
       <Button label="Cancel Auto-Crop" icon="pi pi-times" severity="danger" onClick={onCancel} />
-    </div>
+    </DialogFooter>
   ) : (
-    <div className="dialog-actions">
+    <DialogFooter>
       <Button label="Cancel" icon="pi pi-times" severity="secondary" outlined onClick={onHide} />
       <Button
         label="Crop Videos"
@@ -81,16 +86,22 @@ export function AutoCropDialog({
         disabled={!canSubmit}
         onClick={onSubmit}
       />
-    </div>
+    </DialogFooter>
   );
 
   return (
     <Dialog
-      header={result ? 'Auto-Crop Complete' : 'Auto-Crop Selected Videos'}
+      header={
+        <DialogHeader
+          eyebrow="Crop Options"
+          title={result ? 'Complete' : 'Auto-Crop Selected Videos'}
+          description="Create cropped 1920x1080 copies for eligible review candidates."
+        />
+      }
       visible={visible}
       modal
       draggable={false}
-      className="auto-crop-dialog"
+      className="app-dialog auto-crop-dialog"
       footer={footer}
       onHide={() => {
         if (!isSubmitting) {
@@ -114,9 +125,7 @@ export function AutoCropDialog({
               severity="info"
               text="Eligible videos are copied to 1920x1080 cropped outputs. Source files are not modified."
             />
-            {skippedPreview.length > 0 ? (
-              <AutoCropItemList title="Skipped" items={skippedPreview} />
-            ) : null}
+            {skippedPreview.length > 0 ? <AutoCropItemList title="Skipped" items={skippedPreview} /> : null}
           </>
         ) : null}
 

@@ -8,6 +8,7 @@ import type { AuditJobSnapshot } from '../../shared/types/audit';
 import type { ToolDiagnosticItem, ToolDiagnosticsResult } from '../../shared/types/diagnostics';
 import type { PremiereStatusResponse } from '../../shared/types/premiere';
 import type { AppSettings } from '../../shared/types/settings';
+import { DialogHeader } from './DialogChrome';
 
 interface DiagnosticsDialogProps {
   visible: boolean;
@@ -54,10 +55,17 @@ export function DiagnosticsDialog({
 
   return (
     <Dialog
-      header="Diagnostics"
+      header={
+        <DialogHeader
+          eyebrow="Diagnostics"
+          title="Runtime Details"
+          description="Inspect current jobs, Premiere bridge status, media tools, and local app paths."
+        />
+      }
       visible={visible}
       className="app-dialog diagnostics-dialog"
       modal
+      draggable={false}
       onHide={onHide}
     >
       <div className="diagnostics-content">

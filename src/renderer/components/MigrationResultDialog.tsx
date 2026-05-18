@@ -9,6 +9,7 @@ import type {
   MigrationResultItem,
   MigrationScanResult
 } from '../../shared/types/migration';
+import { DialogFooter, DialogHeader } from './DialogChrome';
 
 interface MigrationResultDialogProps {
   visible: boolean;
@@ -30,26 +31,36 @@ export function MigrationResultDialog({
   const failedItems = result?.items.filter((item) => item.status === 'failed') ?? [];
   const archiveRunDir = result?.archiveRunDir ?? scan?.archiveRunDir ?? null;
   const footer = (
-    <div className="dialog-actions">
-      {archiveRunDir ? (
-        <Button
-          label="Reveal Archive"
-          icon="pi pi-folder-open"
-          severity="help"
-          onClick={() => onRevealPath(archiveRunDir)}
-        />
-      ) : null}
+    <DialogFooter
+      left={
+        archiveRunDir ? (
+          <Button
+            label="Reveal Archive"
+            icon="pi pi-folder-open"
+            severity="secondary"
+            outlined
+            onClick={() => onRevealPath(archiveRunDir)}
+          />
+        ) : null
+      }
+    >
       <Button label="Close" icon="pi pi-check" severity="info" onClick={onHide} />
-    </div>
+    </DialogFooter>
   );
 
   return (
     <Dialog
-      header={result ? 'Migration Complete' : 'Migration Result'}
+      header={
+        <DialogHeader
+          eyebrow="Migration"
+          title={result ? 'Complete' : 'Result'}
+          description="Review copied files, archived matches, manifest output, and any failures."
+        />
+      }
       visible={visible}
       modal
       draggable={false}
-      className="migration-result-dialog"
+      className="app-dialog migration-result-dialog"
       footer={footer}
       onHide={onHide}
     >
