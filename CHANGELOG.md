@@ -7,6 +7,14 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.40.0] - 2026-05-18
+
+### Added
+
+- Added an Operation History dialog for recent trash, move, archive, and replacement operations.
+- Added itemized operation detail views with status summaries, diagnostics, relevant path reveal actions, and copyable summaries.
+- Added a History action in the app header backed by the existing typed operation-history preload API.
+
 ## [0.39.0] - 2026-05-18
 
 ### Added

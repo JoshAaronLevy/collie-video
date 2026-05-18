@@ -10,6 +10,7 @@ import { FileOperationConfirmDialog } from './components/FileOperationConfirmDia
 import { FileOperationResultDialog } from './components/FileOperationResultDialog';
 import { MigrationResultDialog } from './components/MigrationResultDialog';
 import { MigrationScanDialog } from './components/MigrationScanDialog';
+import { OperationHistoryDialog } from './components/OperationHistoryDialog';
 import { PostConversionDialog } from './components/PostConversionDialog';
 import { ResultsToolbar } from './components/ResultsToolbar';
 import { SelectionActionBar } from './components/SelectionActionBar';
@@ -45,6 +46,7 @@ export function App(): ReactElement {
         visibleVideoCount={controller.visibleVideoRows.length}
         selectedVideoCount={controller.selectedVideos.length}
         premiereStatus={controller.premiereStatus}
+        onOpenOperationHistory={controller.openOperationHistory}
         onOpenUtilities={() => setIsUtilitiesVisible(true)}
         onOpenSettings={() => setIsSettingsVisible(true)}
       />
@@ -247,6 +249,18 @@ export function App(): ReactElement {
         onHide={() => setIsDiagnosticsVisible(false)}
         onRefreshPremiereStatus={controller.refreshPremiereStatus}
         onRunToolDiagnostics={controller.runToolDiagnostics}
+      />
+
+      <OperationHistoryDialog
+        visible={controller.isOperationHistoryVisible}
+        records={controller.operationHistoryRecords}
+        selectedRecord={controller.selectedOperationHistoryRecord}
+        isLoading={controller.isOperationHistoryLoading}
+        error={controller.operationHistoryError}
+        onRefresh={controller.refreshOperationHistory}
+        onSelectRecord={controller.selectOperationHistoryRecord}
+        onRevealPath={controller.revealPath}
+        onHide={controller.closeOperationHistory}
       />
 
       <SettingsDialog

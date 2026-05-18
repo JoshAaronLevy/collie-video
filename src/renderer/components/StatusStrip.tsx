@@ -133,6 +133,16 @@ function formatAction(action: string): string {
     previewClip: 'Preview clips running',
     migrationScan: 'Migration scan',
     migrationExecute: 'Migration running',
+    trashPlan: 'Planning trash',
+    trashExecute: 'Moving to Trash',
+    movePlan: 'Planning move',
+    moveExecute: 'Moving files',
+    archivePlan: 'Planning archive',
+    archiveExecute: 'Archiving files',
+    replacementPlan: 'Planning replacement',
+    replacementUpdate: 'Updating replacement',
+    replacementExecute: 'Replacement running',
+    operationHistory: 'Loading history',
     premiereStatus: 'Checking Premiere',
     premiereImport: 'Premiere import'
   };

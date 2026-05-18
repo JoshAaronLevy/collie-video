@@ -44,6 +44,7 @@ import type {
   MigrationResult,
   MigrationScanResult
 } from '../../shared/types/migration';
+import type { OperationHistoryRecord } from '../../shared/types/operationHistory';
 import type {
   ReplacementAction,
   ReplacementExecutionJobSnapshot,
@@ -83,6 +84,7 @@ type ActiveAction =
   | 'replacementPlan'
   | 'replacementUpdate'
   | 'replacementExecute'
+  | 'operationHistory'
   | 'premiereStatus'
   | 'premiereImport'
   | null;
@@ -223,6 +225,11 @@ export interface VideoAuditAppController {
   replacementResultError: string | null;
   isReplacementExecuting: boolean;
   isReplacementResultDialogVisible: boolean;
+  operationHistoryRecords: OperationHistoryRecord[];
+  selectedOperationHistoryRecord: OperationHistoryRecord | null;
+  operationHistoryError: string | null;
+  isOperationHistoryVisible: boolean;
+  isOperationHistoryLoading: boolean;
   canStartMigration: boolean;
   premiereStatus: PremiereStatusResponse | null;
   premiereStatusError: string | null;
@@ -301,6 +308,10 @@ export interface VideoAuditAppController {
   closePostConversionDialog: () => void;
   cancelReplacementExecution: () => Promise<void>;
   closeReplacementResultDialog: () => void;
+  openOperationHistory: () => Promise<void>;
+  closeOperationHistory: () => void;
+  refreshOperationHistory: () => Promise<void>;
+  selectOperationHistoryRecord: (operationId: string) => Promise<void>;
   refreshPremiereStatus: () => Promise<void>;
   editSelectedInPremiere: () => Promise<void>;
 }
@@ -397,6 +408,10 @@ export function useVideoAuditAppController(): VideoAuditAppController {
   const [replacementResult, setReplacementResult] = useState<FileOperationResult | null>(null);
   const [replacementResultError, setReplacementResultError] = useState<string | null>(null);
   const [isReplacementResultDialogVisible, setIsReplacementResultDialogVisible] = useState(false);
+  const [operationHistoryRecords, setOperationHistoryRecords] = useState<OperationHistoryRecord[]>([]);
+  const [selectedOperationHistoryRecord, setSelectedOperationHistoryRecord] = useState<OperationHistoryRecord | null>(null);
+  const [operationHistoryError, setOperationHistoryError] = useState<string | null>(null);
+  const [isOperationHistoryVisible, setIsOperationHistoryVisible] = useState(false);
   const [premiereStatus, setPremiereStatus] = useState<PremiereStatusResponse | null>(null);
   const [premiereStatusError, setPremiereStatusError] = useState<string | null>(null);
   const [isPremiereStatusLoading, setIsPremiereStatusLoading] = useState(false);
@@ -670,6 +685,7 @@ export function useVideoAuditAppController(): VideoAuditAppController {
     replacementProgress?.status === 'starting' ||
     replacementProgress?.status === 'running';
   const isReplacementActive = isReplacementPlanning || isReplacementActionUpdating || isReplacementExecuting;
+  const isOperationHistoryLoading = activeAction === 'operationHistory';
   const isPremiereImportActive = activeAction === 'premiereImport' || isPremiereImportSubmitting;
   const auditPercent = getProgressPercent(auditProgress?.processedFiles, auditProgress?.totalFiles);
   const discoveryPercent = getProgressPercent(
@@ -1788,6 +1804,76 @@ export function useVideoAuditAppController(): VideoAuditAppController {
     setReplacementResultError(null);
   }, []);
 
+  const loadOperationHistory = useCallback(async (): Promise<void> => {
+    setOperationHistoryError(null);
+    setActiveAction('operationHistory');
+
+    try {
+      const response = await window.videoAudit.operationHistory.listRecent({
+        limit: 50
+      });
+
+      if (response.status !== 'success') {
+        setOperationHistoryError(response.message ?? 'Could not load operation history.');
+        return;
+      }
+
+      setOperationHistoryRecords(response.records);
+      setSelectedOperationHistoryRecord((current) => {
+        if (current && response.records.some((record) => record.id === current.id)) {
+          return current;
+        }
+
+        return response.records[0] ?? null;
+      });
+    } catch (error: unknown) {
+      setOperationHistoryError(getErrorMessage(error, 'Could not load operation history.'));
+    } finally {
+      setActiveAction(null);
+    }
+  }, []);
+
+  const openOperationHistory = useCallback(async (): Promise<void> => {
+    setIsOperationHistoryVisible(true);
+    await loadOperationHistory();
+  }, [loadOperationHistory]);
+
+  const closeOperationHistory = useCallback((): void => {
+    if (isOperationHistoryLoading) {
+      return;
+    }
+
+    setIsOperationHistoryVisible(false);
+    setOperationHistoryError(null);
+  }, [isOperationHistoryLoading]);
+
+  const refreshOperationHistory = useCallback(async (): Promise<void> => {
+    await loadOperationHistory();
+  }, [loadOperationHistory]);
+
+  const selectOperationHistoryRecord = useCallback(async (operationId: string): Promise<void> => {
+    setOperationHistoryError(null);
+    setActiveAction('operationHistory');
+
+    try {
+      const response = await window.videoAudit.operationHistory.getDetails(operationId);
+
+      if (response.status !== 'success' || !response.record) {
+        setOperationHistoryError(response.message ?? 'Could not load operation details.');
+        return;
+      }
+
+      setSelectedOperationHistoryRecord(response.record);
+      setOperationHistoryRecords((records) =>
+        records.map((record) => (record.id === response.record?.id ? response.record : record))
+      );
+    } catch (error: unknown) {
+      setOperationHistoryError(getErrorMessage(error, 'Could not load operation details.'));
+    } finally {
+      setActiveAction(null);
+    }
+  }, []);
+
   useEffect(() => {
     return window.videoAudit.autoFix.onProgress((progress) => {
       setAutoFixProgress(progress);
@@ -2795,6 +2881,11 @@ export function useVideoAuditAppController(): VideoAuditAppController {
       return;
     }
 
+    if (isOperationHistoryVisible) {
+      closeOperationHistory();
+      return;
+    }
+
     if (isTrashConfirmDialogVisible) {
       closeTrashDialog();
       return;
@@ -2858,6 +2949,7 @@ export function useVideoAuditAppController(): VideoAuditAppController {
     closeMigrationResultDialog,
     closeMoveDialog,
     closeMoveResultDialog,
+    closeOperationHistory,
     closePostConversionDialog,
     closeReplacementResultDialog,
     closeTrashDialog,
@@ -2875,6 +2967,7 @@ export function useVideoAuditAppController(): VideoAuditAppController {
     isMigrationScanDialogVisible,
     isMoveConfirmDialogVisible,
     isMoveResultDialogVisible,
+    isOperationHistoryVisible,
     isPostConversionDialogVisible,
     isPreviewClipActive,
     isReplacementExecuting,
@@ -3110,6 +3203,11 @@ export function useVideoAuditAppController(): VideoAuditAppController {
     replacementResultError,
     isReplacementExecuting,
     isReplacementResultDialogVisible,
+    operationHistoryRecords,
+    selectedOperationHistoryRecord,
+    operationHistoryError,
+    isOperationHistoryVisible,
+    isOperationHistoryLoading,
     canStartMigration,
     premiereStatus,
     premiereStatusError,
@@ -3188,6 +3286,10 @@ export function useVideoAuditAppController(): VideoAuditAppController {
     closePostConversionDialog,
     cancelReplacementExecution,
     closeReplacementResultDialog,
+    openOperationHistory,
+    closeOperationHistory,
+    refreshOperationHistory,
+    selectOperationHistoryRecord,
     refreshPremiereStatus,
     editSelectedInPremiere
   };
