@@ -7,6 +7,13 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.23.0] - 2026-05-17
+
+### Changed
+
+- Reworked the selected-row action bar so primary row workflows appear only when rows are selected.
+- Moved lower-frequency and destructive row actions into a `More` menu while preserving thumbnail generation, migration, remove, and restore workflows.
+
 ## [0.22.0] - 2026-05-17
 
 ### Changed
