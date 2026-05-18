@@ -7,6 +7,12 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.50.1] - 2026-05-18
+
+### Added
+
+- Documented the folder-tree source selection flow, eager-scan semantics, selected-folder dedupe, include-subfolders behavior, no-cache design, and manual verification checklist.
+
 ## [0.50.0] - 2026-05-18
 
 ### Added

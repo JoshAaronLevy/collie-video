@@ -100,6 +100,8 @@ The current app includes:
 - JSON-backed local app settings stored under Electron's user data directory
 - Electron-native core audits for selected folders and selected files
 - include/exclude subfolders controls for folder audits
+- PrimeReact TreeTable folder source selection with eager main-process scanning,
+  selected-folder dedupe, persisted source selections, and no folder-tree cache
 - cancellable discovery, ffprobe metadata extraction, and audit progress through IPC
 - low-resolution and wrong-aspect-ratio detection using per-file ffprobe results
 - optional black-border analysis using ffmpeg cropdetect
@@ -126,3 +128,12 @@ The current app includes:
 File-management workflows are intentionally limited to files the app already understands. The renderer only calls typed preload APIs, while the Electron main process validates paths, builds dry-run plans, executes file moves, and records operation history.
 
 The app does not permanently delete files, delete directories, use recursive deletion, or overwrite destination files by default. Destructive cleanup uses macOS Trash, and replacement workflows require review and confirmation before originals are moved.
+
+## Folder Tree Source Selection
+
+Folder source selection is documented in `docs/folder-tree-source-selection.md`.
+The flow intentionally scans the full folder tree eagerly in the Electron main
+process, returns folder-only nodes with supported-video counts and sizes, and
+lets the renderer expand/select already-loaded folders without additional
+filesystem calls. The scanned tree is not cached; saved source selections can be
+restored, and the root can be rescanned manually.
