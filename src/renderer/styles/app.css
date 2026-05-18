@@ -396,12 +396,44 @@ select {
 }
 
 .results-toolbar {
-  justify-content: space-between;
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  gap: 0.75rem;
+  align-items: center;
   padding: 0.65rem 0.75rem;
 }
 
-.results-toolbar-actions {
+.results-toolbar-primary,
+.results-toolbar-secondary {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.6rem;
+  align-items: center;
+  min-width: 0;
+}
+
+.results-toolbar-primary {
+  flex: 1 1 auto;
+}
+
+.results-toolbar-secondary {
   justify-content: flex-end;
+}
+
+.results-view-filter {
+  min-width: 0;
+}
+
+.results-view-filter .p-button {
+  min-width: 4.7rem;
+  padding-inline: 0.7rem;
+}
+
+.results-filter-count {
+  color: #64748b;
+  font-size: 0.82rem;
+  font-weight: 800;
+  white-space: nowrap;
 }
 
 .selection-action-bar {
@@ -1413,12 +1445,14 @@ select {
 
 @media (max-width: 1320px) {
   .source-summary-bar,
+  .results-toolbar,
   .selection-action-bar {
     grid-template-columns: 1fr;
   }
 
   .source-option-strip,
   .source-summary-actions,
+  .results-toolbar-secondary,
   .selection-action-buttons {
     justify-content: flex-start;
   }
@@ -1468,11 +1502,22 @@ select {
   .source-config-picker .p-button,
   .source-config-recent-list .p-button,
   .source-config-footer .p-button,
-  .results-toolbar-actions .p-button,
+  .results-toolbar-secondary .p-button,
   .selection-action-buttons .p-button,
   .diagnostics-actions .p-button,
   .side-actions .p-button {
     width: 100%;
+  }
+
+  .results-toolbar-primary,
+  .results-toolbar-secondary {
+    align-items: stretch;
+    flex-direction: column;
+  }
+
+  .results-view-filter {
+    max-width: 100%;
+    overflow-x: auto;
   }
 
   .diagnostics-card-header,

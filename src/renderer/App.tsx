@@ -81,19 +81,22 @@ export function App(): ReactElement {
         <section className="results-workspace" aria-label="Results workspace">
           <ResultsToolbar
             globalFilter={controller.globalFilter}
+            resultsViewFilter={controller.resultsViewFilter}
+            resultsViewCounts={controller.resultsViewCounts}
             showThumbnails={controller.showThumbnails}
             isAuditActive={controller.isAuditActive}
             isStorageLoading={controller.isStorageLoading}
             canRefreshAudit={controller.canRefreshAudit}
             hasAuditData={hasAuditData}
             onGlobalFilterChange={controller.setGlobalFilter}
+            onResultsViewFilterChange={controller.setResultsViewFilter}
             onShowThumbnailsChange={controller.setShowThumbnails}
             onRefreshAudit={controller.refreshAudit}
             onClearData={controller.clearAuditData}
           />
 
           <VideoResultsTable
-            rows={controller.visibleVideoRows}
+            rows={controller.filteredVideoRows}
             allRows={controller.videoRows}
             selectedVideos={controller.selectedVideos}
             globalFilter={controller.globalFilter}

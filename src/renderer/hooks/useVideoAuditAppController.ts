@@ -42,6 +42,7 @@ import {
   loadStoredAuditResult,
   saveStoredAuditResult
 } from '../storage/auditResultStorage';
+import type { ResultsViewCounts, ResultsViewFilter } from '../types/resultsView';
 
 type ActiveAction =
   | 'folders'
@@ -92,9 +93,12 @@ export interface VideoAuditAppController {
   auditErrors: AuditResult['errors'];
   videoRows: VideoRow[] | null;
   visibleVideoRows: VideoRow[];
+  filteredVideoRows: VideoRow[];
   removedVideoCount: number;
   selectedVideos: VideoRow[];
   globalFilter: string;
+  resultsViewFilter: ResultsViewFilter;
+  resultsViewCounts: ResultsViewCounts;
   showThumbnails: boolean;
   isAuditActive: boolean;
   isDiscoveryActive: boolean;
@@ -178,6 +182,7 @@ export interface VideoAuditAppController {
   restoreRemovedVideos: () => Promise<void>;
   setSelectedVideos: (videos: VideoRow[]) => void;
   setGlobalFilter: (value: string) => void;
+  setResultsViewFilter: (value: ResultsViewFilter) => void;
   setShowThumbnails: (value: boolean) => Promise<void>;
   startDiscovery: () => Promise<void>;
   cancelDiscovery: () => Promise<void>;
@@ -233,6 +238,7 @@ export function useVideoAuditAppController(): VideoAuditAppController {
   const [videoRows, setVideoRows] = useState<VideoRow[] | null>(null);
   const [selectedVideos, setSelectedVideos] = useState<VideoRow[]>([]);
   const [globalFilter, setGlobalFilter] = useState('');
+  const [resultsViewFilter, setResultsViewFilter] = useState<ResultsViewFilter>('all');
   const [showThumbnailsState, setShowThumbnailsState] = useState(true);
   const [isStorageLoading, setIsStorageLoading] = useState(true);
   const [storageMessage, setStorageMessage] = useState<string | null>(null);
@@ -483,6 +489,14 @@ export function useVideoAuditAppController(): VideoAuditAppController {
   const visibleVideoRows = useMemo(
     () => (videoRows ?? []).filter((row) => row.visible !== false),
     [videoRows]
+  );
+  const resultsViewCounts = useMemo(
+    () => getResultsViewCounts(visibleVideoRows),
+    [visibleVideoRows]
+  );
+  const filteredVideoRows = useMemo(
+    () => visibleVideoRows.filter((row) => matchesResultsViewFilter(row, resultsViewFilter)),
+    [resultsViewFilter, visibleVideoRows]
   );
   const auditedRootDirectory = useMemo(
     () => getAuditedRootDirectory(lastAuditRequest, auditSummary),
@@ -1228,6 +1242,7 @@ export function useVideoAuditAppController(): VideoAuditAppController {
     setVideoRows(null);
     setSelectedVideos([]);
     setGlobalFilter('');
+    setResultsViewFilter('all');
     setSelectedFolders([]);
     setSelectedFiles([]);
     setDiscoveryProgress(null);
@@ -2032,9 +2047,12 @@ export function useVideoAuditAppController(): VideoAuditAppController {
     auditErrors,
     videoRows,
     visibleVideoRows,
+    filteredVideoRows,
     removedVideoCount,
     selectedVideos,
     globalFilter,
+    resultsViewFilter,
+    resultsViewCounts,
     showThumbnails: showThumbnailsState,
     isAuditActive,
     isDiscoveryActive,
@@ -2118,6 +2136,7 @@ export function useVideoAuditAppController(): VideoAuditAppController {
     restoreRemovedVideos,
     setSelectedVideos,
     setGlobalFilter,
+    setResultsViewFilter,
     setShowThumbnails,
     startDiscovery,
     cancelDiscovery,
@@ -2282,6 +2301,69 @@ function getAuditedRootDirectory(
   }
 
   return summaryPath;
+}
+
+function getResultsViewCounts(rows: VideoRow[]): ResultsViewCounts {
+  return {
+    all: rows.length,
+    flagged: rows.filter(isFlaggedRow).length,
+    'low-res': rows.filter((row) => row.isLowResolution).length,
+    aspect: rows.filter((row) => row.isWrongAspectRatio).length,
+    crop: rows.filter(hasCropIssue).length,
+    errors: rows.filter(hasRowError).length
+  };
+}
+
+function matchesResultsViewFilter(row: VideoRow, filter: ResultsViewFilter): boolean {
+  switch (filter) {
+    case 'flagged':
+      return isFlaggedRow(row);
+    case 'low-res':
+      return row.isLowResolution;
+    case 'aspect':
+      return row.isWrongAspectRatio;
+    case 'crop':
+      return hasCropIssue(row);
+    case 'errors':
+      return hasRowError(row);
+    case 'all':
+      return true;
+  }
+}
+
+function isFlaggedRow(row: VideoRow): boolean {
+  return row.isLowResolution || row.isWrongAspectRatio || hasCropIssue(row) || hasRowError(row) || Boolean(row.reasons);
+}
+
+function hasCropIssue(row: VideoRow): boolean {
+  const blackBorder = row.adjustments?.blackBorder;
+
+  if (!blackBorder?.analyzed) {
+    return false;
+  }
+
+  return (
+    blackBorder.detected ||
+    blackBorder.classification === 'nested_borders' ||
+    blackBorder.classification === 'asymmetric_border' ||
+    blackBorder.classification === 'pillarboxed' ||
+    blackBorder.classification === 'letterboxed' ||
+    blackBorder.classification === 'uncertain' ||
+    blackBorder.classification === 'analysis_error' ||
+    blackBorder.recommendedFix?.eligible === true ||
+    blackBorder.recommendedFix?.type === 'crop-scale' ||
+    blackBorder.recommendedFix?.type === 'manual-review'
+  );
+}
+
+function hasRowError(row: VideoRow): boolean {
+  const blackBorder = row.adjustments?.blackBorder;
+
+  return (
+    Boolean(blackBorder?.error) ||
+    blackBorder?.classification === 'analysis_error' ||
+    row.reasons.toLowerCase().includes('error')
+  );
 }
 
 function settingsToAuditOptions(settings: AppSettings): AuditOptions {
