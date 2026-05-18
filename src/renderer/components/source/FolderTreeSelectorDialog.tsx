@@ -70,18 +70,55 @@ export function FolderTreeSelectorDialog({
   const isScanning = Boolean(scanId) && !scanResult;
   const isBusy = isChoosingRoot || isStartingScan || isScanning || isCancelingScan || isConfirming;
   const friendlyError = error ? getFolderTreeErrorMessage(error) : null;
+  const effectiveRootPath = rootPath ?? scanResult?.root.path ?? null;
   const displayRootPath = rootPath
     ? formatMiddleTruncatedPath(rootPath, MAX_FOLDER_TREE_DISPLAY_PATH_LENGTH)
     : 'No root selected';
   const confirmLabel =
     selectedSummary.dedupedFolderCount > 0 ? 'Use Selected Folders' : 'Select Folders to Continue';
-  const canConfirm =
-    Boolean(rootPath) &&
-    Boolean(scanResult) &&
-    selectedSummary.dedupedFolderCount > 0 &&
-    !isAuditActive &&
-    !isScanning &&
-    !isConfirming;
+  const confirmDisabledReason = getConfirmDisabledReason({
+    effectiveRootPath,
+    hasScanResult: Boolean(scanResult),
+    selectedFolderCount: selectedSummary.dedupedFolderCount,
+    isScanning,
+    isConfirming
+  });
+  const canConfirm = confirmDisabledReason === null;
+
+  useEffect(() => {
+    if (
+      !visible ||
+      selectedSummary.dedupedFolderCount === 0 ||
+      canConfirm ||
+      confirmDisabledReason === 'confirming_selection' ||
+      confirmDisabledReason === 'tree_scan_running'
+    ) {
+      return;
+    }
+
+    console.info('[FolderTreeSelectorDialog] Selected folders exist but confirmation is disabled.', {
+      reason: confirmDisabledReason,
+      rootPath,
+      scanResultRootPath: scanResult?.root.path ?? null,
+      hasScanResult: Boolean(scanResult),
+      isAuditActiveReceived: isAuditActive,
+      isScanning,
+      isConfirming,
+      selectedFolderCount: selectedSummary.selectedFolderCount,
+      dedupedFolderCount: selectedSummary.dedupedFolderCount,
+      selectedFolderPaths: selectedSummary.dedupedFolderPaths.slice(0, 5)
+    });
+  }, [
+    canConfirm,
+    confirmDisabledReason,
+    isAuditActive,
+    isConfirming,
+    isScanning,
+    rootPath,
+    scanResult,
+    selectedSummary,
+    visible
+  ]);
 
   const clearScannedTreeState = useCallback((): void => {
     activeScanIdRef.current = null;
@@ -292,7 +329,7 @@ export function FolderTreeSelectorDialog({
   }, [cancelActiveScan, clearScannedTreeState, onHide]);
 
   const handleConfirm = useCallback(async (): Promise<void> => {
-    if (!rootPath || !canConfirm) {
+    if (!effectiveRootPath || !canConfirm) {
       return;
     }
 
@@ -301,7 +338,7 @@ export function FolderTreeSelectorDialog({
 
     try {
       await onConfirm({
-        rootPath,
+        rootPath: effectiveRootPath,
         selectedFolderPaths: selectedSummary.dedupedFolderPaths,
         summary: selectedSummary,
         lastScannedAt: scanResult?.generatedAt ?? null
@@ -313,7 +350,15 @@ export function FolderTreeSelectorDialog({
     } finally {
       setIsConfirming(false);
     }
-  }, [canConfirm, clearScannedTreeState, onConfirm, onHide, rootPath, scanResult?.generatedAt, selectedSummary]);
+  }, [
+    canConfirm,
+    clearScannedTreeState,
+    effectiveRootPath,
+    onConfirm,
+    onHide,
+    scanResult?.generatedAt,
+    selectedSummary
+  ]);
 
   const footer = (
     <DialogFooter
@@ -640,6 +685,42 @@ function FolderTreeSelectedSummary({
       </strong>
     </section>
   );
+}
+
+function getConfirmDisabledReason({
+  effectiveRootPath,
+  hasScanResult,
+  selectedFolderCount,
+  isScanning,
+  isConfirming
+}: {
+  effectiveRootPath: string | null;
+  hasScanResult: boolean;
+  selectedFolderCount: number;
+  isScanning: boolean;
+  isConfirming: boolean;
+}): string | null {
+  if (!effectiveRootPath) {
+    return 'missing_root_path';
+  }
+
+  if (!hasScanResult) {
+    return 'missing_scan_result';
+  }
+
+  if (selectedFolderCount === 0) {
+    return 'no_selected_folders';
+  }
+
+  if (isScanning) {
+    return 'tree_scan_running';
+  }
+
+  if (isConfirming) {
+    return 'confirming_selection';
+  }
+
+  return null;
 }
 
 function formatScanStatus(status: FolderTreeScanJobSnapshot['status']): string {
