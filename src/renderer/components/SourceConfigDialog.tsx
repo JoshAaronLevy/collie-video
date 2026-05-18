@@ -5,11 +5,14 @@ import { Dialog } from 'primereact/dialog';
 import { Message } from 'primereact/message';
 import { Tag } from 'primereact/tag';
 import type { AuditOptions } from '../../shared/types/audit';
+import type { SelectedFolderSummary } from '../../shared/types/folderTree';
+import { formatBytes } from '../helpers/fileSize';
 import { DialogFooter, DialogHeader } from './DialogChrome';
 
 interface SourceConfigDialogProps {
   visible: boolean;
   selectedFolders: string[];
+  selectedFolderSummary: SelectedFolderSummary | null;
   selectedFiles: string[];
   outputFolder: string | null;
   recentFolders: string[];
@@ -34,6 +37,7 @@ interface SourceConfigDialogProps {
 export function SourceConfigDialog({
   visible,
   selectedFolders,
+  selectedFolderSummary,
   selectedFiles,
   outputFolder,
   recentFolders,
@@ -55,6 +59,9 @@ export function SourceConfigDialog({
   onHide
 }: SourceConfigDialogProps): ReactElement {
   const sourceCount = selectedFolders.length + selectedFiles.length;
+  const folderTreeSummary = selectedFolderSummary
+    ? formatFolderTreeSummary(selectedFolderSummary, auditOptions.includeSubfolders)
+    : null;
   const footer = (
     <DialogFooter
       left={
@@ -117,6 +124,7 @@ export function SourceConfigDialog({
             <span title={outputFolder ?? undefined}>
               Output: {outputFolder ? shortenMiddle(outputFolder) : 'Not set'}
             </span>
+            {folderTreeSummary ? <span>{folderTreeSummary}</span> : null}
           </div>
           <div className="source-config-counts">
             <Tag
@@ -138,9 +146,10 @@ export function SourceConfigDialog({
           <PickerAction
             title="Folders"
             detail={
-              selectedFolders.length > 0
+              folderTreeSummary ??
+              (selectedFolders.length > 0
                 ? `${selectedFolders.length.toLocaleString()} selected`
-                : 'Choose one or more folders.'
+                : 'Choose one or more folders.')
             }
             buttonLabel="Choose Folders"
             icon="pi pi-folder-open"
@@ -382,6 +391,19 @@ function formatSourceSummary(folderCount: number, fileCount: number): string {
   const folderLabel = folderCount === 1 ? 'folder' : 'folders';
   const fileLabel = fileCount === 1 ? 'file' : 'files';
   return `${folderCount.toLocaleString()} ${folderLabel} - ${fileCount.toLocaleString()} ${fileLabel}`;
+}
+
+function formatFolderTreeSummary(
+  summary: SelectedFolderSummary,
+  includeSubfolders: boolean
+): string {
+  const videoCount = includeSubfolders ? summary.totalVideoCount : summary.directVideoCount;
+  const sizeBytes = includeSubfolders
+    ? summary.totalVideoSizeBytes
+    : summary.directVideoSizeBytes;
+  const videoLabel = includeSubfolders ? 'recursive videos' : 'direct videos';
+
+  return `${summary.dedupedFolderCount.toLocaleString()} folder tree sources - ${videoCount.toLocaleString()} ${videoLabel} - ${formatBytes(sizeBytes)}`;
 }
 
 function shortenMiddle(path: string): string {

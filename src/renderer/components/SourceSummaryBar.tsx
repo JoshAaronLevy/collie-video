@@ -2,9 +2,12 @@ import type { ReactElement } from 'react';
 import { Button } from 'primereact/button';
 import { Tag } from 'primereact/tag';
 import type { AuditOptions } from '../../shared/types/audit';
+import type { SelectedFolderSummary } from '../../shared/types/folderTree';
+import { formatBytes } from '../helpers/fileSize';
 
 interface SourceSummaryBarProps {
   selectedFolders: string[];
+  selectedFolderSummary: SelectedFolderSummary | null;
   selectedFiles: string[];
   outputFolder: string | null;
   auditOptions: AuditOptions;
@@ -17,6 +20,7 @@ interface SourceSummaryBarProps {
 
 export function SourceSummaryBar({
   selectedFolders,
+  selectedFolderSummary,
   selectedFiles,
   outputFolder,
   auditOptions,
@@ -27,6 +31,9 @@ export function SourceSummaryBar({
   onOpenSourceSetup
 }: SourceSummaryBarProps): ReactElement {
   const sourceCount = selectedFolders.length + selectedFiles.length;
+  const folderTreeSummary = selectedFolderSummary
+    ? formatFolderTreeSummary(selectedFolderSummary, auditOptions.includeSubfolders)
+    : null;
 
   return (
     <section className="source-summary-bar" aria-label="Audit sources">
@@ -40,6 +47,7 @@ export function SourceSummaryBar({
         <span title={outputFolder ?? undefined}>
           Output: {outputFolder ? shortenPath(outputFolder) : 'Not set'}
         </span>
+        {folderTreeSummary ? <span>{folderTreeSummary}</span> : null}
       </div>
 
       <div className="source-option-strip" aria-label="Audit options">
@@ -75,6 +83,19 @@ function formatSourceSummary(folderCount: number, fileCount: number): string {
   const folderLabel = folderCount === 1 ? 'folder' : 'folders';
   const fileLabel = fileCount === 1 ? 'file' : 'files';
   return `${folderCount.toLocaleString()} ${folderLabel} - ${fileCount.toLocaleString()} ${fileLabel}`;
+}
+
+function formatFolderTreeSummary(
+  summary: SelectedFolderSummary,
+  includeSubfolders: boolean
+): string {
+  const videoCount = includeSubfolders ? summary.totalVideoCount : summary.directVideoCount;
+  const sizeBytes = includeSubfolders
+    ? summary.totalVideoSizeBytes
+    : summary.directVideoSizeBytes;
+  const videoLabel = includeSubfolders ? 'recursive videos' : 'direct videos';
+
+  return `${summary.dedupedFolderCount.toLocaleString()} folder tree sources - ${videoCount.toLocaleString()} ${videoLabel} - ${formatBytes(sizeBytes)}`;
 }
 
 function shortenPath(path: string): string {

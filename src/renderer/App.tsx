@@ -40,6 +40,13 @@ export function App(): ReactElement {
     }
   }, [controller.settingsOpenRequestCount]);
 
+  useEffect(() => {
+    if (controller.folderTreeOpenRequestCount > 0) {
+      setIsSourceSetupVisible(true);
+      setIsFolderTreeSelectorVisible(true);
+    }
+  }, [controller.folderTreeOpenRequestCount]);
+
   return (
     <main className="app-shell">
       <AppHeader
@@ -56,6 +63,7 @@ export function App(): ReactElement {
       <section className="app-workspace">
         <SourceSummaryBar
           selectedFolders={controller.selectedFolders}
+          selectedFolderSummary={controller.selectedFolderSummary}
           selectedFiles={controller.selectedFiles}
           outputFolder={controller.outputFolder}
           auditOptions={controller.auditOptions}
@@ -179,6 +187,7 @@ export function App(): ReactElement {
       <SourceConfigDialog
         visible={isSourceSetupVisible}
         selectedFolders={controller.selectedFolders}
+        selectedFolderSummary={controller.selectedFolderSummary}
         selectedFiles={controller.selectedFiles}
         outputFolder={controller.outputFolder}
         recentFolders={controller.settings?.recentFolders ?? []}
@@ -203,9 +212,14 @@ export function App(): ReactElement {
       <FolderTreeSelectorDialog
         visible={isFolderTreeSelectorVisible}
         selectedFolderPaths={controller.selectedFolders}
+        includeSubfolders={controller.auditOptions.includeSubfolders}
         isAuditActive={controller.isAuditActive}
         onConfirm={async (selection) => {
-          await controller.applyFolderTreeSelection(selection.selectedFolderPaths, selection.rootPath);
+          await controller.applyFolderTreeSelection(
+            selection.selectedFolderPaths,
+            selection.rootPath,
+            selection.summary
+          );
           setIsFolderTreeSelectorVisible(false);
         }}
         onHide={() => setIsFolderTreeSelectorVisible(false)}

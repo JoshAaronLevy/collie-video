@@ -19,6 +19,7 @@ import type {
   FfprobeMetadataResult,
   FfprobeMetadataStartResponse
 } from '../../shared/types/audit';
+import { dedupeOverlappingFolderPaths } from '../../shared/utils/folderPathSelection';
 import { normalizeAuditOptions, runAudit } from '../services/auditService';
 import { discoverVideoFiles } from '../services/fileDiscoveryService';
 import { probeVideoFiles } from '../services/ffprobeService';
@@ -576,7 +577,7 @@ function sendFfprobeProgress(
 
 function normalizeDiscoveryRequest(request: FileDiscoveryRequest): FileDiscoveryRequest {
   return {
-    folderPaths: normalizeStringArray(request?.folderPaths),
+    folderPaths: dedupeOverlappingFolderPaths(normalizeStringArray(request?.folderPaths)),
     filePaths: normalizeStringArray(request?.filePaths),
     includeSubfolders:
       typeof request?.includeSubfolders === 'boolean' ? request.includeSubfolders : true
@@ -587,7 +588,7 @@ function normalizeAuditRequest(request: Partial<AuditRequest> | null | undefined
   const options = isRecord(request?.options) ? request.options : {};
 
   return {
-    folderPaths: normalizeStringArray(request?.folderPaths),
+    folderPaths: dedupeOverlappingFolderPaths(normalizeStringArray(request?.folderPaths)),
     filePaths: normalizeStringArray(request?.filePaths),
     options: normalizeAuditOptions(options as Partial<AuditRequest['options']>)
   };

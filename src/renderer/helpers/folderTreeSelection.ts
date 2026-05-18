@@ -4,12 +4,11 @@ import type {
   FolderTreeSelectionKeys,
   SelectedFolderSummary
 } from '../../shared/types/folderTree';
-
-interface PathRecord {
-  originalPath: string;
-  normalizedPath: string;
-  depth: number;
-}
+import {
+  dedupeOverlappingFolderPaths,
+  normalizeFolderPathForComparison
+} from '../../shared/utils/folderPathSelection';
+export { dedupeOverlappingFolderPaths, isPathAtOrInside } from '../../shared/utils/folderPathSelection';
 
 interface FolderTreeSelectionRestoreResult {
   selectionKeys: FolderTreeSelectionKeys;
@@ -58,7 +57,7 @@ export function getFolderTreeSelectionKeysForPaths(
   const seenPaths = new Set<string>();
 
   folderPaths.forEach((folderPath) => {
-    const normalizedPath = normalizeFolderPath(folderPath);
+    const normalizedPath = normalizeFolderPathForComparison(folderPath);
 
     if (!normalizedPath || seenPaths.has(normalizedPath)) {
       return;
@@ -96,18 +95,25 @@ export function getFolderTreeSelectionSummary(
 
   const totals = dedupedFolderPaths.reduce(
     (summary, folderPath) => {
-      const node = nodeByPath.get(normalizeFolderPath(folderPath));
+      const node = nodeByPath.get(normalizeFolderPathForComparison(folderPath));
 
       if (!node) {
         return summary;
       }
 
       return {
+        directVideoCount: summary.directVideoCount + node.directVideoCount,
+        directVideoSizeBytes: summary.directVideoSizeBytes + node.directVideoSizeBytes,
         totalVideoCount: summary.totalVideoCount + node.totalVideoCount,
         totalVideoSizeBytes: summary.totalVideoSizeBytes + node.totalVideoSizeBytes
       };
     },
-    { totalVideoCount: 0, totalVideoSizeBytes: 0 }
+    {
+      directVideoCount: 0,
+      directVideoSizeBytes: 0,
+      totalVideoCount: 0,
+      totalVideoSizeBytes: 0
+    }
   );
 
   return {
@@ -115,66 +121,11 @@ export function getFolderTreeSelectionSummary(
     dedupedFolderPaths,
     selectedFolderCount: selectedFolderPaths.length,
     dedupedFolderCount: dedupedFolderPaths.length,
+    directVideoCount: totals.directVideoCount,
+    directVideoSizeBytes: totals.directVideoSizeBytes,
     totalVideoCount: totals.totalVideoCount,
     totalVideoSizeBytes: totals.totalVideoSizeBytes
   };
-}
-
-export function dedupeOverlappingFolderPaths(folderPaths: string[]): string[] {
-  const recordsByNormalizedPath = new Map<string, PathRecord>();
-
-  folderPaths.forEach((folderPath) => {
-    const normalizedPath = normalizeFolderPath(folderPath);
-
-    if (!normalizedPath || recordsByNormalizedPath.has(normalizedPath)) {
-      return;
-    }
-
-    recordsByNormalizedPath.set(normalizedPath, {
-      originalPath: folderPath,
-      normalizedPath,
-      depth: getFolderPathDepth(normalizedPath)
-    });
-  });
-
-  return Array.from(recordsByNormalizedPath.values())
-    .sort((first, second) => {
-      if (first.depth !== second.depth) {
-        return first.depth - second.depth;
-      }
-
-      return first.normalizedPath.localeCompare(second.normalizedPath);
-    })
-    .reduce<string[]>((keptPaths, record) => {
-      const isContainedByKeptPath = keptPaths.some((keptPath) =>
-        isPathAtOrInside(keptPath, record.originalPath)
-      );
-
-      if (!isContainedByKeptPath) {
-        keptPaths.push(record.originalPath);
-      }
-
-      return keptPaths;
-    }, []);
-}
-
-export function isPathAtOrInside(parentPath: string, childPath: string): boolean {
-  const normalizedParentPath = normalizeFolderPath(parentPath);
-  const normalizedChildPath = normalizeFolderPath(childPath);
-
-  if (!normalizedParentPath || !normalizedChildPath) {
-    return false;
-  }
-
-  if (normalizedParentPath === normalizedChildPath) {
-    return true;
-  }
-
-  if (normalizedParentPath === '/') {
-    return normalizedChildPath.startsWith('/');
-  }
-
-  return normalizedChildPath.startsWith(`${normalizedParentPath}/`);
 }
 
 export function buildFolderPathByKey(root: FolderTreeNode): Map<string, string> {
@@ -191,7 +142,7 @@ export function buildFolderNodeByPath(root: FolderTreeNode): Map<string, FolderT
   const nodeByPath = new Map<string, FolderTreeNode>();
 
   visitFolderTree(root, (node) => {
-    nodeByPath.set(normalizeFolderPath(node.path), node);
+    nodeByPath.set(normalizeFolderPathForComparison(node.path), node);
   });
 
   return nodeByPath;
@@ -210,24 +161,4 @@ function isCheckedSelectionKey(value: FolderTreeSelectionKey | undefined): boole
 function visitFolderTree(node: FolderTreeNode, visit: (node: FolderTreeNode) => void): void {
   visit(node);
   node.children.forEach((child) => visitFolderTree(child, visit));
-}
-
-function normalizeFolderPath(folderPath: string): string {
-  const normalizedPath = folderPath.trim().replace(/\\/g, '/').replace(/\/+/g, '/');
-
-  if (normalizedPath === '/' || /^[A-Za-z]:\/$/.test(normalizedPath)) {
-    return normalizedPath;
-  }
-
-  return normalizedPath.replace(/\/+$/g, '');
-}
-
-function getFolderPathDepth(folderPath: string): number {
-  if (folderPath === '/') {
-    return 0;
-  }
-
-  return normalizeFolderPath(folderPath)
-    .split('/')
-    .filter((part) => part.length > 0).length;
 }

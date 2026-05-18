@@ -34,6 +34,7 @@ import type {
   PreviewClipResult,
   PreviewClipResultItem
 } from '../../shared/types/mediaPreview';
+import type { SelectedFolderSummary } from '../../shared/types/folderTree';
 import type {
   PremiereRequestResponse,
   PremiereRequestVideo,
@@ -54,6 +55,7 @@ import type {
 } from '../../shared/types/replacementWorkflow';
 import type { AppSettings, AppSettingsUpdate } from '../../shared/types/settings';
 import type { FfprobeResult, VideoPreviewFrame, VideoRow } from '../../shared/types/video';
+import { dedupeOverlappingFolderPaths } from '../../shared/utils/folderPathSelection';
 import {
   clearStoredAuditResult,
   loadStoredAuditResult,
@@ -106,6 +108,7 @@ export interface VideoAuditAppController {
   settings: AppSettings | null;
   settingsMessage: string | null;
   settingsOpenRequestCount: number;
+  folderTreeOpenRequestCount: number;
   toolDiagnostics: ToolDiagnosticsResult | null;
   toolDiagnosticsError: string | null;
   isToolDiagnosticsLoading: boolean;
@@ -113,6 +116,7 @@ export interface VideoAuditAppController {
   workflowMessage: string | null;
   activeAction: ActiveAction;
   selectedFolders: string[];
+  selectedFolderSummary: SelectedFolderSummary | null;
   selectedFiles: string[];
   outputFolder: string | null;
   auditOptions: AuditOptions;
@@ -239,7 +243,11 @@ export interface VideoAuditAppController {
   premiereImportError: string | null;
   canEditSelectedInPremiere: boolean;
   canGenerateThumbnails: boolean;
-  applyFolderTreeSelection: (folderPaths: string[], rootPath: string) => Promise<void>;
+  applyFolderTreeSelection: (
+    folderPaths: string[],
+    rootPath: string,
+    summary: SelectedFolderSummary
+  ) => Promise<void>;
   chooseFolders: () => Promise<void>;
   chooseFiles: () => Promise<void>;
   chooseOutputFolder: () => Promise<void>;
@@ -323,6 +331,7 @@ export function useVideoAuditAppController(): VideoAuditAppController {
   const [settings, setSettings] = useState<AppSettings | null>(null);
   const [settingsMessage, setSettingsMessage] = useState<string | null>(null);
   const [settingsOpenRequestCount, setSettingsOpenRequestCount] = useState(0);
+  const [folderTreeOpenRequestCount, setFolderTreeOpenRequestCount] = useState(0);
   const [toolDiagnostics, setToolDiagnostics] = useState<ToolDiagnosticsResult | null>(null);
   const [toolDiagnosticsError, setToolDiagnosticsError] = useState<string | null>(null);
   const [isToolDiagnosticsLoading, setIsToolDiagnosticsLoading] = useState(false);
@@ -330,6 +339,7 @@ export function useVideoAuditAppController(): VideoAuditAppController {
   const [workflowMessage, setWorkflowMessage] = useState<string | null>(null);
   const [activeAction, setActiveAction] = useState<ActiveAction>(null);
   const [selectedFolders, setSelectedFolders] = useState<string[]>([]);
+  const [selectedFolderSummary, setSelectedFolderSummary] = useState<SelectedFolderSummary | null>(null);
   const [selectedFiles, setSelectedFiles] = useState<string[]>([]);
   const [outputFolder, setOutputFolder] = useState<string | null>(null);
   const [auditOptions, setAuditOptions] = useState<AuditOptions>(DEFAULT_AUDIT_OPTIONS);
@@ -527,6 +537,7 @@ export function useVideoAuditAppController(): VideoAuditAppController {
 
         if (storedAudit) {
           setSelectedFolders(storedAudit.request.folderPaths);
+          setSelectedFolderSummary(null);
           setSelectedFiles(storedAudit.request.filePaths);
           setAuditOptions(storedAudit.request.options);
           setShowThumbnailsState(storedAudit.showThumbnails);
@@ -905,7 +916,10 @@ export function useVideoAuditAppController(): VideoAuditAppController {
 
     try {
       const result = await window.videoAudit.dialog.chooseFolders();
-      await handleSelectionResult(result, setSelectedFolders);
+      await handleSelectionResult(result, (paths) => {
+        setSelectedFolders(dedupeOverlappingFolderPaths(paths));
+        setSelectedFolderSummary(null);
+      });
 
       if (!result.canceled && result.paths.length > 0) {
         await persistSettings({
@@ -921,18 +935,29 @@ export function useVideoAuditAppController(): VideoAuditAppController {
   }, [handleSelectionResult, persistSettings, settings?.recentFolders]);
 
   const applyFolderTreeSelection = useCallback(
-    async (folderPaths: string[], rootPath: string): Promise<void> => {
-      setSelectedFolders(folderPaths);
+    async (
+      folderPaths: string[],
+      rootPath: string,
+      summary: SelectedFolderSummary
+    ): Promise<void> => {
+      const dedupedFolderPaths = dedupeOverlappingFolderPaths(folderPaths);
+
+      setSelectedFolders(dedupedFolderPaths);
+      setSelectedFolderSummary({
+        ...summary,
+        dedupedFolderPaths,
+        dedupedFolderCount: dedupedFolderPaths.length
+      });
       setSelectionMessage(null);
       setWorkflowMessage(
-        folderPaths.length > 0
-          ? `${folderPaths.length.toLocaleString()} folder tree source(s) selected.`
+        dedupedFolderPaths.length > 0
+          ? `${dedupedFolderPaths.length.toLocaleString()} folder tree source(s) selected.`
           : 'No folder tree sources selected.'
       );
 
-      if (folderPaths.length > 0) {
+      if (dedupedFolderPaths.length > 0) {
         await persistSettings({
-          recentFolders: mergeRecentPaths([rootPath, ...folderPaths], settings?.recentFolders ?? []),
+          recentFolders: mergeRecentPaths([rootPath, ...dedupedFolderPaths], settings?.recentFolders ?? []),
           latestSelectedFolder: rootPath
         });
       }
@@ -947,6 +972,7 @@ export function useVideoAuditAppController(): VideoAuditAppController {
       }
 
       setSelectedFolders([path]);
+      setSelectedFolderSummary(null);
       setSelectedFiles([]);
       setSelectionMessage(null);
       await persistSettings({
@@ -978,6 +1004,7 @@ export function useVideoAuditAppController(): VideoAuditAppController {
 
   const clearSelectedSources = useCallback((): void => {
     setSelectedFolders([]);
+    setSelectedFolderSummary(null);
     setSelectedFiles([]);
     setSelectionMessage(null);
     setWorkflowMessage('Selected sources cleared.');
@@ -1159,7 +1186,7 @@ export function useVideoAuditAppController(): VideoAuditAppController {
 
   const runAudit = useCallback(async (): Promise<void> => {
     const request = {
-      folderPaths: selectedFolders,
+      folderPaths: dedupeOverlappingFolderPaths(selectedFolders),
       filePaths: selectedFiles,
       options: auditOptions
     };
@@ -1187,12 +1214,19 @@ export function useVideoAuditAppController(): VideoAuditAppController {
       return;
     }
 
-    setSelectedFolders(lastAuditRequest.folderPaths);
+    const dedupedFolderPaths = dedupeOverlappingFolderPaths(lastAuditRequest.folderPaths);
+    const request = {
+      ...lastAuditRequest,
+      folderPaths: dedupedFolderPaths
+    };
+
+    setSelectedFolders(dedupedFolderPaths);
+    setSelectedFolderSummary(null);
     setSelectedFiles(lastAuditRequest.filePaths);
     setAuditOptions(lastAuditRequest.options);
 
     try {
-      await startAuditRequest(lastAuditRequest);
+      await startAuditRequest(request);
     } catch (error: unknown) {
       setWorkflowMessage(getErrorMessage(error, 'Could not refresh audit.'));
     }
@@ -2320,7 +2354,7 @@ export function useVideoAuditAppController(): VideoAuditAppController {
 
   const startDiscovery = useCallback(async (): Promise<void> => {
     const request: FileDiscoveryRequest = {
-      folderPaths: selectedFolders,
+      folderPaths: dedupeOverlappingFolderPaths(selectedFolders),
       filePaths: selectedFiles,
       includeSubfolders: auditOptions.includeSubfolders
     };
@@ -3030,7 +3064,8 @@ export function useVideoAuditAppController(): VideoAuditAppController {
   const handleAppCommand = useCallback(
     async (command: AppCommand): Promise<void> => {
       if (command === 'choose-folder') {
-        await chooseFolders();
+        setFolderTreeOpenRequestCount((count) => count + 1);
+        setSelectionMessage(null);
         return;
       }
 
@@ -3054,7 +3089,7 @@ export function useVideoAuditAppController(): VideoAuditAppController {
         setSettingsMessage(null);
       }
     },
-    [cancelActiveWork, chooseFiles, chooseFolders, refreshAudit]
+    [cancelActiveWork, chooseFiles, refreshAudit]
   );
 
   useEffect(() => window.videoAudit.app.onCommand((command) => {
@@ -3134,6 +3169,7 @@ export function useVideoAuditAppController(): VideoAuditAppController {
     settings,
     settingsMessage,
     settingsOpenRequestCount,
+    folderTreeOpenRequestCount,
     toolDiagnostics,
     toolDiagnosticsError,
     isToolDiagnosticsLoading,
@@ -3141,6 +3177,7 @@ export function useVideoAuditAppController(): VideoAuditAppController {
     workflowMessage,
     activeAction,
     selectedFolders,
+    selectedFolderSummary,
     selectedFiles,
     outputFolder,
     auditOptions,

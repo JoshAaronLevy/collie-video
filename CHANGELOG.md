@@ -7,6 +7,12 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.48.0] - 2026-05-18
+
+### Added
+
+- Integrated folder-tree selected folders into the audit source flow, including selected-folder video summaries, include-subfolders-aware summary counts, menu-triggered TreeTable folder selection, and deduped folder paths for audit and discovery requests.
+
 ## [0.47.1] - 2026-05-18
 
 ### Changed

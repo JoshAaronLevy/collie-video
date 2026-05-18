@@ -124,6 +124,8 @@ export interface SelectedFolderSummary {
   dedupedFolderPaths: string[];
   selectedFolderCount: number;
   dedupedFolderCount: number;
+  directVideoCount: number;
+  directVideoSizeBytes: number;
   totalVideoCount: number;
   totalVideoSizeBytes: number;
 }

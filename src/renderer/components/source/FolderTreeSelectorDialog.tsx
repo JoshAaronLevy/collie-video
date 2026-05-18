@@ -22,6 +22,7 @@ import { FolderTreeTable } from './FolderTreeTable';
 interface FolderTreeSelectorDialogProps {
   visible: boolean;
   selectedFolderPaths: string[];
+  includeSubfolders: boolean;
   isAuditActive: boolean;
   onConfirm: (selection: FolderTreeSelectionConfirm) => Promise<void> | void;
   onHide: () => void;
@@ -36,6 +37,7 @@ interface FolderTreeSelectionConfirm {
 export function FolderTreeSelectorDialog({
   visible,
   selectedFolderPaths,
+  includeSubfolders,
   isAuditActive,
   onConfirm,
   onHide
@@ -401,7 +403,7 @@ export function FolderTreeSelectorDialog({
               emptyMessage="No folders found."
               scrollHeight="460px"
             />
-            <FolderTreeSelectedSummary summary={selectedSummary} />
+            <FolderTreeSelectedSummary summary={selectedSummary} includeSubfolders={includeSubfolders} />
           </>
         ) : (
           <div className="folder-tree-empty-state">
@@ -435,18 +437,29 @@ function FolderTreeScanStatus({ progress }: { progress: FolderTreeScanJobSnapsho
   );
 }
 
-function FolderTreeSelectedSummary({ summary }: { summary: SelectedFolderSummary }): ReactElement {
+function FolderTreeSelectedSummary({
+  summary,
+  includeSubfolders
+}: {
+  summary: SelectedFolderSummary;
+  includeSubfolders: boolean;
+}): ReactElement {
   const folderText =
     summary.selectedFolderCount === summary.dedupedFolderCount
       ? `${summary.dedupedFolderCount.toLocaleString()} folders`
       : `${summary.selectedFolderCount.toLocaleString()} selected / ${summary.dedupedFolderCount.toLocaleString()} audited`;
+  const videoCount = includeSubfolders ? summary.totalVideoCount : summary.directVideoCount;
+  const videoSizeBytes = includeSubfolders
+    ? summary.totalVideoSizeBytes
+    : summary.directVideoSizeBytes;
+  const countLabel = includeSubfolders ? 'recursive videos' : 'direct videos';
 
   return (
     <section className="folder-tree-selected-summary" aria-label="Selected folder summary">
       <span>Selected</span>
       <strong>
-        {folderText} - {summary.totalVideoCount.toLocaleString()} videos -{' '}
-        {formatBytes(summary.totalVideoSizeBytes)}
+        {folderText} - {videoCount.toLocaleString()} {countLabel} -{' '}
+        {formatBytes(videoSizeBytes)}
       </strong>
     </section>
   );
