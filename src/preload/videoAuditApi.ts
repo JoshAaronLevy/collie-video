@@ -26,7 +26,7 @@ import type {
   AutoFixResultResponse,
   AutoFixStartResponse
 } from '../shared/types/autoFix';
-import type { PathSelectionResult, RevealPathResult } from '../shared/types/dialog';
+import type { PathSelectionResult } from '../shared/types/dialog';
 import type { ToolDiagnosticsResult } from '../shared/types/diagnostics';
 import type {
   CreateArchiveOperationPlanRequest,
@@ -101,9 +101,6 @@ export interface VideoAuditApi {
     chooseVideoFiles: () => Promise<PathSelectionResult>;
     chooseOutputFolder: () => Promise<PathSelectionResult>;
     chooseMoveDestinationFolder: () => Promise<PathSelectionResult>;
-  };
-  shell: {
-    revealPath: (path: string) => Promise<RevealPathResult>;
   };
   fileOperations: {
     revealFile: (request: RevealKnownPathRequest) => Promise<RevealKnownPathResponse>;
@@ -208,9 +205,6 @@ export const videoAuditApi: VideoAuditApi = {
     chooseVideoFiles: () => ipcRenderer.invoke(IPC_CHANNELS.dialogChooseVideoFiles),
     chooseOutputFolder: () => ipcRenderer.invoke(IPC_CHANNELS.dialogChooseOutputFolder),
     chooseMoveDestinationFolder: () => ipcRenderer.invoke(IPC_CHANNELS.dialogChooseMoveDestinationFolder)
-  },
-  shell: {
-    revealPath: (path: string) => ipcRenderer.invoke(IPC_CHANNELS.shellRevealPath, path)
   },
   fileOperations: {
     revealFile: (request: RevealKnownPathRequest) =>

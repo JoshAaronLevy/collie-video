@@ -5,7 +5,6 @@ export const IPC_CHANNELS = {
   dialogChooseVideoFiles: 'dialog:choose-video-files',
   dialogChooseOutputFolder: 'dialog:choose-output-folder',
   dialogChooseMoveDestinationFolder: 'dialog:choose-move-destination-folder',
-  shellRevealPath: 'shell:reveal-path',
   diagnosticsCheckTools: 'diagnostics:check-tools',
   settingsGet: 'settings:get',
   settingsUpdate: 'settings:update',

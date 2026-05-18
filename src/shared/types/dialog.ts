@@ -13,9 +13,3 @@ export interface PathSelectionResult {
   paths: string[];
   invalidPaths: PathValidationResult[];
 }
-
-export interface RevealPathResult {
-  ok: boolean;
-  path: string;
-  message?: string;
-}

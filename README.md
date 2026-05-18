@@ -115,5 +115,14 @@ The current app includes:
 - persisted audit results in renderer IndexedDB with refresh and clear-data controls
 - PrimeReact results table with global search, multi-row selection, soft removal/restore, details, thumbnails, and row actions
 - migration scan/execute workflow with exact filename matching, copy/archive safety, manifests, and operation logs
+- safe file-management workflows for revealing known paths, moving selected videos to Trash, moving selected videos to chosen folders, archiving originals, reviewing post-conversion source/output pairs, and replacing originals with converted outputs after confirmation
+- file-management operation history with itemized results, partial-failure diagnostics, and reveal-in-Finder actions
+- file-management settings for safe conflict handling, typed confirmation thresholds, post-conversion prompting, and operation-history preview
 - Premiere bridge status checks and selected-video import request creation
 - native app menu shortcuts, persisted window state, completion notifications, and ffmpeg/ffprobe diagnostics
+
+## File Management Safety
+
+File-management workflows are intentionally limited to files the app already understands. The renderer only calls typed preload APIs, while the Electron main process validates paths, builds dry-run plans, executes file moves, and records operation history.
+
+The app does not permanently delete files, delete directories, use recursive deletion, or overwrite destination files by default. Destructive cleanup uses macOS Trash, and replacement workflows require review and confirmation before originals are moved.

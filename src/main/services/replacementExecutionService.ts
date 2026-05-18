@@ -479,10 +479,11 @@ async function moveOutputIntoPlace({
       warning: 'Converted output was copied into place and moved to Trash after copying.'
     };
   } catch (error: unknown) {
+    const cleanupError = getErrorMessage(error, 'Converted output could not be moved to Trash.');
+
     return {
-      ok: false,
-      errorCode: 'operation-not-allowed',
-      message: getErrorMessage(error, 'Final file was copied, but the converted output could not be moved to Trash.')
+      ok: true,
+      warning: `Final file was copied into place, but the converted output could not be moved to Trash. ${cleanupError}`
     };
   }
 }

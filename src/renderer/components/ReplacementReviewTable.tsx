@@ -33,9 +33,6 @@ type TagSeverity = 'success' | 'info' | 'warning' | 'danger' | 'secondary';
 const ACTION_OPTIONS: ActionOption[] = [
   { label: 'Replace Original', value: 'replace-original' },
   { label: 'Keep Output', value: 'keep-output' },
-  { label: 'Trash Original', value: 'trash-original' },
-  { label: 'Archive Original', value: 'archive-original' },
-  { label: 'Move Output to Chosen Folder', value: 'move-output' },
   { label: 'Skip', value: 'skip' }
 ];
 
@@ -63,7 +60,7 @@ export function ReplacementReviewTable({
     <section className="replacement-review-workspace" aria-label="Manual replacement review">
       <Message
         severity="info"
-        text="Execute Selected Actions currently runs Replace Original items. Keep Output and Skip leave files untouched; blocked rows are skipped by execution."
+        text="Execute Selected Actions replaces rows set to Replace Original. Keep Output and Skip leave files untouched; blocked rows are skipped by execution."
       />
 
       <div className="replacement-review-toolbar">
@@ -129,10 +126,16 @@ export function ReplacementReviewTable({
         <Tag value={`${executableCount.toLocaleString()} executable`} severity="success" />
         <Tag value={`${actionCounts.replaceOriginal.toLocaleString()} replace`} severity="danger" />
         <Tag value={`${actionCounts.keepOutput.toLocaleString()} keep`} severity="info" />
-        <Tag value={`${actionCounts.trashOriginal.toLocaleString()} trash`} severity="warning" />
-        <Tag value={`${actionCounts.archiveOriginal.toLocaleString()} archive`} severity="warning" />
-        <Tag value={`${actionCounts.moveOutput.toLocaleString()} move`} severity="info" />
         <Tag value={`${actionCounts.skip.toLocaleString()} skip`} severity="secondary" />
+        {actionCounts.trashOriginal > 0 ? (
+          <Tag value={`${actionCounts.trashOriginal.toLocaleString()} unsupported trash`} severity="warning" />
+        ) : null}
+        {actionCounts.archiveOriginal > 0 ? (
+          <Tag value={`${actionCounts.archiveOriginal.toLocaleString()} unsupported archive`} severity="warning" />
+        ) : null}
+        {actionCounts.moveOutput > 0 ? (
+          <Tag value={`${actionCounts.moveOutput.toLocaleString()} unsupported move`} severity="warning" />
+        ) : null}
         {blockedSelectedCount > 0 ? (
           <Tag value={`${blockedSelectedCount.toLocaleString()} blocked action(s)`} severity="warning" />
         ) : null}

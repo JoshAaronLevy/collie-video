@@ -27,6 +27,10 @@ export function FileOperationResultDialog({
 }: FileOperationResultDialogProps): ReactElement {
   const attentionItems =
     result?.items.filter((item) => item.status === 'failed' || item.status === 'skipped') ?? [];
+  const warningItems =
+    result?.items.filter(
+      (item) => item.status === 'success' && item.warnings.length > 0
+    ) ?? [];
   const revealAction = getRevealAction(result);
 
   return (
@@ -88,6 +92,23 @@ export function FileOperationResultDialog({
                         <Tag value={item.status} severity={item.status === 'failed' ? 'danger' : 'warning'} />
                       </div>
                       <small>{item.error ?? getAttentionFallback(result.type)}</small>
+                    </li>
+                  ))}
+                </ul>
+              </section>
+            ) : null}
+
+            {warningItems.length > 0 ? (
+              <section className="file-operation-attention-list" aria-label="Completed items with warnings">
+                <h3>Completed With Warnings</h3>
+                <ul>
+                  {warningItems.slice(0, 6).map((item) => (
+                    <li key={item.id}>
+                      <div>
+                        <strong title={item.sourcePath}>{item.fileName}</strong>
+                        <Tag value="warning" severity="warning" />
+                      </div>
+                      <small>{item.warnings.join(' ')}</small>
                     </li>
                   ))}
                 </ul>

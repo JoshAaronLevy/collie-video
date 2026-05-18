@@ -1,4 +1,4 @@
-import { BrowserWindow, dialog, ipcMain, shell, type OpenDialogOptions, type OpenDialogReturnValue } from 'electron';
+import { BrowserWindow, dialog, ipcMain, type OpenDialogOptions, type OpenDialogReturnValue } from 'electron';
 import { stat } from 'node:fs/promises';
 import { isAbsolute } from 'node:path';
 import { IPC_CHANNELS } from '../../shared/constants/ipcChannels';
@@ -6,8 +6,7 @@ import { SUPPORTED_VIDEO_EXTENSION_NAMES } from '../../shared/constants/videoExt
 import type {
   PathKind,
   PathSelectionResult,
-  PathValidationResult,
-  RevealPathResult
+  PathValidationResult
 } from '../../shared/types/dialog';
 
 export function registerDialogIpcHandlers(): void {
@@ -70,32 +69,6 @@ export function registerDialogIpcHandlers(): void {
     }
   );
 
-  ipcMain.handle(IPC_CHANNELS.shellRevealPath, async (_event, path: string): Promise<RevealPathResult> => {
-    if (typeof path !== 'string' || path.trim().length === 0) {
-      return {
-        ok: false,
-        path: '',
-        message: 'A path is required.'
-      };
-    }
-
-    const validation = await validatePath(path, 'any');
-
-    if (!validation.isValid) {
-      return {
-        ok: false,
-        path,
-        message: validation.reason
-      };
-    }
-
-    shell.showItemInFolder(path);
-
-    return {
-      ok: true,
-      path
-    };
-  });
 }
 
 function showDialog(

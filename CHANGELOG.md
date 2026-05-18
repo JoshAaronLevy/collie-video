@@ -7,6 +7,14 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.42.0] - 2026-05-18
+
+### Changed
+
+- Added a file-management safety review document and README safety notes for the user-visible cleanup workflows.
+- Removed an unused generic reveal-path preload API so Finder reveal actions stay on typed, validated file-management APIs.
+- Polished manual replacement review actions and replacement cleanup result handling for safer, clearer post-conversion outcomes.
+
 ## [0.41.0] - 2026-05-18
 
 ### Added
