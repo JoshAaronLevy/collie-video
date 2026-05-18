@@ -9,7 +9,7 @@ import { MigrationScanDialog } from './components/MigrationScanDialog';
 import { ResultsToolbar } from './components/ResultsToolbar';
 import { SelectionActionBar } from './components/SelectionActionBar';
 import { SettingsPanel } from './components/SettingsPanel';
-import { SourceSelectionPanel } from './components/SourceSelectionPanel';
+import { SourceConfigDialog } from './components/SourceConfigDialog';
 import { SourceSummaryBar } from './components/SourceSummaryBar';
 import { StatusStrip } from './components/StatusStrip';
 import { ThumbnailGenerationDialog } from './components/ThumbnailGenerationDialog';
@@ -51,10 +51,6 @@ export function App(): ReactElement {
           auditOptions={controller.auditOptions}
           isAuditActive={controller.isAuditActive}
           canRunAudit={controller.canRunAudit}
-          activeAction={controller.activeAction}
-          onChooseFolders={controller.chooseFolders}
-          onChooseFiles={controller.chooseFiles}
-          onChooseOutputFolder={controller.chooseOutputFolder}
           onRunAudit={controller.runAudit}
           onCancelAudit={controller.cancelAudit}
           onOpenSourceSetup={() => setIsSourceSetupVisible(true)}
@@ -144,34 +140,29 @@ export function App(): ReactElement {
         />
       </section>
 
-      <Dialog
-        header="Source Setup"
+      <SourceConfigDialog
         visible={isSourceSetupVisible}
-        className="app-dialog source-setup-dialog"
-        modal
+        selectedFolders={controller.selectedFolders}
+        selectedFiles={controller.selectedFiles}
+        outputFolder={controller.outputFolder}
+        recentFolders={controller.settings?.recentFolders ?? []}
+        auditOptions={controller.auditOptions}
+        isAuditActive={controller.isAuditActive}
+        canRunAudit={controller.canRunAudit}
+        activeAction={controller.activeAction}
+        selectionMessage={controller.selectionMessage}
+        workflowMessage={controller.workflowMessage}
+        onChooseFolders={controller.chooseFolders}
+        onChooseFiles={controller.chooseFiles}
+        onChooseOutputFolder={controller.chooseOutputFolder}
+        onChooseRecentFolder={controller.chooseRecentFolder}
+        onClearSelectedSources={controller.clearSelectedSources}
+        onRunAudit={controller.runAudit}
+        onCancelAudit={controller.cancelAudit}
+        onRevealPath={controller.revealPath}
+        onAuditOptionChange={controller.updateAuditOption}
         onHide={() => setIsSourceSetupVisible(false)}
-      >
-        <SourceSelectionPanel
-          selectedFolders={controller.selectedFolders}
-          selectedFiles={controller.selectedFiles}
-          outputFolder={controller.outputFolder}
-          recentFolders={controller.settings?.recentFolders ?? []}
-          auditOptions={controller.auditOptions}
-          isAuditActive={controller.isAuditActive}
-          canRunAudit={controller.canRunAudit}
-          activeAction={controller.activeAction}
-          selectionMessage={controller.selectionMessage}
-          workflowMessage={controller.workflowMessage}
-          onChooseFolders={controller.chooseFolders}
-          onChooseFiles={controller.chooseFiles}
-          onChooseOutputFolder={controller.chooseOutputFolder}
-          onChooseRecentFolder={controller.chooseRecentFolder}
-          onRunAudit={controller.runAudit}
-          onCancelAudit={controller.cancelAudit}
-          onRevealPath={controller.revealPath}
-          onAuditOptionChange={controller.updateAuditOption}
-        />
-      </Dialog>
+      />
 
       <Dialog
         header="Utilities"

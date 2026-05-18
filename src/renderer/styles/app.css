@@ -347,6 +347,161 @@ select {
   gap: 0.75rem;
 }
 
+.source-config-content {
+  display: grid;
+  gap: 1rem;
+}
+
+.source-config-hero,
+.source-config-options,
+.source-config-recent,
+.source-config-path-card {
+  min-width: 0;
+  padding: 0.9rem;
+  background: #f8fafc;
+  border: 1px solid #dbe3ee;
+  border-radius: 10px;
+}
+
+.source-config-hero {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  gap: 1rem;
+  align-items: center;
+  background: #f1f7ff;
+}
+
+.source-config-hero h2 {
+  margin: 0;
+  color: #172033;
+  font-size: 1.15rem;
+  letter-spacing: 0;
+}
+
+.source-config-hero span,
+.source-config-picker strong,
+.source-config-path-list span {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.source-config-hero span {
+  display: block;
+  margin-top: 0.18rem;
+  color: #64748b;
+  font-size: 0.84rem;
+  font-weight: 750;
+}
+
+.source-config-counts,
+.source-config-recent-list,
+.source-config-footer {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.55rem;
+  align-items: center;
+}
+
+.source-config-counts {
+  justify-content: flex-end;
+}
+
+.source-config-picker-grid,
+.source-config-paths {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 0.75rem;
+}
+
+.source-config-picker {
+  display: grid;
+  gap: 0.55rem;
+  min-width: 0;
+  padding: 0.9rem;
+  background: #ffffff;
+  border: 1px solid #dbe3ee;
+  border-radius: 10px;
+}
+
+.source-config-picker span {
+  color: #64748b;
+  font-size: 0.8rem;
+  font-weight: 800;
+}
+
+.source-config-picker strong {
+  color: #172033;
+  font-size: 0.92rem;
+}
+
+.source-config-picker .p-button,
+.source-config-recent-list .p-button,
+.source-config-footer .p-button {
+  width: fit-content;
+  max-width: 100%;
+}
+
+.source-config-options {
+  display: grid;
+  gap: 0.75rem;
+}
+
+.source-config-recent {
+  display: grid;
+  gap: 0.75rem;
+}
+
+.source-config-recent-list .p-button-label {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.source-config-path-card {
+  display: grid;
+  gap: 0.65rem;
+}
+
+.source-config-path-list {
+  display: grid;
+  gap: 0.45rem;
+  padding: 0;
+  margin: 0;
+  list-style: none;
+}
+
+.source-config-path-list li {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  gap: 0.45rem;
+  align-items: center;
+}
+
+.source-config-path-list span {
+  color: #172033;
+  font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, "Liberation Mono", monospace;
+  font-size: 0.8rem;
+}
+
+.source-config-more-paths {
+  grid-template-columns: 1fr;
+}
+
+.source-config-more-paths span {
+  color: #64748b;
+  font-family: inherit;
+  font-weight: 800;
+}
+
+.source-config-footer {
+  display: grid;
+  grid-template-columns: auto minmax(0, 1fr) auto auto auto;
+  justify-content: end;
+  padding-top: 0.25rem;
+}
+
 .recent-folder-strip {
   display: flex;
   flex-wrap: wrap;
@@ -866,7 +1021,7 @@ select {
   width: min(980px, calc(100vw - 32px));
 }
 
-.source-setup-dialog,
+.source-config-dialog,
 .utility-dialog,
 .settings-dialog {
   width: min(980px, calc(100vw - 32px));
@@ -1173,6 +1328,9 @@ select {
 
   .audit-options,
   .source-lists,
+  .source-config-hero,
+  .source-config-picker-grid,
+  .source-config-paths,
   .metric-grid,
   .video-details-main,
   .tool-diagnostics li,
@@ -1182,10 +1340,22 @@ select {
 
   .action-row .p-button,
   .source-summary-actions .p-button,
+  .source-config-picker .p-button,
+  .source-config-recent-list .p-button,
+  .source-config-footer .p-button,
   .results-toolbar-actions .p-button,
   .selection-action-buttons .p-button,
   .side-actions .p-button {
     width: 100%;
+  }
+
+  .source-config-counts,
+  .source-config-footer {
+    justify-content: flex-start;
+  }
+
+  .source-config-footer {
+    display: flex;
   }
 
   .text-setting-row {

@@ -10,10 +10,6 @@ interface SourceSummaryBarProps {
   auditOptions: AuditOptions;
   isAuditActive: boolean;
   canRunAudit: boolean;
-  activeAction: string | null;
-  onChooseFolders: () => void;
-  onChooseFiles: () => void;
-  onChooseOutputFolder: () => void;
   onRunAudit: () => void;
   onCancelAudit: () => void;
   onOpenSourceSetup: () => void;
@@ -26,10 +22,6 @@ export function SourceSummaryBar({
   auditOptions,
   isAuditActive,
   canRunAudit,
-  activeAction,
-  onChooseFolders,
-  onChooseFiles,
-  onChooseOutputFolder,
   onRunAudit,
   onCancelAudit,
   onOpenSourceSetup
@@ -43,7 +35,7 @@ export function SourceSummaryBar({
         <h2>
           {sourceCount > 0
             ? formatSourceSummary(selectedFolders.length, selectedFiles.length)
-            : 'Choose sources to begin'}
+            : 'No sources selected'}
         </h2>
         <span title={outputFolder ?? undefined}>
           Output: {outputFolder ? shortenPath(outputFolder) : 'Not set'}
@@ -58,30 +50,7 @@ export function SourceSummaryBar({
 
       <div className="source-summary-actions">
         <Button
-          label="Choose Folder"
-          icon="pi pi-folder-open"
-          loading={activeAction === 'folders'}
-          disabled={isAuditActive}
-          onClick={onChooseFolders}
-        />
-        <Button
-          label="Choose Files"
-          icon="pi pi-video"
-          severity="secondary"
-          loading={activeAction === 'files'}
-          disabled={isAuditActive}
-          onClick={onChooseFiles}
-        />
-        <Button
-          label="Output"
-          icon="pi pi-download"
-          severity="help"
-          loading={activeAction === 'output'}
-          disabled={isAuditActive}
-          onClick={onChooseOutputFolder}
-        />
-        <Button
-          label="Configure"
+          label={sourceCount > 0 ? 'Change' : 'Choose Sources'}
           icon="pi pi-sliders-h"
           severity="info"
           onClick={onOpenSourceSetup}

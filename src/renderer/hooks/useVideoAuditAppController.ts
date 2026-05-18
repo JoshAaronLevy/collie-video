@@ -164,6 +164,7 @@ export interface VideoAuditAppController {
   chooseFiles: () => Promise<void>;
   chooseOutputFolder: () => Promise<void>;
   chooseRecentFolder: (path: string) => Promise<void>;
+  clearSelectedSources: () => void;
   revealPath: (path: string) => Promise<void>;
   updateAuditOption: <Key extends keyof AuditOptions>(key: Key, value: AuditOptions[Key]) => Promise<void>;
   updateSettingsField: <Key extends keyof AppSettings>(key: Key, value: AppSettings[Key]) => Promise<void>;
@@ -710,6 +711,13 @@ export function useVideoAuditAppController(): VideoAuditAppController {
       setActiveAction(null);
     }
   }, [handleSelectionResult, persistSettings, settings?.recentFiles]);
+
+  const clearSelectedSources = useCallback((): void => {
+    setSelectedFolders([]);
+    setSelectedFiles([]);
+    setSelectionMessage(null);
+    setWorkflowMessage('Selected sources cleared.');
+  }, []);
 
   const chooseOutputFolder = useCallback(async (): Promise<void> => {
     setActiveAction('output');
@@ -2096,6 +2104,7 @@ export function useVideoAuditAppController(): VideoAuditAppController {
     chooseFiles,
     chooseOutputFolder,
     chooseRecentFolder,
+    clearSelectedSources,
     revealPath,
     updateAuditOption,
     updateSettingsField,

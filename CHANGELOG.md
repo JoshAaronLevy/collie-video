@@ -7,6 +7,16 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.19.0] - 2026-05-17
+
+### Added
+
+- Added a focused source configuration dialog with source pickers, output selection, audit option toggles, recent-folder shortcuts, selected-path summaries, and clear-source controls.
+
+### Changed
+
+- Simplified the main source bar so source selection is summarized on the results-first workspace and detailed setup lives in the source configuration dialog.
+
 ## [0.18.0] - 2026-05-17
 
 ### Added
