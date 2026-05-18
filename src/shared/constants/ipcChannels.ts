@@ -53,6 +53,7 @@ export const IPC_CHANNELS = {
   migrationExecuteProgress: 'migration:execute:progress',
   operationHistoryList: 'operation-history:list',
   operationHistoryGetDetails: 'operation-history:get-details',
+  replacementCreatePlan: 'replacement:create-plan',
   premiereGetStatus: 'premiere:get-status',
   premiereCreateImportRequest: 'premiere:create-import-request'
 } as const;

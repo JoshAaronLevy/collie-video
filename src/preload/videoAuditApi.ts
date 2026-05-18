@@ -69,6 +69,10 @@ import type {
   OperationHistoryListResponse
 } from '../shared/types/operationHistory';
 import type {
+  CreateReplacementPlanRequest,
+  CreateReplacementPlanResponse
+} from '../shared/types/replacementWorkflow';
+import type {
   MigrationExecuteRequest,
   MigrationJobSnapshot,
   MigrationResultResponse,
@@ -160,6 +164,9 @@ export interface VideoAuditApi {
   operationHistory: {
     listRecent: (request?: OperationHistoryListRequest) => Promise<OperationHistoryListResponse>;
     getDetails: (operationId: string) => Promise<OperationHistoryDetailsResponse>;
+  };
+  replacement: {
+    createPlan: (request: CreateReplacementPlanRequest) => Promise<CreateReplacementPlanResponse>;
   };
   premiere: {
     getStatus: () => Promise<PremiereStatusResponse>;
@@ -358,6 +365,10 @@ export const videoAuditApi: VideoAuditApi = {
       ipcRenderer.invoke(IPC_CHANNELS.operationHistoryList, request),
     getDetails: (operationId: string) =>
       ipcRenderer.invoke(IPC_CHANNELS.operationHistoryGetDetails, operationId)
+  },
+  replacement: {
+    createPlan: (request: CreateReplacementPlanRequest) =>
+      ipcRenderer.invoke(IPC_CHANNELS.replacementCreatePlan, request)
   },
   premiere: {
     getStatus: () => ipcRenderer.invoke(IPC_CHANNELS.premiereGetStatus),

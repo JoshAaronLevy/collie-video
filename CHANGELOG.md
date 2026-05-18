@@ -7,6 +7,14 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.36.0] - 2026-05-18
+
+### Added
+
+- Added shared replacement workflow types for dry-run replacement plans, selected actions, item statuses, warnings, errors, and plan summaries.
+- Added a main-process replacement planner that builds plans from Auto-Fix, Auto-Crop, or explicit conversion items without mutating the filesystem.
+- Added typed replacement IPC and preload APIs for creating replacement plans while preserving the renderer filesystem boundary.
+
 ## [0.35.0] - 2026-05-18
 
 ### Added

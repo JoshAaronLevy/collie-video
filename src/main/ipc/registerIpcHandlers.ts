@@ -11,6 +11,7 @@ import { registerMediaPreviewIpcHandlers } from './mediaPreviewIpc';
 import { registerMigrationIpcHandlers } from './migrationIpc';
 import { registerOperationHistoryIpcHandlers } from './operationHistoryIpc';
 import { registerPremiereIpcHandlers } from './premiereIpc';
+import { registerReplacementWorkflowIpcHandlers } from './replacementWorkflowIpc';
 import { registerSettingsIpcHandlers } from './settingsIpc';
 import { checkMediaToolAvailability } from '../services/toolDiagnosticsService';
 
@@ -46,5 +47,6 @@ export function registerIpcHandlers(): void {
   registerMigrationIpcHandlers();
   registerOperationHistoryIpcHandlers();
   registerPremiereIpcHandlers();
+  registerReplacementWorkflowIpcHandlers();
   registerSettingsIpcHandlers();
 }
