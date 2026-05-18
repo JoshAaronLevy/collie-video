@@ -4,10 +4,12 @@ import { Dialog } from 'primereact/dialog';
 import { Message } from 'primereact/message';
 import { ProgressBar } from 'primereact/progressbar';
 import { Tag } from 'primereact/tag';
+import { MAX_FOLDER_TREE_DISPLAY_PATH_LENGTH } from '../../../shared/constants/folderTree';
 import type {
   FolderTreeScanJobSnapshot,
   FolderTreeScanResult,
   FolderTreeSelectionKeys,
+  FolderTreeWarning,
   SelectedFolderSummary
 } from '../../../shared/types/folderTree';
 import { DialogFooter, DialogHeader } from '../DialogChrome';
@@ -67,6 +69,12 @@ export function FolderTreeSelectorDialog({
   );
   const isScanning = Boolean(scanId);
   const isBusy = isChoosingRoot || isStartingScan || isScanning || isCancelingScan || isConfirming;
+  const friendlyError = error ? getFolderTreeErrorMessage(error) : null;
+  const displayRootPath = rootPath
+    ? formatMiddleTruncatedPath(rootPath, MAX_FOLDER_TREE_DISPLAY_PATH_LENGTH)
+    : 'No root selected';
+  const confirmLabel =
+    selectedSummary.dedupedFolderCount > 0 ? 'Use Selected Folders' : 'Select Folders to Continue';
   const canConfirm =
     Boolean(rootPath) &&
     Boolean(scanResult) &&
@@ -262,6 +270,7 @@ export function FolderTreeSelectorDialog({
 
       activeScanIdRef.current = null;
       setScanId(null);
+      setError(null);
     } catch (caughtError: unknown) {
       setError(getErrorMessage(caughtError, 'Could not cancel folder tree scan.'));
     } finally {
@@ -330,7 +339,7 @@ export function FolderTreeSelectorDialog({
         }}
       />
       <Button
-        label="Use Selected Folders"
+        label={confirmLabel}
         icon="pi pi-check"
         severity="success"
         loading={isConfirming}
@@ -371,7 +380,7 @@ export function FolderTreeSelectorDialog({
         <section className="folder-tree-root-panel" aria-label="Folder tree root">
           <div className="folder-tree-root-copy">
             <span>Root</span>
-            <strong title={rootPath ?? undefined}>{rootPath ?? 'No root selected'}</strong>
+            <strong title={rootPath ?? undefined}>{displayRootPath}</strong>
           </div>
           <div className="folder-tree-root-actions">
             <Button
@@ -400,19 +409,15 @@ export function FolderTreeSelectorDialog({
 
         {scanProgress ? <FolderTreeScanStatus progress={scanProgress} /> : null}
         {isScanning ? <ProgressBar mode="indeterminate" className="folder-tree-progress-bar" /> : null}
-        {error ? <Message severity="error" text={error} /> : null}
+        {friendlyError ? <Message severity="error" text={friendlyError} /> : null}
         {missingSelectedPaths.length > 0 ? (
           <Message
             severity="warn"
             text={`${missingSelectedPaths.length.toLocaleString()} previously selected folder(s) are not available in this tree.`}
           />
         ) : null}
-        {scanResult?.warnings.length ? (
-          <Message
-            severity="warn"
-            text={`${scanResult.warnings.length.toLocaleString()} folder tree warning(s) were recorded during the scan.`}
-          />
-        ) : null}
+        {scanResult ? <FolderTreeScanOutcome result={scanResult} /> : null}
+        {scanResult?.warnings.length ? <FolderTreeWarnings warnings={scanResult.warnings} /> : null}
 
         {scanResult ? (
           <>
@@ -426,15 +431,14 @@ export function FolderTreeSelectorDialog({
             <FolderTreeSelectedSummary summary={selectedSummary} includeSubfolders={includeSubfolders} />
           </>
         ) : (
-          <div className="folder-tree-empty-state">
-            <i className="pi pi-folder-open" />
-            <strong>{isScanning ? 'Scanning folder tree' : 'Choose a root folder'}</strong>
-            <span>
-              {isScanning
-                ? 'The full directory tree is being scanned.'
-                : 'The selected tree will appear here after the scan completes.'}
-            </span>
-          </div>
+          <FolderTreeEmptyState
+            isChoosingRoot={isChoosingRoot}
+            isStartingScan={isStartingScan}
+            isScanning={isScanning}
+            progress={scanProgress}
+            rootPath={rootPath}
+            error={friendlyError}
+          />
         )}
       </div>
     </Dialog>
@@ -442,18 +446,164 @@ export function FolderTreeSelectorDialog({
 }
 
 function FolderTreeScanStatus({ progress }: { progress: FolderTreeScanJobSnapshot }): ReactElement {
+  const currentPath = progress.currentPath
+    ? formatMiddleTruncatedPath(progress.currentPath)
+    : formatMiddleTruncatedPath(progress.rootPath);
+
   return (
     <section className="folder-tree-scan-status" aria-label="Folder tree scan status">
-      <div>
-        <span>{progress.status === 'scanning' ? 'Scanning' : progress.status}</span>
+      <div className="folder-tree-scan-copy">
+        <span>{formatScanStatus(progress.status)}</span>
         <strong>{progress.message ?? 'Folder tree scan update.'}</strong>
+        <small title={progress.currentPath ?? progress.rootPath}>{currentPath}</small>
       </div>
       <div className="folder-tree-scan-counts">
         <Tag value={`${progress.foldersScanned.toLocaleString()} folders`} severity="info" />
         <Tag value={`${progress.videoFilesFound.toLocaleString()} videos`} severity="success" />
         <Tag value={formatBytes(progress.videoSizeBytes)} severity="secondary" />
+        {progress.foldersSkipped > 0 ? (
+          <Tag value={`${progress.foldersSkipped.toLocaleString()} skipped`} severity="warning" />
+        ) : null}
       </div>
     </section>
+  );
+}
+
+function FolderTreeScanOutcome({ result }: { result: FolderTreeScanResult }): ReactElement | null {
+  const noVideosFound = result.summary.videoFilesFound === 0;
+  const rootOnly = result.root.totalFolderCount <= 1;
+
+  if (noVideosFound) {
+    return (
+      <Message
+        severity="info"
+        text={
+          rootOnly
+            ? 'No videos found under this folder. The root has no scanned subfolders.'
+            : 'No videos found under this folder.'
+        }
+      />
+    );
+  }
+
+  if (rootOnly) {
+    return (
+      <Message
+        severity="info"
+        text="This root has no scanned subfolders. Select the root folder to audit the videos directly inside it."
+      />
+    );
+  }
+
+  return null;
+}
+
+function FolderTreeWarnings({ warnings }: { warnings: FolderTreeWarning[] }): ReactElement {
+  const unreadableFolderCount = warnings.filter((warning) => warning.code === 'unreadable-folder').length;
+  const skippedFolderCount = warnings.filter(
+    (warning) => warning.code === 'folder-skipped' || warning.code === 'symlink-skipped'
+  ).length;
+  const unreadableVideoCount = warnings.filter((warning) => warning.code === 'unreadable-video-file').length;
+  const warningText = [
+    unreadableFolderCount > 0
+      ? `${unreadableFolderCount.toLocaleString()} unreadable folder(s)`
+      : null,
+    skippedFolderCount > 0 ? `${skippedFolderCount.toLocaleString()} skipped folder(s)` : null,
+    unreadableVideoCount > 0
+      ? `${unreadableVideoCount.toLocaleString()} unreadable video file(s)`
+      : null
+  ].filter((item): item is string => Boolean(item));
+
+  return (
+    <section className="folder-tree-warning-panel" aria-label="Folder tree scan warnings">
+      <div>
+        <i className="pi pi-exclamation-triangle" />
+        <strong>Some folders could not be read and were skipped.</strong>
+      </div>
+      <span>
+        {warningText.length > 0
+          ? warningText.join(' - ')
+          : `${warnings.length.toLocaleString()} folder tree warning(s) were recorded during the scan.`}
+      </span>
+      <ul>
+        {warnings.slice(0, 3).map((warning) => (
+          <li key={`${warning.code}:${warning.path}`} title={warning.path}>
+            {formatMiddleTruncatedPath(warning.path)} - {warning.message}
+          </li>
+        ))}
+      </ul>
+      {warnings.length > 3 ? (
+        <small>{(warnings.length - 3).toLocaleString()} more warning(s) hidden.</small>
+      ) : null}
+    </section>
+  );
+}
+
+function FolderTreeEmptyState({
+  isChoosingRoot,
+  isStartingScan,
+  isScanning,
+  progress,
+  rootPath,
+  error
+}: {
+  isChoosingRoot: boolean;
+  isStartingScan: boolean;
+  isScanning: boolean;
+  progress: FolderTreeScanJobSnapshot | null;
+  rootPath: string | null;
+  error: string | null;
+}): ReactElement {
+  if (error) {
+    return (
+      <div className="folder-tree-empty-state is-error">
+        <i className="pi pi-exclamation-triangle" />
+        <strong>Tree unavailable</strong>
+        <span>{error}</span>
+      </div>
+    );
+  }
+
+  if (progress?.status === 'canceled') {
+    return (
+      <div className="folder-tree-empty-state is-canceled">
+        <i className="pi pi-ban" />
+        <strong>Scan canceled</strong>
+        <span>Refresh the tree to scan this root again.</span>
+      </div>
+    );
+  }
+
+  if (isChoosingRoot) {
+    return (
+      <div className="folder-tree-empty-state">
+        <i className="pi pi-folder-open" />
+        <strong>Choosing root folder</strong>
+        <span>Select the top-level folder to scan.</span>
+      </div>
+    );
+  }
+
+  if (isStartingScan || isScanning) {
+    return (
+      <div className="folder-tree-empty-state">
+        <i className="pi pi-spin pi-spinner" />
+        <strong>{isStartingScan ? 'Starting scan' : 'Scanning folder tree'}</strong>
+        <span>The full directory tree is being scanned eagerly before it is displayed.</span>
+      </div>
+    );
+  }
+
+  return (
+    <div className="folder-tree-empty-state">
+      <i className="pi pi-folder-open" />
+      <strong>{rootPath ? 'Refresh the saved root' : 'Choose a root folder'}</strong>
+      <span>
+        {rootPath
+          ? 'The saved root is ready to rescan. No folder tree is loaded from cache.'
+          : 'The selected tree will appear here after the scan completes.'}
+      </span>
+    </div>
   );
 }
 
@@ -465,7 +615,9 @@ function FolderTreeSelectedSummary({
   includeSubfolders: boolean;
 }): ReactElement {
   const folderText =
-    summary.selectedFolderCount === summary.dedupedFolderCount
+    summary.dedupedFolderCount === 0
+      ? 'No folders selected'
+      : summary.selectedFolderCount === summary.dedupedFolderCount
       ? `${summary.dedupedFolderCount.toLocaleString()} folders`
       : `${summary.selectedFolderCount.toLocaleString()} selected / ${summary.dedupedFolderCount.toLocaleString()} audited`;
   const videoCount = includeSubfolders ? summary.totalVideoCount : summary.directVideoCount;
@@ -476,13 +628,34 @@ function FolderTreeSelectedSummary({
 
   return (
     <section className="folder-tree-selected-summary" aria-label="Selected folder summary">
-      <span>Selected</span>
+      <span>{summary.dedupedFolderCount > 0 ? 'Selected' : 'Selection required'}</span>
       <strong>
-        {folderText} - {videoCount.toLocaleString()} {countLabel} -{' '}
-        {formatBytes(videoSizeBytes)}
+        {summary.dedupedFolderCount > 0
+          ? `${folderText} - ${videoCount.toLocaleString()} ${countLabel} - ${formatBytes(videoSizeBytes)}`
+          : 'Select at least one folder to continue.'}
       </strong>
     </section>
   );
+}
+
+function formatScanStatus(status: FolderTreeScanJobSnapshot['status']): string {
+  if (status === 'scanning') {
+    return 'Scanning';
+  }
+
+  if (status === 'complete') {
+    return 'Complete';
+  }
+
+  if (status === 'canceled') {
+    return 'Canceled';
+  }
+
+  if (status === 'error') {
+    return 'Error';
+  }
+
+  return 'Idle';
 }
 
 function formatGeneratedAt(value: string): string {
@@ -496,6 +669,39 @@ function formatGeneratedAt(value: string): string {
     hour: 'numeric',
     minute: '2-digit'
   })}`;
+}
+
+function formatMiddleTruncatedPath(
+  value: string,
+  maxLength = MAX_FOLDER_TREE_DISPLAY_PATH_LENGTH
+): string {
+  if (value.length <= maxLength) {
+    return value;
+  }
+
+  const sideLength = Math.floor((maxLength - 3) / 2);
+  const start = value.slice(0, sideLength);
+  const end = value.slice(value.length - sideLength);
+
+  return `${start}...${end}`;
+}
+
+function getFolderTreeErrorMessage(error: string): string {
+  if (isRootUnavailableError(error)) {
+    return 'The selected root is no longer available. Choose a new root or reconnect the drive, then refresh the tree.';
+  }
+
+  return error;
+}
+
+function isRootUnavailableError(error: string): boolean {
+  const lowerError = error.toLowerCase();
+
+  return (
+    lowerError.includes('root could not be read') ||
+    lowerError.includes('enoent') ||
+    lowerError.includes('no such file')
+  );
 }
 
 function getErrorMessage(error: unknown, fallback: string): string {

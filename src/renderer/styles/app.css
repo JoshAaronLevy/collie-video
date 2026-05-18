@@ -938,6 +938,7 @@ select {
 .folder-tree-root-panel,
 .folder-tree-scan-status,
 .folder-tree-selected-summary,
+.folder-tree-warning-panel,
 .folder-tree-empty-state {
   min-width: 0;
   padding: 0.85rem;
@@ -956,6 +957,12 @@ select {
 }
 
 .folder-tree-root-copy {
+  display: grid;
+  gap: 0.2rem;
+  min-width: 0;
+}
+
+.folder-tree-scan-copy {
   display: grid;
   gap: 0.2rem;
   min-width: 0;
@@ -984,6 +991,17 @@ select {
 .folder-tree-root-copy strong {
   font-family: var(--font-mono);
   font-size: 0.82rem;
+}
+
+.folder-tree-scan-copy small {
+  min-width: 0;
+  overflow: hidden;
+  color: var(--text-muted);
+  font-family: var(--font-mono);
+  font-size: 0.72rem;
+  font-weight: 750;
+  text-overflow: ellipsis;
+  white-space: nowrap;
 }
 
 .folder-tree-root-actions,
@@ -1025,6 +1043,68 @@ select {
   color: var(--text-muted);
   font-size: 0.86rem;
   font-weight: 750;
+}
+
+.folder-tree-empty-state.is-error i {
+  color: var(--danger);
+}
+
+.folder-tree-empty-state.is-canceled i {
+  color: var(--warning-strong);
+}
+
+.folder-tree-warning-panel {
+  display: grid;
+  gap: 0.45rem;
+  color: var(--warning-text);
+  background: var(--surface-warning);
+  border-color: var(--border-warning);
+}
+
+.folder-tree-warning-panel div {
+  display: flex;
+  gap: 0.45rem;
+  align-items: center;
+  min-width: 0;
+}
+
+.folder-tree-warning-panel i {
+  flex: 0 0 auto;
+  color: var(--warning-strong);
+}
+
+.folder-tree-warning-panel strong {
+  min-width: 0;
+  overflow: hidden;
+  font-size: 0.9rem;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.folder-tree-warning-panel span,
+.folder-tree-warning-panel small {
+  color: var(--warning-text);
+  font-size: 0.82rem;
+  font-weight: 750;
+}
+
+.folder-tree-warning-panel ul {
+  display: grid;
+  gap: 0.25rem;
+  padding: 0;
+  margin: 0;
+  list-style: none;
+}
+
+.folder-tree-warning-panel li {
+  min-width: 0;
+  overflow: hidden;
+  color: var(--warning-text);
+  font-family: var(--font-mono);
+  font-size: 0.74rem;
+  font-weight: 750;
+  text-overflow: ellipsis;
+  white-space: nowrap;
 }
 
 .recent-folder-strip {
@@ -2585,6 +2665,7 @@ select {
   .folder-tree-root-panel,
   .folder-tree-scan-status,
   .folder-tree-selected-summary,
+  .folder-tree-warning-panel,
   .metric-grid,
   .settings-section-grid,
   .video-details-main,

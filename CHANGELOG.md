@@ -7,6 +7,12 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.50.0] - 2026-05-18
+
+### Added
+
+- Polished folder-tree source selection states for scan loading, cancellation, missing roots, no-video roots, unreadable/skipped folder warnings, long paths, and disabled confirmation guidance.
+
 ## [0.49.0] - 2026-05-18
 
 ### Added
