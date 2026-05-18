@@ -29,6 +29,12 @@ import type {
 import type { PathSelectionResult, RevealPathResult } from '../shared/types/dialog';
 import type { ToolDiagnosticsResult } from '../shared/types/diagnostics';
 import type {
+  KnownPathValidationRequest,
+  KnownPathValidationResponse,
+  RevealKnownPathRequest,
+  RevealKnownPathResponse
+} from '../shared/types/fileOperations';
+import type {
   MediaPreviewJobSnapshot,
   MediaPreviewRequest,
   MediaPreviewResultResponse,
@@ -75,6 +81,11 @@ export interface VideoAuditApi {
   };
   shell: {
     revealPath: (path: string) => Promise<RevealPathResult>;
+  };
+  fileOperations: {
+    revealFile: (request: RevealKnownPathRequest) => Promise<RevealKnownPathResponse>;
+    revealFolder: (request: RevealKnownPathRequest) => Promise<RevealKnownPathResponse>;
+    validateKnownPaths: (request: KnownPathValidationRequest) => Promise<KnownPathValidationResponse>;
   };
   settings: {
     get: () => Promise<AppSettings>;
@@ -162,6 +173,14 @@ export const videoAuditApi: VideoAuditApi = {
   },
   shell: {
     revealPath: (path: string) => ipcRenderer.invoke(IPC_CHANNELS.shellRevealPath, path)
+  },
+  fileOperations: {
+    revealFile: (request: RevealKnownPathRequest) =>
+      ipcRenderer.invoke(IPC_CHANNELS.fileOperationRevealFile, request),
+    revealFolder: (request: RevealKnownPathRequest) =>
+      ipcRenderer.invoke(IPC_CHANNELS.fileOperationRevealFolder, request),
+    validateKnownPaths: (request: KnownPathValidationRequest) =>
+      ipcRenderer.invoke(IPC_CHANNELS.fileOperationValidateKnownPaths, request)
   },
   settings: {
     get: () => ipcRenderer.invoke(IPC_CHANNELS.settingsGet),

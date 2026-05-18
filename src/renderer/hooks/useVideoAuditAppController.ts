@@ -16,6 +16,7 @@ import type { AutoCropJobSnapshot, AutoCropResult } from '../../shared/types/aut
 import type { PathSelectionResult } from '../../shared/types/dialog';
 import type { ToolDiagnosticsResult } from '../../shared/types/diagnostics';
 import type { AutoFixJobSnapshot, AutoFixResult } from '../../shared/types/autoFix';
+import type { KnownPathValidationItem } from '../../shared/types/fileOperations';
 import type {
   MediaPreviewJobSnapshot,
   MediaPreviewResult,
@@ -170,6 +171,8 @@ export interface VideoAuditAppController {
   chooseRecentFolder: (path: string) => Promise<void>;
   clearSelectedSources: () => void;
   revealPath: (path: string) => Promise<void>;
+  revealKnownFile: (item: KnownPathValidationItem) => Promise<void>;
+  revealKnownFolder: (item: KnownPathValidationItem) => Promise<void>;
   updateAuditOption: <Key extends keyof AuditOptions>(key: Key, value: AuditOptions[Key]) => Promise<void>;
   updateSettingsField: <Key extends keyof AppSettings>(key: Key, value: AppSettings[Key]) => Promise<void>;
   resetSettings: () => Promise<void>;
@@ -756,10 +759,67 @@ export function useVideoAuditAppController(): VideoAuditAppController {
     setActiveAction('reveal');
 
     try {
-      const result = await window.videoAudit.shell.revealPath(path);
+      const validation = await window.videoAudit.fileOperations.validateKnownPaths({
+        items: [
+          {
+            path,
+            expectedKind: 'any'
+          }
+        ]
+      });
+      const item = validation.items[0];
+
+      if (!item?.isValid || !item.identity) {
+        setSelectionMessage(item?.errors[0] ?? validation.message ?? 'Could not reveal that path in Finder.');
+        return;
+      }
+
+      const result = item.identity.isDirectory
+        ? await window.videoAudit.fileOperations.revealFolder({
+            path,
+            expectedKind: 'directory',
+            expectedFileName: item.identity.fileName
+          })
+        : await window.videoAudit.fileOperations.revealFile({
+            path,
+            expectedKind: 'file',
+            expectedFileName: item.identity.fileName
+          });
       setSelectionMessage(result.ok ? null : (result.message ?? 'Could not reveal that path in Finder.'));
     } catch (error: unknown) {
       setSelectionMessage(getErrorMessage(error, 'Could not reveal that path in Finder.'));
+    } finally {
+      setActiveAction(null);
+    }
+  }, []);
+
+  const revealKnownFile = useCallback(async (item: KnownPathValidationItem): Promise<void> => {
+    setActiveAction('reveal');
+
+    try {
+      const result = await window.videoAudit.fileOperations.revealFile({
+        ...item,
+        expectedKind: 'file'
+      });
+      setSelectionMessage(result.ok ? null : (result.message ?? 'Could not reveal that file in Finder.'));
+    } catch (error: unknown) {
+      setSelectionMessage(getErrorMessage(error, 'Could not reveal that file in Finder.'));
+    } finally {
+      setActiveAction(null);
+    }
+  }, []);
+
+  const revealKnownFolder = useCallback(async (item: KnownPathValidationItem): Promise<void> => {
+    setActiveAction('reveal');
+
+    try {
+      const result = await window.videoAudit.fileOperations.revealFolder({
+        ...item,
+        expectedKind: 'directory'
+      });
+      setSelectionMessage(result.ok ? null : (result.message ?? 'Could not reveal that folder in Finder.'));
+    } catch (error: unknown) {
+      setSelectionMessage(getErrorMessage(error, 'Could not reveal that folder in Finder.'));
     } finally {
       setActiveAction(null);
     }
@@ -2124,6 +2184,8 @@ export function useVideoAuditAppController(): VideoAuditAppController {
     chooseRecentFolder,
     clearSelectedSources,
     revealPath,
+    revealKnownFile,
+    revealKnownFolder,
     updateAuditOption,
     updateSettingsField,
     resetSettings,

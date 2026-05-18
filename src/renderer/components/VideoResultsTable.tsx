@@ -5,6 +5,7 @@ import { DataTable } from 'primereact/datatable';
 import { Message } from 'primereact/message';
 import { Tag } from 'primereact/tag';
 import type { AuditError, AuditOptions, AuditSummary } from '../../shared/types/audit';
+import type { KnownPathValidationItem } from '../../shared/types/fileOperations';
 import type { PreviewClipJobSnapshot } from '../../shared/types/mediaPreview';
 import type { PremiereRequestResponse } from '../../shared/types/premiere';
 import type { VideoAdjustments, VideoPreviewFrame, VideoRow } from '../../shared/types/video';
@@ -43,7 +44,7 @@ interface VideoResultsTableProps {
   onRunAudit: () => void;
   onStartPreviewClipGeneration: (video: VideoRow, frames: VideoPreviewFrame[]) => void;
   onCancelPreviewClipGeneration: () => void;
-  onRevealPath: (path: string) => void;
+  onRevealKnownFile: (item: KnownPathValidationItem) => void;
 }
 
 const globalFilterFields = [
@@ -97,7 +98,7 @@ export function VideoResultsTable({
   onRunAudit,
   onStartPreviewClipGeneration,
   onCancelPreviewClipGeneration,
-  onRevealPath
+  onRevealKnownFile
 }: VideoResultsTableProps): ReactElement {
   const [detailPath, setDetailPath] = useState<string | null>(null);
   const detailVideo = useMemo(() => {
@@ -212,7 +213,7 @@ export function VideoResultsTable({
         <Column field="reasons" header="Issues" body={issuesTemplate} style={{ width: '16rem' }} />
         <Column
           header="Actions"
-          body={(row: VideoRow) => actionsTemplate(row, setDetailPath, onRevealPath)}
+          body={(row: VideoRow) => actionsTemplate(row, setDetailPath, onRevealKnownFile)}
           style={{ width: '7rem' }}
         />
       </DataTable>
@@ -228,7 +229,7 @@ export function VideoResultsTable({
         isPreviewClipActive={isPreviewClipActive}
         onGeneratePreviewClips={onStartPreviewClipGeneration}
         onCancelPreviewClips={onCancelPreviewClipGeneration}
-        onRevealPath={onRevealPath}
+        onRevealKnownFile={onRevealKnownFile}
         onHide={() => setDetailPath(null)}
       />
     </section>
@@ -441,7 +442,7 @@ function issuesTemplate(row: VideoRow): ReactElement {
 function actionsTemplate(
   row: VideoRow,
   onOpenDetails: (path: string) => void,
-  onRevealPath: (path: string) => void
+  onRevealKnownFile: (item: KnownPathValidationItem) => void
 ): ReactElement {
   return (
     <div className="row-action-buttons">
@@ -463,10 +464,22 @@ function actionsTemplate(
         rounded
         tooltip="Reveal in Finder"
         tooltipOptions={ROW_ACTION_TOOLTIP_OPTIONS}
-        onClick={() => onRevealPath(row.path)}
+        onClick={() => onRevealKnownFile(toKnownVideoFile(row))}
       />
     </div>
   );
+}
+
+function toKnownVideoFile(row: VideoRow): KnownPathValidationItem {
+  return {
+    id: row.id ?? row.path,
+    path: row.path,
+    expectedKind: 'file',
+    expectedFileName: row.fileName,
+    expectedSizeBytes: row.fileSystemSizeBytes ?? row.sizeBytes ?? row.sourceSizeBytes ?? null,
+    expectedModifiedAtMs: row.modifiedAtMs ?? null,
+    requireSupportedVideoExtension: true
+  };
 }
 
 interface TableEmptyState {

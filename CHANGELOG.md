@@ -7,6 +7,14 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.32.0] - 2026-05-18
+
+### Added
+
+- Added safe known-path validation for file-management workflows, including file identity, type, name, size, modified time, missing-path, and supported-video-extension checks.
+- Added typed file-management preload APIs and IPC handlers for revealing known files and folders in Finder.
+- Updated source and preview-clip reveal actions to validate known file metadata before opening Finder.
+
 ## [0.31.0] - 2026-05-18
 
 ### Added

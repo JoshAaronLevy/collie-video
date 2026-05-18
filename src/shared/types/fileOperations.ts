@@ -65,6 +65,55 @@ export interface FileIdentity {
   isFile: boolean;
 }
 
+export type KnownPathKind = 'file' | 'directory' | 'any';
+
+export interface KnownPathValidationItem {
+  id?: string;
+  path: string;
+  expectedKind: KnownPathKind;
+  expectedFileName?: string | null;
+  expectedSizeBytes?: number | null;
+  expectedModifiedAtMs?: number | null;
+  requireSupportedVideoExtension?: boolean;
+}
+
+export interface KnownPathValidationRequest {
+  items: KnownPathValidationItem[];
+}
+
+export interface KnownPathValidationResult {
+  id?: string;
+  path: string;
+  expectedKind: KnownPathKind;
+  exists: boolean;
+  isValid: boolean;
+  identity: FileIdentity | null;
+  warnings: string[];
+  errors: string[];
+}
+
+export interface KnownPathValidationResponse {
+  status: 'success' | 'error';
+  items: KnownPathValidationResult[];
+  summary: {
+    total: number;
+    valid: number;
+    invalid: number;
+    missing: number;
+  };
+  message?: string;
+}
+
+export type RevealKnownPathRequest = KnownPathValidationItem;
+
+export interface RevealKnownPathResponse {
+  ok: boolean;
+  path: string;
+  identity?: FileIdentity | null;
+  message?: string;
+  validation?: KnownPathValidationResult;
+}
+
 export interface KnownFileOperationItem {
   sourcePath: string;
   fileName?: string;

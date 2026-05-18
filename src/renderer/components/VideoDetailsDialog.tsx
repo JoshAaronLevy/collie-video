@@ -4,6 +4,7 @@ import { Dialog } from 'primereact/dialog';
 import { Message } from 'primereact/message';
 import { ProgressBar } from 'primereact/progressbar';
 import { Tag } from 'primereact/tag';
+import type { KnownPathValidationItem } from '../../shared/types/fileOperations';
 import type { PreviewClipJobSnapshot } from '../../shared/types/mediaPreview';
 import type { VideoPreviewFrame, VideoRow } from '../../shared/types/video';
 import { DialogHeader } from './DialogChrome';
@@ -17,7 +18,7 @@ interface VideoDetailsDialogProps {
   isPreviewClipActive: boolean;
   onGeneratePreviewClips: (video: VideoRow, frames: VideoPreviewFrame[]) => void;
   onCancelPreviewClips: () => void;
-  onRevealPath: (path: string) => void;
+  onRevealKnownFile: (item: KnownPathValidationItem) => void;
   onHide: () => void;
 }
 
@@ -30,7 +31,7 @@ export function VideoDetailsDialog({
   isPreviewClipActive,
   onGeneratePreviewClips,
   onCancelPreviewClips,
-  onRevealPath,
+  onRevealKnownFile,
   onHide
 }: VideoDetailsDialogProps): ReactElement {
   const frames = useMemo(() => getDisplayPreviewFrames(video), [video]);
@@ -113,12 +114,28 @@ export function VideoDetailsDialog({
               <InfoRow label="Aspect" value={video.displayAspectRatio || 'Unknown'} />
               <InfoRow label="Preview clips" value={`${readyClipCount}/${frames.length}`} />
               <Button
-                label="Reveal"
+                label="Reveal Source"
                 icon="pi pi-external-link"
                 severity="secondary"
                 outlined
-                onClick={() => onRevealPath(video.path)}
+                onClick={() => onRevealKnownFile(toKnownVideoFile(video))}
               />
+              {selectedClip?.path ? (
+                <Button
+                  label="Reveal Clip"
+                  icon="pi pi-external-link"
+                  severity="secondary"
+                  outlined
+                  onClick={() =>
+                    onRevealKnownFile({
+                      path: selectedClip.path ?? '',
+                      expectedKind: 'file',
+                      expectedFileName: selectedClip.fileName ?? null,
+                      requireSupportedVideoExtension: true
+                    })
+                  }
+                />
+              ) : null}
             </div>
           </section>
 
@@ -190,6 +207,18 @@ export function VideoDetailsDialog({
       ) : null}
     </Dialog>
   );
+}
+
+function toKnownVideoFile(video: VideoRow): KnownPathValidationItem {
+  return {
+    id: video.id ?? video.path,
+    path: video.path,
+    expectedKind: 'file',
+    expectedFileName: video.fileName,
+    expectedSizeBytes: video.fileSystemSizeBytes ?? video.sizeBytes ?? video.sourceSizeBytes ?? null,
+    expectedModifiedAtMs: video.modifiedAtMs ?? null,
+    requireSupportedVideoExtension: true
+  };
 }
 
 function getDisplayPreviewFrames(video: VideoRow | null): VideoPreviewFrame[] {

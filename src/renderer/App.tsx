@@ -128,7 +128,7 @@ export function App(): ReactElement {
             onRunAudit={controller.runAudit}
             onStartPreviewClipGeneration={controller.startPreviewClipGeneration}
             onCancelPreviewClipGeneration={controller.cancelPreviewClipGeneration}
-            onRevealPath={controller.revealPath}
+            onRevealKnownFile={controller.revealKnownFile}
           />
         </section>
 
