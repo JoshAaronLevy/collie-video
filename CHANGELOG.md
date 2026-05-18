@@ -7,6 +7,13 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.45.0] - 2026-05-18
+
+### Added
+
+- Added a reusable PrimeReact TreeTable component for rendering eager folder-tree scan results with checkbox selection, local expansion state, recursive video counts, and video-size columns.
+- Added a shared renderer byte formatter for folder-tree video size display.
+
 ## [0.44.0] - 2026-05-18
 
 ### Added
