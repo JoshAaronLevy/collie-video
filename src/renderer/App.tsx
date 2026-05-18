@@ -33,6 +33,7 @@ export function App(): ReactElement {
   const [isDiagnosticsVisible, setIsDiagnosticsVisible] = useState(false);
   const hasSources = controller.selectedFolders.length > 0 || controller.selectedFiles.length > 0;
   const hasAuditData = Boolean(controller.videoRows) || Boolean(controller.storageSavedAt);
+  const tableDisplayRootPath = controller.folderTreeRootPath ?? controller.auditedRootDirectory;
 
   useEffect(() => {
     if (controller.settingsOpenRequestCount > 0) {
@@ -129,6 +130,7 @@ export function App(): ReactElement {
             hasSources={hasSources}
             selectedFolderCount={controller.selectedFolders.length}
             selectedFileCount={controller.selectedFiles.length}
+            displayRootPath={tableDisplayRootPath}
             auditOptions={controller.auditOptions}
             auditSummary={controller.auditSummary}
             auditErrors={controller.auditErrors}

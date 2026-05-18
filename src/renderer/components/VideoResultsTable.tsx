@@ -21,6 +21,7 @@ interface VideoResultsTableProps {
   hasSources: boolean;
   selectedFolderCount: number;
   selectedFileCount: number;
+  displayRootPath: string | null;
   auditOptions: AuditOptions;
   auditSummary: AuditSummary | null;
   auditErrors: AuditError[];
@@ -78,6 +79,7 @@ export function VideoResultsTable({
   hasSources,
   selectedFolderCount,
   selectedFileCount,
+  displayRootPath,
   auditOptions,
   auditSummary,
   auditErrors,
@@ -206,7 +208,13 @@ export function VideoResultsTable({
       >
         <Column selectionMode="multiple" headerStyle={{ width: '3rem' }} style={{ width: '3rem' }} />
         <Column header="Preview" body={thumbnailTemplate} style={{ width: '6.5rem' }} />
-        <Column field="displayFile" header="File" sortable body={fileTemplate} style={{ width: '27rem' }} />
+        <Column
+          field="displayFile"
+          header="File Name"
+          sortable
+          body={(row: VideoRow) => fileTemplate(row, displayRootPath)}
+          style={{ width: '27rem' }}
+        />
         <Column field="fileType" header="Type" sortable body={typeTemplate} style={{ width: '6.5rem' }} />
         <Column field="sizeMB" header="Size" sortable body={sizeTemplate} style={{ width: '7rem' }} />
         <Column field="durationSeconds" header="Duration" sortable body={durationTemplate} style={{ width: '7.5rem' }} />
@@ -265,13 +273,79 @@ function thumbnailTemplate(row: VideoRow): ReactElement {
   );
 }
 
-function fileTemplate(row: VideoRow): ReactElement {
+function fileTemplate(row: VideoRow, displayRootPath: string | null): ReactElement {
+  const displayFileName = getDisplayFileName(row);
+  const displayDirectory = getDisplayDirectory(row, displayRootPath);
+  const directoryTitle = row.displayDirectory || row.directory;
+
   return (
     <div className="file-cell">
-      <span title={row.path}>{row.displayFile || row.fileName}</span>
-      <small title={row.displayDirectory || row.directory}>{row.displayDirectory || row.directory}</small>
+      <span title={row.path}>{displayFileName}</span>
+      <small title={directoryTitle}>{displayDirectory}</small>
     </div>
   );
+}
+
+function getDisplayFileName(row: VideoRow): string {
+  const fileName = getFileNameFromPath(row.fileName || row.displayFile || row.path) || 'Untitled video';
+  return removeFinalExtension(fileName);
+}
+
+function getDisplayDirectory(row: VideoRow, displayRootPath: string | null): string {
+  const directory = normalizePathForDisplay(row.directory || getDirectoryFromPath(row.path));
+  const fallbackDirectory = row.displayDirectory || row.directory;
+  const normalizedRoot = normalizePathForDisplay(displayRootPath ?? '');
+
+  if (!directory || !normalizedRoot) {
+    return fallbackDirectory;
+  }
+
+  if (directory === normalizedRoot) {
+    return getPathBaseName(normalizedRoot) || fallbackDirectory;
+  }
+
+  if (!directory.startsWith(`${normalizedRoot}/`)) {
+    return fallbackDirectory;
+  }
+
+  const rootName = getPathBaseName(normalizedRoot);
+  const relativeDirectory = directory.slice(normalizedRoot.length + 1);
+
+  return [rootName, relativeDirectory].filter(Boolean).join('/');
+}
+
+function normalizePathForDisplay(value: string): string {
+  return value.trim().replace(/\\/g, '/').replace(/\/+/g, '/').replace(/\/+$/, '');
+}
+
+function getDirectoryFromPath(value: string): string {
+  const normalizedPath = normalizePathForDisplay(value);
+  const pathParts = normalizedPath.split('/').filter(Boolean);
+
+  if (pathParts.length <= 1) {
+    return '';
+  }
+
+  const directoryParts = pathParts.slice(0, -1);
+  return normalizedPath.startsWith('/') ? `/${directoryParts.join('/')}` : directoryParts.join('/');
+}
+
+function getFileNameFromPath(value: string): string {
+  return value.split(/[\\/]+/).filter(Boolean).at(-1) ?? value;
+}
+
+function getPathBaseName(value: string): string {
+  return value.split('/').filter(Boolean).at(-1) ?? '';
+}
+
+function removeFinalExtension(fileName: string): string {
+  const extensionIndex = fileName.lastIndexOf('.');
+
+  if (extensionIndex <= 0) {
+    return fileName;
+  }
+
+  return fileName.slice(0, extensionIndex);
 }
 
 function typeTemplate(row: VideoRow): ReactElement {
