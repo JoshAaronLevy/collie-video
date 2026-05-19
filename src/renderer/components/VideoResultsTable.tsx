@@ -87,6 +87,7 @@ type ModifiedFilterValue =
   | 'last-180'
   | 'last-365'
   | 'more-than-365';
+type ResolutionFilterValue = 'high' | 'medium' | 'low';
 type CropFilterValue = 'Auto' | 'Review' | 'No' | 'Uncertain' | 'Error' | 'Not scanned';
 
 interface SelectOption<TValue> {
@@ -124,9 +125,10 @@ const modifiedFilterOptions: SelectOption<ModifiedFilterValue>[] = [
   { label: 'Last 365 days', value: 'last-365' },
   { label: 'More than 365 days ago', value: 'more-than-365' }
 ];
-const resolutionFilterOptions: SelectOption<boolean>[] = [
-  { label: 'Low Res', value: true },
-  { label: 'High Res', value: false }
+const resolutionFilterOptions: SelectOption<ResolutionFilterValue>[] = [
+  { label: 'High Res', value: 'high' },
+  { label: 'Medium Res', value: 'medium' },
+  { label: 'Low Res', value: 'low' }
 ];
 const aspectFilterOptions: SelectOption<boolean>[] = [
   { label: 'Correct', value: false },
@@ -370,14 +372,15 @@ export function VideoResultsTable({
         />
         <Column
           field="width"
-          filterField="isLowResolution"
+          filterField="resolution"
           header="Resolution"
           sortable
           filter
-          filterMatchMode={FilterMatchMode.EQUALS}
+          filterMatchMode={FilterMatchMode.CUSTOM}
+          filterFunction={resolutionFilterFunction}
           filterElement={(options) =>
             dropdownFilterTemplate(
-              options as FilterTemplateOptions<boolean | null>,
+              options as FilterTemplateOptions<ResolutionFilterValue | null>,
               resolutionFilterOptions,
               'Resolution'
             )
@@ -619,6 +622,14 @@ function modifiedFilterFunction(value: string | null, filter: ModifiedFilterValu
   return filter.some((range) => isModifiedDateInRange(value, range));
 }
 
+function resolutionFilterFunction(value: string | null | undefined, filter: ResolutionFilterValue | null): boolean {
+  if (!filter) {
+    return true;
+  }
+
+  return getResolutionCategoryFromResolution(value).value === filter;
+}
+
 function isModifiedDateInRange(value: string | null, range: ModifiedFilterValue): boolean {
   if (!value) {
     return false;
@@ -781,13 +792,89 @@ function modifiedTemplate(row: VideoRow): string {
 }
 
 function resolutionTemplate(row: VideoRow): ReactElement {
+  const resolutionCategory = getResolutionCategoryFromRow(row);
+
   return (
     <Tag
-      value={row.resolution || 'Unknown'}
-      severity={row.isLowResolution ? 'danger' : 'success'}
+      value={resolutionCategory.label}
+      severity={resolutionCategory.severity}
       className="result-tag"
+      title={row.resolution || 'Unknown resolution'}
     />
   );
+}
+
+function getResolutionCategoryFromRow(row: VideoRow): {
+  value: ResolutionFilterValue;
+  label: string;
+  severity: TagSeverity;
+} {
+  return getResolutionCategory(row.width, row.height);
+}
+
+function getResolutionCategoryFromResolution(value: string | null | undefined): {
+  value: ResolutionFilterValue;
+  label: string;
+  severity: TagSeverity;
+} {
+  const dimensions = parseResolution(value);
+  return getResolutionCategory(dimensions?.width ?? null, dimensions?.height ?? null);
+}
+
+function getResolutionCategory(
+  width: number | null | undefined,
+  height: number | null | undefined
+): {
+  value: ResolutionFilterValue;
+  label: string;
+  severity: TagSeverity;
+} {
+  if (typeof width !== 'number' || typeof height !== 'number' || width <= 0 || height <= 0) {
+    return {
+      value: 'low',
+      label: 'Low Res',
+      severity: 'danger'
+    };
+  }
+
+  if (width > 1280 && height > 720) {
+    return {
+      value: 'high',
+      label: 'High Res',
+      severity: 'success'
+    };
+  }
+
+  if (width >= 1280 && height >= 720) {
+    return {
+      value: 'medium',
+      label: 'Medium Res',
+      severity: 'warning'
+    };
+  }
+
+  return {
+    value: 'low',
+    label: 'Low Res',
+    severity: 'danger'
+  };
+}
+
+function parseResolution(value: string | null | undefined): { width: number; height: number } | null {
+  const match = String(value ?? '').match(/(\d+)\s*x\s*(\d+)/i);
+
+  if (!match) {
+    return null;
+  }
+
+  const width = Number(match[1]);
+  const height = Number(match[2]);
+
+  if (!Number.isFinite(width) || !Number.isFinite(height)) {
+    return null;
+  }
+
+  return { width, height };
 }
 
 function aspectTemplate(row: VideoRow): ReactElement {
