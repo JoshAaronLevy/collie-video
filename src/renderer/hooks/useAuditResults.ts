@@ -20,6 +20,7 @@ import type { StoredAuditResultState } from '../storage/auditResultStorage';
 
 interface UseAuditResultsOptions {
   setSelectedVideos: Dispatch<SetStateAction<VideoRow[]>>;
+  clearSelectedVideos: () => void;
 }
 
 interface ApplyAuditResultOptions {
@@ -73,7 +74,10 @@ export interface UseAuditResultsValue {
   clearStoredAuditResultState: () => Promise<void>;
 }
 
-export function useAuditResults({ setSelectedVideos }: UseAuditResultsOptions): UseAuditResultsValue {
+export function useAuditResults({
+  setSelectedVideos,
+  clearSelectedVideos
+}: UseAuditResultsOptions): UseAuditResultsValue {
   const [auditResult, setAuditResult] = useState<AuditResult | null>(null);
   const [auditSummary, setAuditSummary] = useState<AuditResult['summary'] | null>(null);
   const [auditErrors, setAuditErrors] = useState<AuditResult['errors']>([]);
@@ -131,7 +135,7 @@ export function useAuditResults({ setSelectedVideos }: UseAuditResultsOptions): 
       setVideoRows(normalizedRows);
       setAuditSummary(normalizedResult.summary);
       setAuditErrors(normalizedResult.errors);
-      setSelectedVideos([]);
+      clearSelectedVideos();
 
       if (request) {
         setLastAuditRequest(request);
@@ -149,7 +153,7 @@ export function useAuditResults({ setSelectedVideos }: UseAuditResultsOptions): 
         setStorageMessageState(`Saved ${normalizedRows.length.toLocaleString()} flagged row(s).`);
       }
     },
-    [setSelectedVideos, showThumbnailsState]
+    [clearSelectedVideos, showThumbnailsState]
   );
 
   const loadStoredAuditResultState = useCallback(async (): Promise<StoredAuditResultState | null> => {
@@ -295,10 +299,10 @@ export function useAuditResults({ setSelectedVideos }: UseAuditResultsOptions): 
       setAuditSummary(null);
       setAuditErrors([]);
       setVideoRows(null);
-      setSelectedVideos([]);
+      clearSelectedVideos();
       setLastAuditRequest(request);
     },
-    [setSelectedVideos]
+    [clearSelectedVideos]
   );
 
   const resetAuditResults = useCallback(
@@ -307,13 +311,13 @@ export function useAuditResults({ setSelectedVideos }: UseAuditResultsOptions): 
       setAuditSummary(null);
       setAuditErrors([]);
       setVideoRows(null);
-      setSelectedVideos([]);
+      clearSelectedVideos();
       setShowThumbnailsState(true);
       setLastAuditRequest(null);
       setStorageSavedAt(null);
       setStorageMessageState(options.storageMessage ?? null);
     },
-    [setSelectedVideos]
+    [clearSelectedVideos]
   );
 
   const archiveCurrentResultToHistory = useCallback(

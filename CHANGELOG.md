@@ -7,6 +7,12 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.50.6] - 2026-05-19
+
+### Changed
+
+- Extracted selected-row state, workflow busy-state derivation, and workflow capability flags into focused renderer hooks/helpers while preserving existing action gating.
+
 ## [0.50.5] - 2026-05-19
 
 ### Changed

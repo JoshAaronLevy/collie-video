@@ -80,6 +80,7 @@ import { toPremiereRequestVideo } from '../helpers/premiereRows';
 import { getProgressPercent } from '../helpers/progress';
 import { mergeRecentPaths } from '../helpers/recentPaths';
 import { getAuditedRootDirectory } from '../helpers/resultFilters';
+import { getWorkflowCapabilities } from '../helpers/workflowCapabilities';
 import {
   getExecutableReplacementItemCount,
   getReplacementBulkActionMessage,
@@ -90,6 +91,8 @@ import {
 import type { ResultsViewCounts, ResultsViewFilter } from '../types/resultsView';
 import { useAuditResults } from './useAuditResults';
 import { useResultFilters } from './useResultFilters';
+import { useSelectionState } from './useSelectionState';
+import { useWorkflowBusyState } from './useWorkflowBusyState';
 
 type ActiveAction =
   | 'folders'
@@ -378,7 +381,13 @@ export function useVideoAuditAppController(): VideoAuditAppController {
   const [auditOptions, setAuditOptions] = useState<AuditOptions>(DEFAULT_AUDIT_OPTIONS);
   const [auditJobId, setAuditJobId] = useState<string | null>(null);
   const [auditProgress, setAuditProgress] = useState<AuditJobSnapshot | null>(null);
-  const [selectedVideos, setSelectedVideos] = useState<VideoRow[]>([]);
+  const {
+    selectedVideos,
+    setSelectedVideos,
+    clearSelectedVideos,
+    selectedVideoCount,
+    selectedPaths
+  } = useSelectionState();
   const {
     auditResult,
     auditSummary,
@@ -406,7 +415,7 @@ export function useVideoAuditAppController(): VideoAuditAppController {
     setStorageMessage,
     archiveCurrentResultToHistory,
     clearStoredAuditResultState
-  } = useAuditResults({ setSelectedVideos });
+  } = useAuditResults({ setSelectedVideos, clearSelectedVideos });
   const {
     globalFilter,
     resultsViewFilter,
@@ -701,55 +710,42 @@ export function useVideoAuditAppController(): VideoAuditAppController {
     () => getAuditedRootDirectory(lastAuditRequest, auditSummary),
     [auditSummary, lastAuditRequest]
   );
-  const isAuditActive = auditProgress?.status === 'starting' || auditProgress?.status === 'running';
-  const isDiscoveryActive =
-    activeAction === 'discovery' ||
-    discoveryProgress?.status === 'starting' ||
-    discoveryProgress?.status === 'running';
-  const isFfprobeActive =
-    activeAction === 'ffprobe' ||
-    ffprobeProgress?.status === 'starting' ||
-    ffprobeProgress?.status === 'running';
-  const isAutoFixActive =
-    activeAction === 'autoFix' ||
-    autoFixProgress?.status === 'starting' ||
-    autoFixProgress?.status === 'running';
-  const isAutoCropActive =
-    activeAction === 'autoCrop' ||
-    autoCropProgress?.status === 'starting' ||
-    autoCropProgress?.status === 'running';
-  const isMediaPreviewActive =
-    activeAction === 'mediaPreview' ||
-    mediaPreviewProgress?.status === 'starting' ||
-    mediaPreviewProgress?.status === 'running';
-  const isPreviewClipActive =
-    activeAction === 'previewClip' ||
-    previewClipProgress?.status === 'starting' ||
-    previewClipProgress?.status === 'running';
-  const isMigrationScanning = activeAction === 'migrationScan';
-  const isMigrationExecuting =
-    activeAction === 'migrationExecute' ||
-    migrationProgress?.status === 'starting' ||
-    migrationProgress?.status === 'running';
-  const isMigrationActive = isMigrationScanning || isMigrationExecuting;
-  const isTrashPlanning = activeAction === 'trashPlan';
-  const isTrashExecuting = activeAction === 'trashExecute';
-  const isTrashActive = isTrashPlanning || isTrashExecuting;
-  const isMovePlanning = activeAction === 'movePlan';
-  const isMoveExecuting = activeAction === 'moveExecute';
-  const isMoveActive = isMovePlanning || isMoveExecuting;
-  const isArchivePlanning = activeAction === 'archivePlan';
-  const isArchiveExecuting = activeAction === 'archiveExecute';
-  const isArchiveActive = isArchivePlanning || isArchiveExecuting;
-  const isReplacementPlanning = activeAction === 'replacementPlan';
-  const isReplacementActionUpdating = activeAction === 'replacementUpdate';
-  const isReplacementExecuting =
-    activeAction === 'replacementExecute' ||
-    replacementProgress?.status === 'starting' ||
-    replacementProgress?.status === 'running';
-  const isReplacementActive = isReplacementPlanning || isReplacementActionUpdating || isReplacementExecuting;
-  const isOperationHistoryLoading = activeAction === 'operationHistory';
-  const isPremiereImportActive = activeAction === 'premiereImport' || isPremiereImportSubmitting;
+  const {
+    isAuditActive,
+    isDiscoveryActive,
+    isFfprobeActive,
+    isAutoFixActive,
+    isAutoCropActive,
+    isMediaPreviewActive,
+    isPreviewClipActive,
+    isMigrationScanning,
+    isMigrationExecuting,
+    isMigrationActive,
+    isTrashPlanning,
+    isTrashExecuting,
+    isMovePlanning,
+    isMoveExecuting,
+    isArchivePlanning,
+    isArchiveExecuting,
+    isReplacementPlanning,
+    isReplacementActionUpdating,
+    isReplacementExecuting,
+    isOperationHistoryLoading,
+    isPremiereImportActive,
+    isAnyBlockingWorkflowActive
+  } = useWorkflowBusyState({
+    activeAction,
+    auditProgress,
+    discoveryProgress,
+    ffprobeProgress,
+    autoFixProgress,
+    autoCropProgress,
+    mediaPreviewProgress,
+    previewClipProgress,
+    migrationProgress,
+    replacementProgress,
+    isPremiereImportSubmitting
+  });
   const auditPercent = getProgressPercent(auditProgress?.processedFiles, auditProgress?.totalFiles);
   const discoveryPercent = getProgressPercent(
     discoveryProgress?.processedFiles,
@@ -775,159 +771,30 @@ export function useVideoAuditAppController(): VideoAuditAppController {
   const metadataItems = ffprobeProgress?.result?.items ?? [];
   const autoFixOutputDirectory = outputFolder ?? settings?.defaultAutoFixDestinationRoot ?? null;
   const autoCropOutputRootDir = outputFolder ?? settings?.defaultOutputDirectory ?? null;
-  const canRunAudit =
-    !isAuditActive &&
-    !isDiscoveryActive &&
-    !isFfprobeActive &&
-    !isAutoFixActive &&
-    !isAutoCropActive &&
-    !isMediaPreviewActive &&
-    !isPreviewClipActive &&
-    !isMigrationActive &&
-    !isTrashActive &&
-    !isMoveActive &&
-    !isArchiveActive &&
-    !isReplacementActive &&
-    !isPremiereImportActive &&
-    (selectedFolders.length > 0 || selectedFiles.length > 0) &&
-    (auditOptions.includeLowResolutionAnalysis || auditOptions.includeBlackBorderAnalysis);
-  const canRefreshAudit =
-    Boolean(lastAuditRequest) &&
-    !isAuditActive &&
-    !isDiscoveryActive &&
-    !isFfprobeActive &&
-    !isAutoFixActive &&
-    !isAutoCropActive &&
-    !isMediaPreviewActive &&
-    !isPreviewClipActive &&
-    !isMigrationActive &&
-    !isTrashActive &&
-    !isMoveActive &&
-    !isArchiveActive &&
-    !isReplacementActive &&
-    !isPremiereImportActive;
-  const canAutoFixSelected =
-    selectedVideos.length > 0 &&
-    !isAuditActive &&
-    !isDiscoveryActive &&
-    !isFfprobeActive &&
-    !isAutoFixActive &&
-    !isAutoCropActive &&
-    !isMediaPreviewActive &&
-    !isPreviewClipActive &&
-    !isMigrationActive &&
-    !isTrashActive &&
-    !isMoveActive &&
-    !isArchiveActive &&
-    !isReplacementActive &&
-    !isPremiereImportActive;
-  const canOpenCropOptions =
-    selectedVideos.length > 0 &&
-    !isAuditActive &&
-    !isDiscoveryActive &&
-    !isFfprobeActive &&
-    !isAutoFixActive &&
-    !isAutoCropActive &&
-    !isMediaPreviewActive &&
-    !isPreviewClipActive &&
-    !isMigrationActive &&
-    !isTrashActive &&
-    !isMoveActive &&
-    !isArchiveActive &&
-    !isReplacementActive &&
-    !isPremiereImportActive;
-  const canGenerateThumbnails =
-    visibleVideoRows.length > 0 &&
-    !isAuditActive &&
-    !isDiscoveryActive &&
-    !isFfprobeActive &&
-    !isAutoFixActive &&
-    !isAutoCropActive &&
-    !isMediaPreviewActive &&
-    !isPreviewClipActive &&
-    !isMigrationActive &&
-    !isTrashActive &&
-    !isMoveActive &&
-    !isArchiveActive &&
-    !isReplacementActive &&
-    !isPremiereImportActive;
-  const canMoveSelectedToTrash =
-    selectedVideos.length > 0 &&
-    !isAuditActive &&
-    !isDiscoveryActive &&
-    !isFfprobeActive &&
-    !isAutoFixActive &&
-    !isAutoCropActive &&
-    !isMediaPreviewActive &&
-    !isPreviewClipActive &&
-    !isMigrationActive &&
-    !isTrashActive &&
-    !isMoveActive &&
-    !isArchiveActive &&
-    !isReplacementActive &&
-    !isPremiereImportActive;
-  const canMoveSelectedToFolder =
-    selectedVideos.length > 0 &&
-    !isAuditActive &&
-    !isDiscoveryActive &&
-    !isFfprobeActive &&
-    !isAutoFixActive &&
-    !isAutoCropActive &&
-    !isMediaPreviewActive &&
-    !isPreviewClipActive &&
-    !isMigrationActive &&
-    !isTrashActive &&
-    !isMoveActive &&
-    !isArchiveActive &&
-    !isReplacementActive &&
-    !isPremiereImportActive;
-  const canArchiveSelectedOriginals =
-    selectedVideos.length > 0 &&
-    !isAuditActive &&
-    !isDiscoveryActive &&
-    !isFfprobeActive &&
-    !isAutoFixActive &&
-    !isAutoCropActive &&
-    !isMediaPreviewActive &&
-    !isPreviewClipActive &&
-    !isMigrationActive &&
-    !isTrashActive &&
-    !isMoveActive &&
-    !isArchiveActive &&
-    !isReplacementActive &&
-    !isPremiereImportActive;
-  const canStartMigration =
-    Boolean(auditedRootDirectory) &&
-    Boolean(videoRows) &&
-    !isAuditActive &&
-    !isDiscoveryActive &&
-    !isFfprobeActive &&
-    !isAutoFixActive &&
-    !isAutoCropActive &&
-    !isMediaPreviewActive &&
-    !isPreviewClipActive &&
-    !isMigrationActive &&
-    !isTrashActive &&
-    !isMoveActive &&
-    !isArchiveActive &&
-    !isReplacementActive &&
-    !isPremiereImportActive;
-  const canEditSelectedInPremiere =
-    selectedVideos.length > 0 &&
-    premiereStatus?.status === 'ready' &&
-    !isAuditActive &&
-    !isDiscoveryActive &&
-    !isFfprobeActive &&
-    !isAutoFixActive &&
-    !isAutoCropActive &&
-    !isMediaPreviewActive &&
-    !isPreviewClipActive &&
-    !isMigrationActive &&
-    !isTrashActive &&
-    !isMoveActive &&
-    !isArchiveActive &&
-    !isReplacementActive &&
-    !isPremiereImportActive;
+  const {
+    canRunAudit,
+    canRefreshAudit,
+    canAutoFixSelected,
+    canOpenCropOptions,
+    canGenerateThumbnails,
+    canMoveSelectedToTrash,
+    canMoveSelectedToFolder,
+    canArchiveSelectedOriginals,
+    canStartMigration,
+    canEditSelectedInPremiere
+  } = getWorkflowCapabilities({
+    isAnyBlockingWorkflowActive,
+    selectedFolderCount: selectedFolders.length,
+    selectedFileCount: selectedFiles.length,
+    includeLowResolutionAnalysis: auditOptions.includeLowResolutionAnalysis,
+    includeBlackBorderAnalysis: auditOptions.includeBlackBorderAnalysis,
+    hasLastAuditRequest: Boolean(lastAuditRequest),
+    selectedVideoCount,
+    visibleVideoRowCount: visibleVideoRows.length,
+    hasAuditedRootDirectory: Boolean(auditedRootDirectory),
+    hasVideoRows: Boolean(videoRows),
+    premiereStatus: premiereStatus?.status ?? null
+  });
 
   const persistSettings = useCallback(async (partialSettings: AppSettingsUpdate): Promise<AppSettings | null> => {
     setActiveAction('settings');
@@ -1402,7 +1269,7 @@ export function useVideoAuditAppController(): VideoAuditAppController {
   }, []);
 
   const openTrashDialog = useCallback(async (): Promise<void> => {
-    if (selectedVideos.length === 0) {
+    if (selectedVideoCount === 0) {
       setWorkflowMessage('Select at least one video before moving files to Trash.');
       return;
     }
@@ -1441,7 +1308,7 @@ export function useVideoAuditAppController(): VideoAuditAppController {
     } finally {
       setActiveAction(null);
     }
-  }, [auditedRootDirectory, outputFolder, selectedFolders, selectedVideos]);
+  }, [auditedRootDirectory, outputFolder, selectedFolders, selectedVideoCount, selectedVideos]);
 
   const closeTrashDialog = useCallback((): void => {
     if (isTrashExecuting) {
@@ -1510,7 +1377,7 @@ export function useVideoAuditAppController(): VideoAuditAppController {
 
   const openMoveDialog = useCallback(
     async (conflictStrategy?: DestinationConflictStrategy): Promise<void> => {
-      if (selectedVideos.length === 0) {
+      if (selectedVideoCount === 0) {
         setWorkflowMessage('Select at least one video before moving files.');
         return;
       }
@@ -1563,7 +1430,7 @@ export function useVideoAuditAppController(): VideoAuditAppController {
         setActiveAction(null);
       }
     },
-    [selectedVideos, settings?.fileManagementConflictStrategy]
+    [selectedVideoCount, selectedVideos, settings?.fileManagementConflictStrategy]
   );
 
   const closeMoveDialog = useCallback((): void => {
@@ -1628,7 +1495,7 @@ export function useVideoAuditAppController(): VideoAuditAppController {
   }, [openOperationHistory, settings?.previewOperationHistoryAfterExecution]);
 
   const openArchiveDialog = useCallback(async (): Promise<void> => {
-    if (selectedVideos.length === 0) {
+    if (selectedVideoCount === 0) {
       setWorkflowMessage('Select at least one video before archiving originals.');
       return;
     }
@@ -1662,7 +1529,7 @@ export function useVideoAuditAppController(): VideoAuditAppController {
     } finally {
       setActiveAction(null);
     }
-  }, [selectedVideos, settings?.fileManagementConflictStrategy]);
+  }, [selectedVideoCount, selectedVideos, settings?.fileManagementConflictStrategy]);
 
   const closeArchiveDialog = useCallback((): void => {
     if (isArchiveExecuting) {
@@ -2239,12 +2106,12 @@ export function useVideoAuditAppController(): VideoAuditAppController {
   }, []);
 
   const removeSelectedVideos = useCallback(async (): Promise<void> => {
-    if (selectedVideos.length === 0) {
+    if (selectedVideoCount === 0) {
       return;
     }
 
-    await hideVideoPathsFromTable(selectedVideos.map((video) => video.path));
-  }, [hideVideoPathsFromTable, selectedVideos]);
+    await hideVideoPathsFromTable(selectedPaths);
+  }, [hideVideoPathsFromTable, selectedPaths, selectedVideoCount]);
 
   const clearAuditData = useCallback(async (): Promise<void> => {
     setActiveAction('clearCache');
@@ -2489,7 +2356,7 @@ export function useVideoAuditAppController(): VideoAuditAppController {
   }, [isAutoFixActive]);
 
   const startAutoFix = useCallback(async (): Promise<void> => {
-    if (selectedVideos.length === 0) {
+    if (selectedVideoCount === 0) {
       setAutoFixError('Select at least one video before running Auto-Fix.');
       return;
     }
@@ -2505,7 +2372,7 @@ export function useVideoAuditAppController(): VideoAuditAppController {
       jobId: null,
       status: 'starting',
       phase: 'validating',
-      totalVideos: selectedVideos.length,
+      totalVideos: selectedVideoCount,
       processedVideos: 0,
       currentFile: null,
       currentProfile: null,
@@ -2536,7 +2403,7 @@ export function useVideoAuditAppController(): VideoAuditAppController {
       setActiveAction(null);
       setAutoFixError(getErrorMessage(error, 'Could not start Auto-Fix.'));
     }
-  }, [autoFixOutputDirectory, selectedVideos]);
+  }, [autoFixOutputDirectory, selectedVideoCount, selectedVideos]);
 
   const cancelAutoFix = useCallback(async (): Promise<void> => {
     if (!autoFixJobId) {
@@ -2574,7 +2441,7 @@ export function useVideoAuditAppController(): VideoAuditAppController {
   }, [isAutoCropActive]);
 
   const startAutoCrop = useCallback(async (): Promise<void> => {
-    if (selectedVideos.length === 0) {
+    if (selectedVideoCount === 0) {
       setAutoCropError('Select at least one video before running Auto-Crop.');
       return;
     }
@@ -2592,7 +2459,7 @@ export function useVideoAuditAppController(): VideoAuditAppController {
       phase: 'validating',
       outputRootDir: autoCropOutputRootDir,
       outputDir: null,
-      totalFiles: selectedVideos.length,
+      totalFiles: selectedVideoCount,
       processedFiles: 0,
       succeededCount: 0,
       skippedCount: 0,
@@ -2621,7 +2488,7 @@ export function useVideoAuditAppController(): VideoAuditAppController {
       setActiveAction(null);
       setAutoCropError(getErrorMessage(error, 'Could not start Auto-Crop.'));
     }
-  }, [autoCropOutputRootDir, selectedVideos]);
+  }, [autoCropOutputRootDir, selectedVideoCount, selectedVideos]);
 
   const cancelAutoCrop = useCallback(async (): Promise<void> => {
     if (!autoCropJobId) {
@@ -2644,12 +2511,12 @@ export function useVideoAuditAppController(): VideoAuditAppController {
       return;
     }
 
-    setMediaPreviewScope(selectedVideos.length > 0 ? 'selected' : 'all');
+    setMediaPreviewScope(selectedVideoCount > 0 ? 'selected' : 'all');
     setMediaPreviewError(null);
     setMediaPreviewResult(null);
     setMediaPreviewProgress(null);
     setIsThumbnailDialogVisible(true);
-  }, [selectedVideos.length, visibleVideoRows.length]);
+  }, [selectedVideoCount, visibleVideoRows.length]);
 
   const closeThumbnailDialog = useCallback((): void => {
     if (isMediaPreviewActive) {
@@ -2661,7 +2528,7 @@ export function useVideoAuditAppController(): VideoAuditAppController {
   }, [isMediaPreviewActive]);
 
   const startThumbnailGeneration = useCallback(async (): Promise<void> => {
-    const rows = mediaPreviewScope === 'selected' && selectedVideos.length > 0 ? selectedVideos : visibleVideoRows;
+    const rows = mediaPreviewScope === 'selected' && selectedVideoCount > 0 ? selectedVideos : visibleVideoRows;
 
     if (rows.length === 0) {
       setMediaPreviewError('No videos are available for thumbnail generation.');
@@ -2703,7 +2570,7 @@ export function useVideoAuditAppController(): VideoAuditAppController {
       setActiveAction(null);
       setMediaPreviewError(getErrorMessage(error, 'Could not start thumbnail generation.'));
     }
-  }, [mediaPreviewScope, selectedVideos, visibleVideoRows]);
+  }, [mediaPreviewScope, selectedVideoCount, selectedVideos, visibleVideoRows]);
 
   const cancelThumbnailGeneration = useCallback(async (): Promise<void> => {
     if (!mediaPreviewJobId) {
@@ -3186,7 +3053,7 @@ export function useVideoAuditAppController(): VideoAuditAppController {
   }, [handleAppCommand]);
 
   const editSelectedInPremiere = useCallback(async (): Promise<void> => {
-    if (selectedVideos.length === 0) {
+    if (selectedVideoCount === 0) {
       setPremiereImportError('Select at least one video to import into Premiere.');
       return;
     }
@@ -3216,8 +3083,8 @@ export function useVideoAuditAppController(): VideoAuditAppController {
       }
 
       setPremiereImportResult(response);
-      const importedCount = selectedVideos.length;
-      const hiddenCount = await hideVideoPathsFromTable(selectedVideos.map((video) => video.path));
+      const importedCount = selectedVideoCount;
+      const hiddenCount = await hideVideoPathsFromTable(selectedPaths);
       const hiddenText =
         hiddenCount > 0 ? ` ${hiddenCount.toLocaleString()} video(s) were removed from the table.` : '';
 
@@ -3233,7 +3100,14 @@ export function useVideoAuditAppController(): VideoAuditAppController {
       setIsPremiereImportSubmitting(false);
       setActiveAction(null);
     }
-  }, [hideVideoPathsFromTable, premiereStatus?.status, refreshPremiereStatus, selectedVideos]);
+  }, [
+    hideVideoPathsFromTable,
+    premiereStatus?.status,
+    refreshPremiereStatus,
+    selectedPaths,
+    selectedVideoCount,
+    selectedVideos
+  ]);
 
   return {
     appInfo,
