@@ -46,6 +46,7 @@ export interface VideoResultsStoreState {
   setSearchQuery: (query: string) => void;
   setActiveViewFilter: (filter: ResultsViewFilter) => void;
   setShowThumbnails: (value: boolean) => void;
+  setStorageSavedAt: (savedAt: string | null) => void;
 
   setSelectedRowIds: (ids: string[]) => void;
   clearSelection: () => void;
@@ -114,9 +115,10 @@ function updateRowsInResult(result: AuditResult | null, rows: VideoRow[]): Audit
 export const useVideoResultsStore = create<VideoResultsStoreState>()((set, get) => ({
   ...getInitialVideoResultsState(),
 
-  applyAuditResult: ({ result, request, source, savedAt = null, showThumbnails }) => {
+  applyAuditResult: ({ result, request, source, savedAt, showThumbnails }) => {
     const state = get();
     const normalizedResult = normalizeResultRows(result);
+    const nextSavedAt = savedAt === undefined ? state.storageSavedAt : savedAt;
 
     set({
       auditResult: normalizedResult,
@@ -126,10 +128,10 @@ export const useVideoResultsStore = create<VideoResultsStoreState>()((set, get) 
       lastAuditRequest: request ?? state.lastAuditRequest,
       selectedRowIds: [],
       showThumbnails: showThumbnails ?? state.showThumbnails,
-      storageSavedAt: savedAt,
+      storageSavedAt: nextSavedAt,
       workspaceMeta: {
         source,
-        savedAt
+        savedAt: nextSavedAt
       }
     });
   },
@@ -139,6 +141,8 @@ export const useVideoResultsStore = create<VideoResultsStoreState>()((set, get) 
   },
 
   resetForAuditStart: (request) => {
+    const state = get();
+
     set({
       auditResult: null,
       rows: [],
@@ -146,10 +150,9 @@ export const useVideoResultsStore = create<VideoResultsStoreState>()((set, get) 
       errors: [],
       lastAuditRequest: request,
       selectedRowIds: [],
-      storageSavedAt: null,
       workspaceMeta: {
         source: 'empty',
-        savedAt: null
+        savedAt: state.storageSavedAt
       }
     });
   },
@@ -164,6 +167,18 @@ export const useVideoResultsStore = create<VideoResultsStoreState>()((set, get) 
 
   setShowThumbnails: (value) => {
     set({ showThumbnails: value });
+  },
+
+  setStorageSavedAt: (savedAt) => {
+    const state = get();
+
+    set({
+      storageSavedAt: savedAt,
+      workspaceMeta: {
+        ...state.workspaceMeta,
+        savedAt
+      }
+    });
   },
 
   setSelectedRowIds: (ids) => {

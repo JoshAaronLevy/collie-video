@@ -10,6 +10,7 @@ import type { VideoRow } from '../../shared/types/video';
 import { getErrorMessage } from '../helpers/errors';
 import { formatDateTime } from '../helpers/formatting';
 import { mergeMediaPreviewItems, mergePreviewClipItems } from '../helpers/mediaPreviewRows';
+import { getActiveRows, getRemovedRowCount } from '../helpers/resultFilters';
 import {
   clearStoredAuditResult,
   loadStoredAuditResult,
@@ -17,6 +18,7 @@ import {
   saveStoredAuditResult
 } from '../storage/auditResultStorage';
 import type { StoredAuditResultState } from '../storage/auditResultStorage';
+import { useVideoResultsStore } from '../stores/useVideoResultsStore';
 
 interface UseAuditResultsOptions {
   setSelectedVideos: Dispatch<SetStateAction<VideoRow[]>>;
@@ -78,28 +80,35 @@ export function useAuditResults({
   setSelectedVideos,
   clearSelectedVideos
 }: UseAuditResultsOptions): UseAuditResultsValue {
-  const [auditResult, setAuditResult] = useState<AuditResult | null>(null);
-  const [auditSummary, setAuditSummary] = useState<AuditResult['summary'] | null>(null);
-  const [auditErrors, setAuditErrors] = useState<AuditResult['errors']>([]);
-  const [videoRows, setVideoRows] = useState<VideoRow[] | null>(null);
-  const [showThumbnailsState, setShowThumbnailsState] = useState(true);
+  const auditResult = useVideoResultsStore((state) => state.auditResult);
+  const rows = useVideoResultsStore((state) => state.rows);
+  const auditSummary = useVideoResultsStore((state) => state.summary);
+  const auditErrors = useVideoResultsStore((state) => state.errors);
+  const showThumbnails = useVideoResultsStore((state) => state.showThumbnails);
+  const storageSavedAt = useVideoResultsStore((state) => state.storageSavedAt);
+  const lastAuditRequest = useVideoResultsStore((state) => state.lastAuditRequest);
+  const applyAuditResultToStore = useVideoResultsStore((state) => state.applyAuditResult);
+  const clearResultsInStore = useVideoResultsStore((state) => state.clearResults);
+  const resetForAuditStartInStore = useVideoResultsStore((state) => state.resetForAuditStart);
+  const setShowThumbnailsInStore = useVideoResultsStore((state) => state.setShowThumbnails);
+  const setStorageSavedAtInStore = useVideoResultsStore((state) => state.setStorageSavedAt);
+  const hideRowsByPathInStore = useVideoResultsStore((state) => state.hideRowsByPath);
+  const restoreRemovedRowsInStore = useVideoResultsStore((state) => state.restoreRemovedRows);
+  const mergeMediaPreviewItemsInStore = useVideoResultsStore((state) => state.mergeMediaPreviewItems);
+  const mergePreviewClipItemsInStore = useVideoResultsStore((state) => state.mergePreviewClipItems);
   const [isStorageLoading, setIsStorageLoading] = useState(true);
   const [storageMessage, setStorageMessageState] = useState<string | null>(null);
-  const [storageSavedAt, setStorageSavedAt] = useState<string | null>(null);
-  const [lastAuditRequest, setLastAuditRequest] = useState<AuditRequest | null>(null);
 
-  const visibleVideoRows = useMemo(
-    () => (videoRows ?? []).filter((row) => row.visible !== false),
-    [videoRows]
-  );
-  const removedVideoCount = (videoRows?.length ?? 0) - visibleVideoRows.length;
+  const videoRows = useMemo(() => (auditResult ? rows : null), [auditResult, rows]);
+  const visibleVideoRows = useMemo(() => getActiveRows(rows), [rows]);
+  const removedVideoCount = useMemo(() => getRemovedRowCount(rows), [rows]);
 
   const setStorageMessage = useCallback((message: string | null): void => {
     setStorageMessageState(message);
   }, []);
 
   const persistCurrentResult = useCallback(
-    async (nextResult: AuditResult, thumbnailValue = showThumbnailsState): Promise<void> => {
+    async (nextResult: AuditResult, thumbnailValue = showThumbnails): Promise<void> => {
       if (!lastAuditRequest) {
         return;
       }
@@ -110,10 +119,10 @@ export function useAuditResults({
         showThumbnails: thumbnailValue
       });
 
-      setStorageSavedAt(storedState.savedAt);
+      setStorageSavedAtInStore(storedState.savedAt);
       setStorageMessageState(`Saved ${nextResult.videos.length.toLocaleString()} flagged row(s).`);
     },
-    [lastAuditRequest, showThumbnailsState]
+    [lastAuditRequest, setStorageSavedAtInStore, showThumbnails]
   );
 
   const applyAuditResult = useCallback(
@@ -122,38 +131,30 @@ export function useAuditResults({
       request: AuditRequest | null,
       options: ApplyAuditResultOptions
     ): Promise<void> => {
-      const normalizedRows = result.videos.map((row) => ({
-        ...row,
-        visible: row.visible !== false
-      }));
-      const normalizedResult = {
-        ...result,
-        videos: normalizedRows
-      };
-
-      setAuditResult(normalizedResult);
-      setVideoRows(normalizedRows);
-      setAuditSummary(normalizedResult.summary);
-      setAuditErrors(normalizedResult.errors);
+      applyAuditResultToStore({
+        result,
+        request,
+        source: options.savedAt ? 'stored-audit' : 'audit',
+        savedAt: options.savedAt,
+        showThumbnails: options.showThumbnails
+      });
       clearSelectedVideos();
 
-      if (request) {
-        setLastAuditRequest(request);
-      }
+      const normalizedResult = useVideoResultsStore.getState().auditResult;
 
-      if (options.persist && request) {
+      if (options.persist && request && normalizedResult) {
         const storedState = await saveStoredAuditResult({
           request,
           result: normalizedResult,
-          showThumbnails: options.showThumbnails ?? showThumbnailsState,
+          showThumbnails: options.showThumbnails ?? useVideoResultsStore.getState().showThumbnails,
           savedAt: options.savedAt
         });
 
-        setStorageSavedAt(storedState.savedAt);
-        setStorageMessageState(`Saved ${normalizedRows.length.toLocaleString()} flagged row(s).`);
+        setStorageSavedAtInStore(storedState.savedAt);
+        setStorageMessageState(`Saved ${normalizedResult.videos.length.toLocaleString()} flagged row(s).`);
       }
     },
-    [clearSelectedVideos, showThumbnailsState]
+    [applyAuditResultToStore, clearSelectedVideos, setStorageSavedAtInStore]
   );
 
   const loadStoredAuditResultState = useCallback(async (): Promise<StoredAuditResultState | null> => {
@@ -162,8 +163,6 @@ export function useAuditResults({
 
   const applyStoredAuditResult = useCallback(
     async (storedAudit: StoredAuditResultState): Promise<void> => {
-      setShowThumbnailsState(storedAudit.showThumbnails);
-      setStorageSavedAt(storedAudit.savedAt);
       setStorageMessageState(`Restored saved audit from ${formatDateTime(storedAudit.savedAt)}.`);
       await applyAuditResult(storedAudit.result, storedAudit.request, {
         persist: false,
@@ -180,90 +179,71 @@ export function useAuditResults({
 
   const hideVideoPathsFromTable = useCallback(
     async (paths: string[]): Promise<number> => {
-      if (!auditResult || paths.length === 0) {
+      if (paths.length === 0) {
         return 0;
       }
 
-      const pathSet = new Set(paths);
-      let hiddenCount = 0;
-      const nextRows = auditResult.videos.map((row) => {
-        if (!pathSet.has(row.path) || row.visible === false) {
-          return row;
-        }
-
-        hiddenCount += 1;
-        return {
-          ...row,
-          visible: false
-        };
-      });
+      const hiddenCount = hideRowsByPathInStore(paths);
 
       if (hiddenCount === 0) {
         return 0;
       }
 
-      const nextResult = {
-        ...auditResult,
-        videos: nextRows
-      };
-
-      setAuditResult(nextResult);
-      setVideoRows(nextRows);
+      const pathSet = new Set(paths);
+      const nextResult = useVideoResultsStore.getState().auditResult;
       setSelectedVideos((currentSelection) =>
         currentSelection.filter((video) => !pathSet.has(video.path))
       );
-      await persistCurrentResult(nextResult);
+
+      if (nextResult) {
+        await persistCurrentResult(nextResult);
+      }
 
       return hiddenCount;
     },
-    [auditResult, persistCurrentResult, setSelectedVideos]
+    [hideRowsByPathInStore, persistCurrentResult, setSelectedVideos]
   );
 
   const restoreRemovedVideos = useCallback(async (): Promise<void> => {
-    if (!auditResult) {
+    if (!useVideoResultsStore.getState().auditResult) {
       return;
     }
 
-    const nextRows = auditResult.videos.map((row) => ({ ...row, visible: true }));
-    const nextResult = {
-      ...auditResult,
-      videos: nextRows
-    };
+    restoreRemovedRowsInStore();
+    const nextResult = useVideoResultsStore.getState().auditResult;
 
-    setAuditResult(nextResult);
-    setVideoRows(nextRows);
-    await persistCurrentResult(nextResult);
-  }, [auditResult, persistCurrentResult]);
+    if (nextResult) {
+      await persistCurrentResult(nextResult);
+    }
+  }, [persistCurrentResult, restoreRemovedRowsInStore]);
 
   const setShowThumbnails = useCallback(
     async (value: boolean): Promise<void> => {
-      setShowThumbnailsState(value);
+      setShowThumbnailsInStore(value);
+      const currentResult = useVideoResultsStore.getState().auditResult;
 
-      if (auditResult) {
-        await persistCurrentResult(auditResult, value);
+      if (currentResult) {
+        await persistCurrentResult(currentResult, value);
       }
     },
-    [auditResult, persistCurrentResult]
+    [persistCurrentResult, setShowThumbnailsInStore]
   );
 
   const mergeMediaPreviewItemsIntoRows = useCallback(
     async (items: MediaPreviewResultItem[]): Promise<void> => {
-      if (!auditResult) {
+      if (!useVideoResultsStore.getState().auditResult) {
         return;
       }
 
-      const nextRows = mergeMediaPreviewItems(auditResult.videos, items);
-      const nextResult = {
-        ...auditResult,
-        videos: nextRows
-      };
-
-      setAuditResult(nextResult);
-      setVideoRows(nextRows);
+      mergeMediaPreviewItemsInStore(items);
+      const nextResult = useVideoResultsStore.getState().auditResult;
       setSelectedVideos((currentSelection) => mergeMediaPreviewItems(currentSelection, items));
-      await persistCurrentResult(nextResult);
+
+      if (nextResult) {
+        await persistCurrentResult(nextResult);
+      }
     },
-    [auditResult, persistCurrentResult, setSelectedVideos]
+    [mergeMediaPreviewItemsInStore, persistCurrentResult, setSelectedVideos]
   );
 
   const mergeMediaPreviewResult = useCallback(
@@ -275,54 +255,43 @@ export function useAuditResults({
 
   const mergePreviewClipResult = useCallback(
     async (result: PreviewClipResult): Promise<void> => {
-      if (!auditResult) {
+      if (!useVideoResultsStore.getState().auditResult) {
         return;
       }
 
-      const nextRows = mergePreviewClipItems(auditResult.videos, result.items);
-      const nextResult = {
-        ...auditResult,
-        videos: nextRows
-      };
-
-      setAuditResult(nextResult);
-      setVideoRows(nextRows);
+      mergePreviewClipItemsInStore(result.items);
+      const nextResult = useVideoResultsStore.getState().auditResult;
       setSelectedVideos((currentSelection) => mergePreviewClipItems(currentSelection, result.items));
-      await persistCurrentResult(nextResult);
+
+      if (nextResult) {
+        await persistCurrentResult(nextResult);
+      }
     },
-    [auditResult, persistCurrentResult, setSelectedVideos]
+    [mergePreviewClipItemsInStore, persistCurrentResult, setSelectedVideos]
   );
 
   const resetResultStateForAuditStart = useCallback(
     (request: AuditRequest): void => {
-      setAuditResult(null);
-      setAuditSummary(null);
-      setAuditErrors([]);
-      setVideoRows(null);
+      resetForAuditStartInStore(request);
       clearSelectedVideos();
-      setLastAuditRequest(request);
     },
-    [clearSelectedVideos]
+    [clearSelectedVideos, resetForAuditStartInStore]
   );
 
   const resetAuditResults = useCallback(
     (options: ResetAuditResultsOptions = {}): void => {
-      setAuditResult(null);
-      setAuditSummary(null);
-      setAuditErrors([]);
-      setVideoRows(null);
+      clearResultsInStore();
       clearSelectedVideos();
-      setShowThumbnailsState(true);
-      setLastAuditRequest(null);
-      setStorageSavedAt(null);
       setStorageMessageState(options.storageMessage ?? null);
     },
-    [clearSelectedVideos]
+    [clearResultsInStore, clearSelectedVideos]
   );
 
   const archiveCurrentResultToHistory = useCallback(
     async ({ outputFolder }: { outputFolder: string | null }): Promise<AuditHistoryArchiveResult> => {
-      if (!auditResult || !lastAuditRequest) {
+      const currentState = useVideoResultsStore.getState();
+
+      if (!currentState.auditResult || !currentState.lastAuditRequest) {
         return {
           savedHistoryMetadata: false,
           historyMetadataError: null
@@ -331,10 +300,10 @@ export function useAuditResults({
 
       try {
         await saveStoredAuditHistoryEntry({
-          request: lastAuditRequest,
-          result: auditResult,
+          request: currentState.lastAuditRequest,
+          result: currentState.auditResult,
           outputFolder,
-          savedAt: storageSavedAt
+          savedAt: currentState.storageSavedAt
         });
 
         return {
@@ -348,7 +317,7 @@ export function useAuditResults({
         };
       }
     },
-    [auditResult, lastAuditRequest, storageSavedAt]
+    []
   );
 
   const clearStoredAuditResultState = useCallback(async (): Promise<void> => {
@@ -366,7 +335,7 @@ export function useAuditResults({
     storageSavedAt,
     isStorageLoading,
     lastAuditRequest,
-    showThumbnails: showThumbnailsState,
+    showThumbnails,
     loadStoredAuditResultState,
     applyStoredAuditResult,
     finishStorageLoading,

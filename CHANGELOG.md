@@ -7,6 +7,12 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.50.26] - 2026-05-19
+
+### Changed
+
+- Bridged the existing audit-result hook to the focused video results store so rows, row visibility, summaries, errors, saved timestamps, last audit requests, and thumbnail visibility now share one renderer result workspace source while storage status and persistence remain in the hook.
+
 ## [0.50.25] - 2026-05-19
 
 ### Added
