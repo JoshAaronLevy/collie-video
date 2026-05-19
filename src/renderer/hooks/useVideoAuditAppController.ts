@@ -85,6 +85,7 @@ import type { ResultsViewCounts, ResultsViewFilter } from '../types/resultsView'
 import { useAuditResults } from './useAuditResults';
 import { useAppBootstrap } from './useAppBootstrap';
 import { useDiagnosticsWorkflow } from './useDiagnosticsWorkflow';
+import { usePathReveal, type PathRevealActiveAction } from './usePathReveal';
 import { useResultFilters } from './useResultFilters';
 import { useSelectionState } from './useSelectionState';
 import { useSettingsController } from './useSettingsController';
@@ -409,6 +410,20 @@ export function useVideoAuditAppController(): VideoAuditAppController {
     persistSettings,
     setWorkflowMessage,
     setActiveAction: setSourceSelectionActiveAction
+  });
+  const setPathRevealSelectionMessage = useCallback((message: string | null): void => {
+    applySourceSelectionState({ selectionMessage: message });
+  }, [applySourceSelectionState]);
+  const setPathRevealActiveAction = useCallback((action: PathRevealActiveAction): void => {
+    setActiveAction(action);
+  }, []);
+  const {
+    revealPath,
+    revealKnownFile,
+    revealKnownFolder
+  } = usePathReveal({
+    setSelectionMessage: setPathRevealSelectionMessage,
+    setActiveAction: setPathRevealActiveAction
   });
   const [auditJobId, setAuditJobId] = useState<string | null>(null);
   const [auditProgress, setAuditProgress] = useState<AuditJobSnapshot | null>(null);
@@ -812,90 +827,6 @@ export function useVideoAuditAppController(): VideoAuditAppController {
     hasVideoRows: Boolean(videoRows),
     premiereStatus: premiereStatus?.status ?? null
   });
-
-  const revealPath = useCallback(async (path: string): Promise<void> => {
-    setActiveAction('reveal');
-
-    try {
-      const validation = await fileOperationsClient.validateKnownPaths({
-        items: [
-          {
-            path,
-            expectedKind: 'any'
-          }
-        ]
-      });
-      const item = validation.items[0];
-
-      if (!item?.isValid || !item.identity) {
-        applySourceSelectionState({
-          selectionMessage: item?.errors[0] ?? validation.message ?? 'Could not reveal that path in Finder.'
-        });
-        return;
-      }
-
-      const result = item.identity.isDirectory
-        ? await fileOperationsClient.revealFolder({
-            path,
-            expectedKind: 'directory',
-            expectedFileName: item.identity.fileName
-          })
-        : await fileOperationsClient.revealFile({
-            path,
-            expectedKind: 'file',
-            expectedFileName: item.identity.fileName
-          });
-      applySourceSelectionState({
-        selectionMessage: result.ok ? null : (result.message ?? 'Could not reveal that path in Finder.')
-      });
-    } catch (error: unknown) {
-      applySourceSelectionState({
-        selectionMessage: getErrorMessage(error, 'Could not reveal that path in Finder.')
-      });
-    } finally {
-      setActiveAction(null);
-    }
-  }, [applySourceSelectionState]);
-
-  const revealKnownFile = useCallback(async (item: KnownPathValidationItem): Promise<void> => {
-    setActiveAction('reveal');
-
-    try {
-      const result = await fileOperationsClient.revealFile({
-        ...item,
-        expectedKind: 'file'
-      });
-      applySourceSelectionState({
-        selectionMessage: result.ok ? null : (result.message ?? 'Could not reveal that file in Finder.')
-      });
-    } catch (error: unknown) {
-      applySourceSelectionState({
-        selectionMessage: getErrorMessage(error, 'Could not reveal that file in Finder.')
-      });
-    } finally {
-      setActiveAction(null);
-    }
-  }, [applySourceSelectionState]);
-
-  const revealKnownFolder = useCallback(async (item: KnownPathValidationItem): Promise<void> => {
-    setActiveAction('reveal');
-
-    try {
-      const result = await fileOperationsClient.revealFolder({
-        ...item,
-        expectedKind: 'directory'
-      });
-      applySourceSelectionState({
-        selectionMessage: result.ok ? null : (result.message ?? 'Could not reveal that folder in Finder.')
-      });
-    } catch (error: unknown) {
-      applySourceSelectionState({
-        selectionMessage: getErrorMessage(error, 'Could not reveal that folder in Finder.')
-      });
-    } finally {
-      setActiveAction(null);
-    }
-  }, [applySourceSelectionState]);
 
   const updateAuditOption = useCallback(
     async <Key extends keyof AuditOptions>(key: Key, value: AuditOptions[Key]): Promise<void> => {
