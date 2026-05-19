@@ -7,6 +7,12 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.50.8] - 2026-05-19
+
+### Changed
+
+- Extracted source selection state, folder tree selection handling, source picking, and output folder picking into a focused renderer hook while preserving existing source workflow behavior.
+
 ## [0.50.7] - 2026-05-19
 
 ### Changed

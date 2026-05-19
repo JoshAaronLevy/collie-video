@@ -13,7 +13,6 @@ import type {
   FfprobeMetadataRequest
 } from '../../shared/types/audit';
 import type { AutoCropJobSnapshot, AutoCropResult } from '../../shared/types/autoCrop';
-import type { PathSelectionResult } from '../../shared/types/dialog';
 import type { ToolDiagnosticsResult } from '../../shared/types/diagnostics';
 import type { AutoFixJobSnapshot, AutoFixResult } from '../../shared/types/autoFix';
 import type {
@@ -69,11 +68,10 @@ import * as replacementClient from '../api/replacementClient';
 import { DEFAULT_AUDIT_OPTIONS, settingsToAuditOptions } from '../helpers/auditOptions';
 import { getErrorMessage } from '../helpers/errors';
 import { toKnownFileOperationItem } from '../helpers/fileOperationItems';
-import { createPersistedFolderTreeSource, getPersistedFolderTreeSourcePaths } from '../helpers/folderTreeSource';
+import { getPersistedFolderTreeSourcePaths } from '../helpers/folderTreeSource';
 import { getKnownDirectories } from '../helpers/knownDirectories';
 import { toPremiereRequestVideo } from '../helpers/premiereRows';
 import { getProgressPercent } from '../helpers/progress';
-import { mergeRecentPaths } from '../helpers/recentPaths';
 import { getAuditedRootDirectory } from '../helpers/resultFilters';
 import { getWorkflowCapabilities } from '../helpers/workflowCapabilities';
 import {
@@ -90,6 +88,7 @@ import { useDiagnosticsWorkflow } from './useDiagnosticsWorkflow';
 import { useResultFilters } from './useResultFilters';
 import { useSelectionState } from './useSelectionState';
 import { useSettingsController } from './useSettingsController';
+import { useSourceSelection, type SourceSelectionActiveAction } from './useSourceSelection';
 import { useWorkflowBusyState } from './useWorkflowBusyState';
 
 type ActiveAction =
@@ -359,10 +358,9 @@ export interface VideoAuditAppController {
 
 export function useVideoAuditAppController(): VideoAuditAppController {
   const [settingsOpenRequestCount, setSettingsOpenRequestCount] = useState(0);
-  const [folderTreeOpenRequestCount, setFolderTreeOpenRequestCount] = useState(0);
-  const [selectionMessage, setSelectionMessage] = useState<string | null>(null);
   const [workflowMessage, setWorkflowMessage] = useState<string | null>(null);
   const [activeAction, setActiveAction] = useState<ActiveAction>(null);
+  const [auditOptions, setAuditOptions] = useState<AuditOptions>(DEFAULT_AUDIT_OPTIONS);
   const { appInfo, appInfoMessage } = useAppBootstrap();
   const handleSettingsActiveChange = useCallback((isActive: boolean): void => {
     setActiveAction(isActive ? 'settings' : null);
@@ -385,13 +383,33 @@ export function useVideoAuditAppController(): VideoAuditAppController {
     isToolDiagnosticsLoading,
     runToolDiagnostics
   } = useDiagnosticsWorkflow({ setSettingsMessage });
-  const [selectedFolders, setSelectedFolders] = useState<string[]>([]);
-  const [selectedFolderSummary, setSelectedFolderSummary] = useState<SelectedFolderSummary | null>(null);
-  const [folderTreeRootPath, setFolderTreeRootPath] = useState<string | null>(null);
-  const [folderTreeLastScannedAt, setFolderTreeLastScannedAt] = useState<string | null>(null);
-  const [selectedFiles, setSelectedFiles] = useState<string[]>([]);
-  const [outputFolder, setOutputFolder] = useState<string | null>(null);
-  const [auditOptions, setAuditOptions] = useState<AuditOptions>(DEFAULT_AUDIT_OPTIONS);
+  const setSourceSelectionActiveAction = useCallback((action: SourceSelectionActiveAction): void => {
+    setActiveAction(action);
+  }, []);
+  const {
+    selectedFolders,
+    selectedFolderSummary,
+    folderTreeRootPath,
+    folderTreeLastScannedAt,
+    selectedFiles,
+    outputFolder,
+    selectionMessage,
+    folderTreeOpenRequestCount,
+    applySourceSelectionState,
+    requestFolderTreeOpen,
+    applyFolderTreeSelection,
+    chooseFolders,
+    chooseFiles,
+    chooseOutputFolder,
+    chooseRecentFolder,
+    clearSelectedSources
+  } = useSourceSelection({
+    settings,
+    includeSubfolders: auditOptions.includeSubfolders,
+    persistSettings,
+    setWorkflowMessage,
+    setActiveAction: setSourceSelectionActiveAction
+  });
   const [auditJobId, setAuditJobId] = useState<string | null>(null);
   const [auditProgress, setAuditProgress] = useState<AuditJobSnapshot | null>(null);
   const {
@@ -578,26 +596,24 @@ export function useVideoAuditAppController(): VideoAuditAppController {
           return;
         }
 
-        setOutputFolder(loadedSettings.defaultOutputDirectory);
-
         const restoredFolderTreeSource = loadedSettings.latestFolderTreeSource;
         const restoredFolderTreePaths = restoredFolderTreeSource
           ? getPersistedFolderTreeSourcePaths(restoredFolderTreeSource)
           : [];
 
-        if (restoredFolderTreeSource) {
-          setFolderTreeRootPath(restoredFolderTreeSource.rootPath);
-          setFolderTreeLastScannedAt(restoredFolderTreeSource.lastScannedAt);
-        }
-
         if (storedAudit) {
-          setSelectedFolders(
+          const restoredSelectedFolders =
             restoredFolderTreePaths.length > 0
               ? restoredFolderTreePaths
-              : dedupeOverlappingFolderPaths(storedAudit.request.folderPaths)
-          );
-          setSelectedFolderSummary(restoredFolderTreeSource?.selectedFolderSummary ?? null);
-          setSelectedFiles(storedAudit.request.filePaths);
+              : dedupeOverlappingFolderPaths(storedAudit.request.folderPaths);
+          applySourceSelectionState({
+            outputFolder: loadedSettings.defaultOutputDirectory,
+            folderTreeRootPath: restoredFolderTreeSource?.rootPath ?? null,
+            folderTreeLastScannedAt: restoredFolderTreeSource?.lastScannedAt ?? null,
+            selectedFolders: restoredSelectedFolders,
+            selectedFolderSummary: restoredFolderTreeSource?.selectedFolderSummary ?? null,
+            selectedFiles: storedAudit.request.filePaths
+          });
           setAuditOptions({
             ...storedAudit.request.options,
             includeSubfolders:
@@ -606,8 +622,13 @@ export function useVideoAuditAppController(): VideoAuditAppController {
           await applyStoredAuditResult(storedAudit);
         } else {
           const restoredAuditOptions = settingsToAuditOptions(loadedSettings);
-          setSelectedFolders(restoredFolderTreePaths);
-          setSelectedFolderSummary(restoredFolderTreeSource?.selectedFolderSummary ?? null);
+          applySourceSelectionState({
+            outputFolder: loadedSettings.defaultOutputDirectory,
+            folderTreeRootPath: restoredFolderTreeSource?.rootPath ?? null,
+            folderTreeLastScannedAt: restoredFolderTreeSource?.lastScannedAt ?? null,
+            selectedFolders: restoredFolderTreePaths,
+            selectedFolderSummary: restoredFolderTreeSource?.selectedFolderSummary ?? null
+          });
           setAuditOptions({
             ...restoredAuditOptions,
             includeSubfolders:
@@ -630,7 +651,13 @@ export function useVideoAuditAppController(): VideoAuditAppController {
     return () => {
       isMounted = false;
     };
-  }, [applyStoredAuditResult, finishStorageLoading, loadSettings, loadStoredAuditResultState]);
+  }, [
+    applySourceSelectionState,
+    applyStoredAuditResult,
+    finishStorageLoading,
+    loadSettings,
+    loadStoredAuditResultState
+  ]);
 
   useEffect(() => {
     return auditClient.subscribeToAuditProgress((progress) => {
@@ -786,165 +813,6 @@ export function useVideoAuditAppController(): VideoAuditAppController {
     premiereStatus: premiereStatus?.status ?? null
   });
 
-  const handleSelectionResult = useCallback(
-    async (result: PathSelectionResult, onValidPaths: (paths: string[]) => void): Promise<void> => {
-      if (result.canceled) {
-        setSelectionMessage(null);
-        return;
-      }
-
-      onValidPaths(result.paths);
-      setSelectionMessage(
-        result.invalidPaths.length > 0
-          ? `${result.invalidPaths.length} selected path(s) could not be used.`
-          : null
-      );
-    },
-    []
-  );
-
-  const chooseFolders = useCallback(async (): Promise<void> => {
-    setActiveAction('folders');
-
-    try {
-      const result = await dialogClient.chooseFolders();
-      await handleSelectionResult(result, (paths) => {
-        setSelectedFolders(dedupeOverlappingFolderPaths(paths));
-        setSelectedFolderSummary(null);
-        setFolderTreeRootPath(null);
-        setFolderTreeLastScannedAt(null);
-      });
-
-      if (!result.canceled && result.paths.length > 0) {
-        await persistSettings({
-          recentFolders: mergeRecentPaths(result.paths, settings?.recentFolders ?? []),
-          latestSelectedFolder: result.paths[0],
-          latestFolderTreeSource: null
-        });
-      }
-    } catch (error: unknown) {
-      setSelectionMessage(getErrorMessage(error, 'Could not choose folders.'));
-    } finally {
-      setActiveAction(null);
-    }
-  }, [handleSelectionResult, persistSettings, settings?.recentFolders]);
-
-  const applyFolderTreeSelection = useCallback(
-    async (
-      folderPaths: string[],
-      rootPath: string,
-      summary: SelectedFolderSummary,
-      lastScannedAt: string | null
-    ): Promise<void> => {
-      const dedupedFolderPaths = dedupeOverlappingFolderPaths(folderPaths);
-      const nextFolderTreeSource = createPersistedFolderTreeSource({
-        rootPath,
-        selectedFolderPaths: summary.selectedFolderPaths,
-        dedupedSelectedFolderPaths: dedupedFolderPaths,
-        summary: {
-          ...summary,
-          dedupedFolderPaths,
-          dedupedFolderCount: dedupedFolderPaths.length
-        },
-        includeSubfolders: auditOptions.includeSubfolders,
-        lastScannedAt
-      });
-
-      setSelectedFolders(dedupedFolderPaths);
-      setSelectedFolderSummary(nextFolderTreeSource.selectedFolderSummary);
-      setFolderTreeRootPath(rootPath);
-      setFolderTreeLastScannedAt(lastScannedAt);
-      setSelectionMessage(null);
-      setWorkflowMessage(
-        dedupedFolderPaths.length > 0
-          ? `${dedupedFolderPaths.length.toLocaleString()} folder tree source(s) selected.`
-          : 'No folder tree sources selected.'
-      );
-
-      if (dedupedFolderPaths.length > 0) {
-        await persistSettings({
-          recentFolders: mergeRecentPaths([rootPath, ...dedupedFolderPaths], settings?.recentFolders ?? []),
-          latestSelectedFolder: rootPath,
-          latestFolderTreeSource: nextFolderTreeSource
-        });
-      }
-    },
-    [auditOptions.includeSubfolders, persistSettings, settings?.recentFolders]
-  );
-
-  const chooseRecentFolder = useCallback(
-    async (path: string): Promise<void> => {
-      if (!path) {
-        return;
-      }
-
-      setSelectedFolders([path]);
-      setSelectedFolderSummary(null);
-      setFolderTreeRootPath(null);
-      setFolderTreeLastScannedAt(null);
-      setSelectedFiles([]);
-      setSelectionMessage(null);
-      await persistSettings({
-        recentFolders: mergeRecentPaths([path], settings?.recentFolders ?? []),
-        latestSelectedFolder: path,
-        latestFolderTreeSource: null
-      });
-    },
-    [persistSettings, settings?.recentFolders]
-  );
-
-  const chooseFiles = useCallback(async (): Promise<void> => {
-    setActiveAction('files');
-
-    try {
-      const result = await dialogClient.chooseVideoFiles();
-      await handleSelectionResult(result, setSelectedFiles);
-
-      if (!result.canceled && result.paths.length > 0) {
-        await persistSettings({
-          recentFiles: mergeRecentPaths(result.paths, settings?.recentFiles ?? [])
-        });
-      }
-    } catch (error: unknown) {
-      setSelectionMessage(getErrorMessage(error, 'Could not choose files.'));
-    } finally {
-      setActiveAction(null);
-    }
-  }, [handleSelectionResult, persistSettings, settings?.recentFiles]);
-
-  const clearSelectedSources = useCallback((): void => {
-    setSelectedFolders([]);
-    setSelectedFolderSummary(null);
-    setFolderTreeRootPath(null);
-    setFolderTreeLastScannedAt(null);
-    setSelectedFiles([]);
-    setSelectionMessage(null);
-    setWorkflowMessage('Selected sources cleared.');
-    void persistSettings({
-      latestFolderTreeSource: null,
-      latestSelectedFolder: null
-    });
-  }, [persistSettings]);
-
-  const chooseOutputFolder = useCallback(async (): Promise<void> => {
-    setActiveAction('output');
-
-    try {
-      const result = await dialogClient.chooseOutputFolder();
-      await handleSelectionResult(result, (paths) => setOutputFolder(paths[0] ?? null));
-
-      if (!result.canceled && result.paths[0]) {
-        await persistSettings({
-          defaultOutputDirectory: result.paths[0]
-        });
-      }
-    } catch (error: unknown) {
-      setSelectionMessage(getErrorMessage(error, 'Could not choose an output folder.'));
-    } finally {
-      setActiveAction(null);
-    }
-  }, [handleSelectionResult, persistSettings]);
-
   const revealPath = useCallback(async (path: string): Promise<void> => {
     setActiveAction('reveal');
 
@@ -960,7 +828,9 @@ export function useVideoAuditAppController(): VideoAuditAppController {
       const item = validation.items[0];
 
       if (!item?.isValid || !item.identity) {
-        setSelectionMessage(item?.errors[0] ?? validation.message ?? 'Could not reveal that path in Finder.');
+        applySourceSelectionState({
+          selectionMessage: item?.errors[0] ?? validation.message ?? 'Could not reveal that path in Finder.'
+        });
         return;
       }
 
@@ -975,13 +845,17 @@ export function useVideoAuditAppController(): VideoAuditAppController {
             expectedKind: 'file',
             expectedFileName: item.identity.fileName
           });
-      setSelectionMessage(result.ok ? null : (result.message ?? 'Could not reveal that path in Finder.'));
+      applySourceSelectionState({
+        selectionMessage: result.ok ? null : (result.message ?? 'Could not reveal that path in Finder.')
+      });
     } catch (error: unknown) {
-      setSelectionMessage(getErrorMessage(error, 'Could not reveal that path in Finder.'));
+      applySourceSelectionState({
+        selectionMessage: getErrorMessage(error, 'Could not reveal that path in Finder.')
+      });
     } finally {
       setActiveAction(null);
     }
-  }, []);
+  }, [applySourceSelectionState]);
 
   const revealKnownFile = useCallback(async (item: KnownPathValidationItem): Promise<void> => {
     setActiveAction('reveal');
@@ -991,13 +865,17 @@ export function useVideoAuditAppController(): VideoAuditAppController {
         ...item,
         expectedKind: 'file'
       });
-      setSelectionMessage(result.ok ? null : (result.message ?? 'Could not reveal that file in Finder.'));
+      applySourceSelectionState({
+        selectionMessage: result.ok ? null : (result.message ?? 'Could not reveal that file in Finder.')
+      });
     } catch (error: unknown) {
-      setSelectionMessage(getErrorMessage(error, 'Could not reveal that file in Finder.'));
+      applySourceSelectionState({
+        selectionMessage: getErrorMessage(error, 'Could not reveal that file in Finder.')
+      });
     } finally {
       setActiveAction(null);
     }
-  }, []);
+  }, [applySourceSelectionState]);
 
   const revealKnownFolder = useCallback(async (item: KnownPathValidationItem): Promise<void> => {
     setActiveAction('reveal');
@@ -1007,13 +885,17 @@ export function useVideoAuditAppController(): VideoAuditAppController {
         ...item,
         expectedKind: 'directory'
       });
-      setSelectionMessage(result.ok ? null : (result.message ?? 'Could not reveal that folder in Finder.'));
+      applySourceSelectionState({
+        selectionMessage: result.ok ? null : (result.message ?? 'Could not reveal that folder in Finder.')
+      });
     } catch (error: unknown) {
-      setSelectionMessage(getErrorMessage(error, 'Could not reveal that folder in Finder.'));
+      applySourceSelectionState({
+        selectionMessage: getErrorMessage(error, 'Could not reveal that folder in Finder.')
+      });
     } finally {
       setActiveAction(null);
     }
-  }, []);
+  }, [applySourceSelectionState]);
 
   const updateAuditOption = useCallback(
     async <Key extends keyof AuditOptions>(key: Key, value: AuditOptions[Key]): Promise<void> => {
@@ -1054,13 +936,15 @@ export function useVideoAuditAppController(): VideoAuditAppController {
       return;
     }
 
-    setOutputFolder(reset.defaultOutputDirectory);
+    applySourceSelectionState({
+      outputFolder: reset.defaultOutputDirectory,
+      selectedFolders: [],
+      selectedFolderSummary: null,
+      folderTreeRootPath: null,
+      folderTreeLastScannedAt: null
+    });
     setAuditOptions(settingsToAuditOptions(reset));
-    setSelectedFolders([]);
-    setSelectedFolderSummary(null);
-    setFolderTreeRootPath(null);
-    setFolderTreeLastScannedAt(null);
-  }, [resetStoredSettings]);
+  }, [applySourceSelectionState, resetStoredSettings]);
 
   const startAuditRequest = useCallback(async (request: AuditRequest): Promise<AuditStartOutcome> => {
     setWorkflowMessage(null);
@@ -1118,9 +1002,11 @@ export function useVideoAuditAppController(): VideoAuditAppController {
       folderPaths: dedupedFolderPaths
     };
 
-    setSelectedFolders(dedupedFolderPaths);
-    setSelectedFolderSummary(null);
-    setSelectedFiles(lastAuditRequest.filePaths);
+    applySourceSelectionState({
+      selectedFolders: dedupedFolderPaths,
+      selectedFolderSummary: null,
+      selectedFiles: lastAuditRequest.filePaths
+    });
     setAuditOptions(lastAuditRequest.options);
 
     try {
@@ -1128,7 +1014,7 @@ export function useVideoAuditAppController(): VideoAuditAppController {
     } catch (error: unknown) {
       setWorkflowMessage(getErrorMessage(error, 'Could not refresh audit.'));
     }
-  }, [lastAuditRequest, startAuditRequest]);
+  }, [applySourceSelectionState, lastAuditRequest, startAuditRequest]);
 
   const cancelAudit = useCallback(async (): Promise<void> => {
     if (!auditJobId) {
@@ -2095,18 +1981,20 @@ export function useVideoAuditAppController(): VideoAuditAppController {
         return;
       }
 
-      setOutputFolder(updatedSettings.defaultOutputDirectory);
+      applySourceSelectionState({
+        outputFolder: updatedSettings.defaultOutputDirectory,
+        selectedFolders: [],
+        selectedFolderSummary: null,
+        folderTreeRootPath: null,
+        folderTreeLastScannedAt: null,
+        selectedFiles: [],
+        selectionMessage: null
+      });
       setAuditOptions(settingsToAuditOptions(updatedSettings));
       setAuditJobId(null);
       setAuditProgress(null);
       setGlobalFilter('');
       setResultsViewFilter('all');
-      setSelectedFolders([]);
-      setSelectedFolderSummary(null);
-      setFolderTreeRootPath(null);
-      setFolderTreeLastScannedAt(null);
-      setSelectedFiles([]);
-      setSelectionMessage(null);
       setDiscoveryJobId(null);
       setDiscoveryProgress(null);
       setFfprobeJobId(null);
@@ -2186,6 +2074,7 @@ export function useVideoAuditAppController(): VideoAuditAppController {
       setActiveAction(null);
     }
   }, [
+    applySourceSelectionState,
     archiveCurrentResultToHistory,
     clearStoredAuditResultState,
     outputFolder,
@@ -2959,8 +2848,7 @@ export function useVideoAuditAppController(): VideoAuditAppController {
   const handleAppCommand = useCallback(
     async (command: AppCommand): Promise<void> => {
       if (command === 'choose-folder') {
-        setFolderTreeOpenRequestCount((count) => count + 1);
-        setSelectionMessage(null);
+        requestFolderTreeOpen();
         return;
       }
 
@@ -2984,7 +2872,7 @@ export function useVideoAuditAppController(): VideoAuditAppController {
         setSettingsMessage(null);
       }
     },
-    [cancelActiveWork, chooseFiles, refreshAudit]
+    [cancelActiveWork, chooseFiles, refreshAudit, requestFolderTreeOpen]
   );
 
   useEffect(() => appClient.subscribeToAppCommands((command) => {
