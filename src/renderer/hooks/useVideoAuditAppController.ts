@@ -75,9 +75,7 @@ import { DEFAULT_AUDIT_OPTIONS, settingsToAuditOptions } from '../helpers/auditO
 import { getErrorMessage } from '../helpers/errors';
 import { toKnownFileOperationItem } from '../helpers/fileOperationItems';
 import { createPersistedFolderTreeSource, getPersistedFolderTreeSourcePaths } from '../helpers/folderTreeSource';
-import { formatDateTime } from '../helpers/formatting';
 import { getKnownDirectories } from '../helpers/knownDirectories';
-import { mergeMediaPreviewItems, mergePreviewClipItems } from '../helpers/mediaPreviewRows';
 import { toPremiereRequestVideo } from '../helpers/premiereRows';
 import { getProgressPercent } from '../helpers/progress';
 import { mergeRecentPaths } from '../helpers/recentPaths';
@@ -93,13 +91,8 @@ import {
   hasSuccessfulConversionOutputs,
   requiresReplacementConfirmation
 } from '../helpers/replacementPlan';
-import {
-  clearStoredAuditResult,
-  loadStoredAuditResult,
-  saveStoredAuditHistoryEntry,
-  saveStoredAuditResult
-} from '../storage/auditResultStorage';
 import type { ResultsViewCounts, ResultsViewFilter } from '../types/resultsView';
+import { useAuditResults } from './useAuditResults';
 
 type ActiveAction =
   | 'folders'
@@ -388,18 +381,37 @@ export function useVideoAuditAppController(): VideoAuditAppController {
   const [auditOptions, setAuditOptions] = useState<AuditOptions>(DEFAULT_AUDIT_OPTIONS);
   const [auditJobId, setAuditJobId] = useState<string | null>(null);
   const [auditProgress, setAuditProgress] = useState<AuditJobSnapshot | null>(null);
-  const [auditResult, setAuditResult] = useState<AuditResult | null>(null);
-  const [auditSummary, setAuditSummary] = useState<AuditSummary | null>(null);
-  const [auditErrors, setAuditErrors] = useState<AuditResult['errors']>([]);
-  const [videoRows, setVideoRows] = useState<VideoRow[] | null>(null);
   const [selectedVideos, setSelectedVideos] = useState<VideoRow[]>([]);
+  const {
+    auditResult,
+    auditSummary,
+    auditErrors,
+    videoRows,
+    visibleVideoRows,
+    removedVideoCount,
+    storageMessage,
+    storageSavedAt,
+    isStorageLoading,
+    lastAuditRequest,
+    showThumbnails,
+    loadStoredAuditResultState,
+    applyStoredAuditResult,
+    finishStorageLoading,
+    applyAuditResult,
+    hideVideoPathsFromTable,
+    restoreRemovedVideos,
+    setShowThumbnails,
+    mergeMediaPreviewResult,
+    mergeMediaPreviewItemsIntoRows,
+    mergePreviewClipResult,
+    resetResultStateForAuditStart,
+    resetAuditResults,
+    setStorageMessage,
+    archiveCurrentResultToHistory,
+    clearStoredAuditResultState
+  } = useAuditResults({ setSelectedVideos });
   const [globalFilter, setGlobalFilter] = useState('');
   const [resultsViewFilter, setResultsViewFilter] = useState<ResultsViewFilter>('all');
-  const [showThumbnailsState, setShowThumbnailsState] = useState(true);
-  const [isStorageLoading, setIsStorageLoading] = useState(true);
-  const [storageMessage, setStorageMessage] = useState<string | null>(null);
-  const [storageSavedAt, setStorageSavedAt] = useState<string | null>(null);
-  const [lastAuditRequest, setLastAuditRequest] = useState<AuditRequest | null>(null);
   const [discoveryJobId, setDiscoveryJobId] = useState<string | null>(null);
   const [discoveryProgress, setDiscoveryProgress] = useState<FileDiscoveryJobSnapshot | null>(null);
   const [ffprobeJobId, setFfprobeJobId] = useState<string | null>(null);
@@ -476,46 +488,6 @@ export function useVideoAuditAppController(): VideoAuditAppController {
   const [premiereImportResult, setPremiereImportResult] = useState<PremiereRequestResponse | null>(null);
   const [premiereImportError, setPremiereImportError] = useState<string | null>(null);
   const pendingAuditRequestRef = useRef<AuditRequest | null>(null);
-
-  const applyAuditResult = useCallback(
-    async (
-      result: AuditResult,
-      request: AuditRequest | null,
-      options: { persist: boolean; savedAt?: string; showThumbnails?: boolean }
-    ): Promise<void> => {
-      const normalizedRows = result.videos.map((row) => ({
-        ...row,
-        visible: row.visible !== false
-      }));
-      const normalizedResult = {
-        ...result,
-        videos: normalizedRows
-      };
-
-      setAuditResult(normalizedResult);
-      setVideoRows(normalizedRows);
-      setAuditSummary(normalizedResult.summary);
-      setAuditErrors(normalizedResult.errors);
-      setSelectedVideos([]);
-
-      if (request) {
-        setLastAuditRequest(request);
-      }
-
-      if (options.persist && request) {
-        const storedState = await saveStoredAuditResult({
-          request,
-          result: normalizedResult,
-          showThumbnails: options.showThumbnails ?? showThumbnailsState,
-          savedAt: options.savedAt
-        });
-
-        setStorageSavedAt(storedState.savedAt);
-        setStorageMessage(`Saved ${normalizedRows.length.toLocaleString()} flagged row(s).`);
-      }
-    },
-    [showThumbnailsState]
-  );
 
   useEffect(() => {
     let isMounted = true;
@@ -596,7 +568,7 @@ export function useVideoAuditAppController(): VideoAuditAppController {
       try {
         const [loadedSettings, storedAudit] = await Promise.all([
           settingsClient.getSettings(),
-          loadStoredAuditResult()
+          loadStoredAuditResultState()
         ]);
 
         if (!isMounted) {
@@ -629,14 +601,7 @@ export function useVideoAuditAppController(): VideoAuditAppController {
             includeSubfolders:
               restoredFolderTreeSource?.includeSubfolders ?? storedAudit.request.options.includeSubfolders
           });
-          setShowThumbnailsState(storedAudit.showThumbnails);
-          setStorageSavedAt(storedAudit.savedAt);
-          setStorageMessage(`Restored saved audit from ${formatDateTime(storedAudit.savedAt)}.`);
-          await applyAuditResult(storedAudit.result, storedAudit.request, {
-            persist: false,
-            savedAt: storedAudit.savedAt,
-            showThumbnails: storedAudit.showThumbnails
-          });
+          await applyStoredAuditResult(storedAudit);
         } else {
           const restoredAuditOptions = settingsToAuditOptions(loadedSettings);
           setSelectedFolders(restoredFolderTreePaths);
@@ -653,7 +618,7 @@ export function useVideoAuditAppController(): VideoAuditAppController {
         }
       } finally {
         if (isMounted) {
-          setIsStorageLoading(false);
+          finishStorageLoading();
         }
       }
     }
@@ -663,7 +628,7 @@ export function useVideoAuditAppController(): VideoAuditAppController {
     return () => {
       isMounted = false;
     };
-  }, [applyAuditResult]);
+  }, [applyStoredAuditResult, finishStorageLoading, loadStoredAuditResultState]);
 
   useEffect(() => {
     return auditClient.subscribeToAuditProgress((progress) => {
@@ -729,10 +694,6 @@ export function useVideoAuditAppController(): VideoAuditAppController {
     });
   }, []);
 
-  const visibleVideoRows = useMemo(
-    () => (videoRows ?? []).filter((row) => row.visible !== false),
-    [videoRows]
-  );
   const resultsViewCounts = useMemo(
     () => getResultsViewCounts(visibleVideoRows),
     [visibleVideoRows]
@@ -745,7 +706,6 @@ export function useVideoAuditAppController(): VideoAuditAppController {
     () => getAuditedRootDirectory(lastAuditRequest, auditSummary),
     [auditSummary, lastAuditRequest]
   );
-  const removedVideoCount = (videoRows?.length ?? 0) - visibleVideoRows.length;
   const isAuditActive = auditProgress?.status === 'starting' || auditProgress?.status === 'running';
   const isDiscoveryActive =
     activeAction === 'discovery' ||
@@ -1296,14 +1256,9 @@ export function useVideoAuditAppController(): VideoAuditAppController {
   const startAuditRequest = useCallback(async (request: AuditRequest): Promise<AuditStartOutcome> => {
     setWorkflowMessage(null);
     setAuditProgress(null);
-    setAuditResult(null);
-    setAuditSummary(null);
-    setAuditErrors([]);
-    setVideoRows(null);
-    setSelectedVideos([]);
+    resetResultStateForAuditStart(request);
     setActiveAction(null);
     pendingAuditRequestRef.current = request;
-    setLastAuditRequest(request);
 
     const response = await auditClient.startAudit(request);
 
@@ -1315,7 +1270,7 @@ export function useVideoAuditAppController(): VideoAuditAppController {
     setAuditJobId(response.jobId);
     setWorkflowMessage(response.message ?? 'Audit started.');
     return 'started';
-  }, []);
+  }, [resetResultStateForAuditStart]);
 
   const runAudit = useCallback(async (): Promise<AuditStartOutcome> => {
     const request = {
@@ -1380,65 +1335,6 @@ export function useVideoAuditAppController(): VideoAuditAppController {
       setWorkflowMessage(getErrorMessage(error, 'Could not cancel audit.'));
     }
   }, [auditJobId]);
-
-  const persistCurrentResult = useCallback(
-    async (nextResult: AuditResult, thumbnailValue = showThumbnailsState): Promise<void> => {
-      if (!lastAuditRequest) {
-        return;
-      }
-
-      const storedState = await saveStoredAuditResult({
-        request: lastAuditRequest,
-        result: nextResult,
-        showThumbnails: thumbnailValue
-      });
-
-      setStorageSavedAt(storedState.savedAt);
-      setStorageMessage(`Saved ${nextResult.videos.length.toLocaleString()} flagged row(s).`);
-    },
-    [lastAuditRequest, showThumbnailsState]
-  );
-
-  const hideVideoPathsFromTable = useCallback(
-    async (paths: string[]): Promise<number> => {
-      if (!auditResult || paths.length === 0) {
-        return 0;
-      }
-
-      const pathSet = new Set(paths);
-      let hiddenCount = 0;
-      const nextRows = auditResult.videos.map((row) => {
-        if (!pathSet.has(row.path) || row.visible === false) {
-          return row;
-        }
-
-        hiddenCount += 1;
-        return {
-          ...row,
-          visible: false
-        };
-      });
-
-      if (hiddenCount === 0) {
-        return 0;
-      }
-
-      const nextResult = {
-        ...auditResult,
-        videos: nextRows
-      };
-
-      setAuditResult(nextResult);
-      setVideoRows(nextRows);
-      setSelectedVideos((currentSelection) =>
-        currentSelection.filter((video) => !pathSet.has(video.path))
-      );
-      await persistCurrentResult(nextResult);
-
-      return hiddenCount;
-    },
-    [auditResult, persistCurrentResult]
-  );
 
   const loadOperationHistory = useCallback(async (): Promise<void> => {
     setOperationHistoryError(null);
@@ -2234,46 +2130,6 @@ export function useVideoAuditAppController(): VideoAuditAppController {
     });
   }, [hideVideoPathsFromTable]);
 
-  const applyMediaPreviewResult = useCallback(
-    async (result: MediaPreviewResult): Promise<void> => {
-      if (!auditResult) {
-        return;
-      }
-
-      const nextRows = mergeMediaPreviewItems(auditResult.videos, result.items);
-      const nextResult = {
-        ...auditResult,
-        videos: nextRows
-      };
-
-      setAuditResult(nextResult);
-      setVideoRows(nextRows);
-      setSelectedVideos((currentSelection) => mergeMediaPreviewItems(currentSelection, result.items));
-      await persistCurrentResult(nextResult);
-    },
-    [auditResult, persistCurrentResult]
-  );
-
-  const applyPreviewClipResult = useCallback(
-    async (result: PreviewClipResult): Promise<void> => {
-      if (!auditResult) {
-        return;
-      }
-
-      const nextRows = mergePreviewClipItems(auditResult.videos, result.items);
-      const nextResult = {
-        ...auditResult,
-        videos: nextRows
-      };
-
-      setAuditResult(nextResult);
-      setVideoRows(nextRows);
-      setSelectedVideos((currentSelection) => mergePreviewClipItems(currentSelection, result.items));
-      await persistCurrentResult(nextResult);
-    },
-    [auditResult, persistCurrentResult]
-  );
-
   useEffect(() => {
     return mediaPreviewClient.subscribeToMediaPreviewProgress((progress) => {
       setMediaPreviewProgress(progress);
@@ -2290,7 +2146,7 @@ export function useVideoAuditAppController(): VideoAuditAppController {
         setActiveAction(null);
         setMediaPreviewResult(progress.result);
         setMediaPreviewError(null);
-        void applyMediaPreviewResult(progress.result).then(() => {
+        void mergeMediaPreviewResult(progress.result).then(() => {
           setWorkflowMessage(
             `Thumbnail generation complete. ${progress.result?.summary.generated.toLocaleString() ?? '0'} generated, ${progress.result?.summary.cached.toLocaleString() ?? '0'} cached.`
           );
@@ -2309,7 +2165,7 @@ export function useVideoAuditAppController(): VideoAuditAppController {
         setWorkflowMessage(progress.message ?? 'Thumbnail generation canceled.');
       }
     });
-  }, [applyMediaPreviewResult]);
+  }, [mergeMediaPreviewResult]);
 
   useEffect(() => {
     return mediaPreviewClient.subscribeToClipProgress((progress) => {
@@ -2327,7 +2183,7 @@ export function useVideoAuditAppController(): VideoAuditAppController {
         setActiveAction(null);
         setPreviewClipResult(progress.result);
         setPreviewClipError(null);
-        void applyPreviewClipResult(progress.result).then(() => {
+        void mergePreviewClipResult(progress.result).then(() => {
           setWorkflowMessage(
             `Preview clip generation complete. ${progress.result?.summary.generated.toLocaleString() ?? '0'} generated, ${progress.result?.summary.cached.toLocaleString() ?? '0'} cached.`
           );
@@ -2346,7 +2202,7 @@ export function useVideoAuditAppController(): VideoAuditAppController {
         setWorkflowMessage(progress.message ?? 'Preview clip generation canceled.');
       }
     });
-  }, [applyPreviewClipResult]);
+  }, [mergePreviewClipResult]);
 
   useEffect(() => {
     return migrationClient.subscribeToMigrationProgress((progress) => {
@@ -2395,54 +2251,14 @@ export function useVideoAuditAppController(): VideoAuditAppController {
     await hideVideoPathsFromTable(selectedVideos.map((video) => video.path));
   }, [hideVideoPathsFromTable, selectedVideos]);
 
-  const restoreRemovedVideos = useCallback(async (): Promise<void> => {
-    if (!auditResult) {
-      return;
-    }
-
-    const nextRows = auditResult.videos.map((row) => ({ ...row, visible: true }));
-    const nextResult = {
-      ...auditResult,
-      videos: nextRows
-    };
-
-    setAuditResult(nextResult);
-    setVideoRows(nextRows);
-    await persistCurrentResult(nextResult);
-  }, [auditResult, persistCurrentResult]);
-
-  const setShowThumbnails = useCallback(
-    async (value: boolean): Promise<void> => {
-      setShowThumbnailsState(value);
-
-      if (auditResult) {
-        await persistCurrentResult(auditResult, value);
-      }
-    },
-    [auditResult, persistCurrentResult]
-  );
-
   const clearAuditData = useCallback(async (): Promise<void> => {
     setActiveAction('clearCache');
     setStorageMessage('Clearing cache...');
     setWorkflowMessage(null);
 
-    let savedHistoryMetadata = false;
-    let historyMetadataError: string | null = null;
-
-    if (auditResult && lastAuditRequest) {
-      try {
-        await saveStoredAuditHistoryEntry({
-          request: lastAuditRequest,
-          result: auditResult,
-          outputFolder,
-          savedAt: storageSavedAt
-        });
-        savedHistoryMetadata = true;
-      } catch (error: unknown) {
-        historyMetadataError = getErrorMessage(error, 'Could not save scan history metadata.');
-      }
-    }
+    const { savedHistoryMetadata, historyMetadataError } = await archiveCurrentResultToHistory({
+      outputFolder
+    });
 
     try {
       const previewCacheResponse = await mediaPreviewClient.clearCache();
@@ -2451,7 +2267,7 @@ export function useVideoAuditAppController(): VideoAuditAppController {
         throw new Error(previewCacheResponse.message || 'Could not clear media preview cache.');
       }
 
-      await clearStoredAuditResult();
+      await clearStoredAuditResultState();
 
       const updatedSettings = await settingsClient.updateSettings({
         defaultOutputDirectory: null,
@@ -2466,14 +2282,8 @@ export function useVideoAuditAppController(): VideoAuditAppController {
       setAuditOptions(settingsToAuditOptions(updatedSettings));
       setAuditJobId(null);
       setAuditProgress(null);
-      setAuditResult(null);
-      setAuditSummary(null);
-      setAuditErrors([]);
-      setVideoRows(null);
-      setSelectedVideos([]);
       setGlobalFilter('');
       setResultsViewFilter('all');
-      setShowThumbnailsState(true);
       setSelectedFolders([]);
       setSelectedFolderSummary(null);
       setFolderTreeRootPath(null);
@@ -2545,22 +2355,26 @@ export function useVideoAuditAppController(): VideoAuditAppController {
       setPremiereImportResult(null);
       setPremiereImportError(null);
       setIsPremiereImportSubmitting(false);
-      setLastAuditRequest(null);
       pendingAuditRequestRef.current = null;
-      setStorageSavedAt(null);
-      setStorageMessage(
-        historyMetadataError
+      resetAuditResults({
+        storageMessage: historyMetadataError
           ? `Cache cleared. Scan history metadata could not be saved: ${historyMetadataError}`
           : savedHistoryMetadata
             ? 'Cache cleared. Scan metadata saved for future history.'
             : 'Cache cleared.'
-      );
+      });
     } catch (error: unknown) {
       setStorageMessage(getErrorMessage(error, 'Could not clear cache.'));
     } finally {
       setActiveAction(null);
     }
-  }, [auditResult, lastAuditRequest, outputFolder, storageSavedAt]);
+  }, [
+    archiveCurrentResultToHistory,
+    clearStoredAuditResultState,
+    outputFolder,
+    resetAuditResults,
+    setStorageMessage
+  ]);
 
   const startDiscovery = useCallback(async (): Promise<void> => {
     const request: FileDiscoveryRequest = {
@@ -2950,16 +2764,8 @@ export function useVideoAuditAppController(): VideoAuditAppController {
           thumbnail: fallbackThumbnail,
           previewFrames: response.result
         };
-        const nextRows = mergeMediaPreviewItems(auditResult.videos, [previewItem]);
-        const nextResult = {
-          ...auditResult,
-          videos: nextRows
-        };
 
-        setAuditResult(nextResult);
-        setVideoRows(nextRows);
-        setSelectedVideos((currentSelection) => mergeMediaPreviewItems(currentSelection, [previewItem]));
-        await persistCurrentResult(nextResult);
+        await mergeMediaPreviewItemsIntoRows([previewItem]);
         setWorkflowMessage(
           `Fresh thumbnails ready. ${response.result.summary.returned.toLocaleString()} frame(s) available.`
         );
@@ -2969,7 +2775,7 @@ export function useVideoAuditAppController(): VideoAuditAppController {
         setPreviewFrameFetchPath(null);
       }
     },
-    [auditResult, persistCurrentResult]
+    [auditResult, mergeMediaPreviewItemsIntoRows]
   );
 
   const startPreviewClipGeneration = useCallback(
@@ -3466,7 +3272,7 @@ export function useVideoAuditAppController(): VideoAuditAppController {
     globalFilter,
     resultsViewFilter,
     resultsViewCounts,
-    showThumbnails: showThumbnailsState,
+    showThumbnails,
     isAuditActive,
     isDiscoveryActive,
     isFfprobeActive,

@@ -7,6 +7,12 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.50.4] - 2026-05-19
+
+### Changed
+
+- Extracted audit result rows, IndexedDB persistence, hidden-row state, thumbnail visibility, and preview metadata row merging into a focused renderer hook while preserving the existing controller return shape.
+
 ## [0.50.3] - 2026-05-19
 
 ### Changed
