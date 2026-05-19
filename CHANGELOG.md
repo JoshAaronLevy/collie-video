@@ -7,6 +7,13 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.50.2] - 2026-05-19
+
+### Changed
+
+- Extracted pure renderer controller helpers into focused helper modules for errors, progress, audit options, result filters, media-preview row merging, file-operation rows, Premiere rows, replacement plans, recent paths, folder-tree source persistence, known directories, and date formatting.
+- Added the renderer refactor responsibility map covering current controller ownership, workflow state, preload calls, cross-workflow dependencies, extraction order, and regression-prone areas.
+
 ## [0.50.1] - 2026-05-18
 
 ### Added

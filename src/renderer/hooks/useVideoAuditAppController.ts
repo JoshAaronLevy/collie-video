@@ -20,7 +20,6 @@ import type {
   ArchiveOperationPlan,
   DestinationConflictStrategy,
   FileOperationResult,
-  KnownFileOperationItem,
   KnownPathValidationItem,
   MoveOperationPlan,
   TrashOperationPlan
@@ -31,13 +30,11 @@ import type {
   MediaPreviewResultItem,
   MediaPreviewScope,
   PreviewClipJobSnapshot,
-  PreviewClipResult,
-  PreviewClipResultItem
+  PreviewClipResult
 } from '../../shared/types/mediaPreview';
 import type { SelectedFolderSummary } from '../../shared/types/folderTree';
 import type {
   PremiereRequestResponse,
-  PremiereRequestVideo,
   PremiereStatusResponse
 } from '../../shared/types/premiere';
 import type {
@@ -55,11 +52,32 @@ import type {
 } from '../../shared/types/replacementWorkflow';
 import type {
   AppSettings,
-  AppSettingsUpdate,
-  PersistedFolderTreeSource
+  AppSettingsUpdate
 } from '../../shared/types/settings';
 import type { FfprobeResult, VideoPreviewFrame, VideoRow } from '../../shared/types/video';
 import { dedupeOverlappingFolderPaths } from '../../shared/utils/folderPathSelection';
+import { DEFAULT_AUDIT_OPTIONS, settingsToAuditOptions } from '../helpers/auditOptions';
+import { getErrorMessage } from '../helpers/errors';
+import { toKnownFileOperationItem } from '../helpers/fileOperationItems';
+import { createPersistedFolderTreeSource, getPersistedFolderTreeSourcePaths } from '../helpers/folderTreeSource';
+import { formatDateTime } from '../helpers/formatting';
+import { getKnownDirectories } from '../helpers/knownDirectories';
+import { mergeMediaPreviewItems, mergePreviewClipItems } from '../helpers/mediaPreviewRows';
+import { toPremiereRequestVideo } from '../helpers/premiereRows';
+import { getProgressPercent } from '../helpers/progress';
+import { mergeRecentPaths } from '../helpers/recentPaths';
+import {
+  getAuditedRootDirectory,
+  getResultsViewCounts,
+  matchesResultsViewFilter
+} from '../helpers/resultFilters';
+import {
+  getExecutableReplacementItemCount,
+  getReplacementBulkActionMessage,
+  getReplacementBulkActionUpdates,
+  hasSuccessfulConversionOutputs,
+  requiresReplacementConfirmation
+} from '../helpers/replacementPlan';
 import {
   clearStoredAuditResult,
   loadStoredAuditResult,
@@ -100,15 +118,6 @@ type ActiveAction =
 
 type PostConversionDialogMode = 'choices' | 'manual-review';
 type AuditStartOutcome = 'started' | 'not_started';
-
-const DEFAULT_AUDIT_OPTIONS: AuditOptions = {
-  includeSubfolders: true,
-  includeLowResolutionAnalysis: true,
-  includeBlackBorderAnalysis: true,
-  minHeight: 720,
-  targetAspectRatio: 16 / 9,
-  aspectRatioTolerance: 0.01
-};
 
 export interface VideoAuditAppController {
   appInfo: AppInfo | null;
@@ -3640,414 +3649,3 @@ export function useVideoAuditAppController(): VideoAuditAppController {
 }
 
 const REPLACE_CONFIRMATION_PHRASE = 'REPLACE';
-const TEN_GB_BYTES = 10 * 1024 * 1024 * 1024;
-
-function hasSuccessfulConversionOutputs(result: AutoFixResult | AutoCropResult | null): boolean {
-  return Boolean(
-    result?.items.some((item) => item.status === 'success' && Boolean(item.outputPath))
-  );
-}
-
-function getReplacementBulkActionUpdates(
-  plan: ReplacementPlan,
-  action: ReplacementPlanBulkAction
-): ReplacementPlanActionUpdate[] {
-  if (action === 'ready-replace') {
-    return plan.items
-      .filter((item) => item.status === 'ready')
-      .map((item) => ({
-        itemId: item.id,
-        selectedAction: 'replace-original'
-      }));
-  }
-
-  if (action === 'warning-skip') {
-    return plan.items
-      .filter((item) => item.status === 'warning')
-      .map((item) => ({
-        itemId: item.id,
-        selectedAction: 'skip'
-      }));
-  }
-
-  if (action === 'keep-output') {
-    return plan.items.map((item) => ({
-      itemId: item.id,
-      selectedAction: 'keep-output'
-    }));
-  }
-
-  return plan.items.map((item) => ({
-    itemId: item.id,
-    selectedAction: 'skip'
-  }));
-}
-
-function getReplacementBulkActionMessage(action: ReplacementPlanBulkAction): string {
-  if (action === 'ready-replace') {
-    return 'Ready items were set to replace originals.';
-  }
-
-  if (action === 'warning-skip') {
-    return 'Warning items were set to skip.';
-  }
-
-  if (action === 'keep-output') {
-    return 'All items were set to keep outputs.';
-  }
-
-  return 'Replacement actions were cleared.';
-}
-
-function getExecutableReplacementItemCount(plan: ReplacementPlan): number {
-  return getExecutableReplacementItems(plan).length;
-}
-
-function requiresReplacementConfirmation(plan: ReplacementPlan, settings: AppSettings | null): boolean {
-  const executableItems = getExecutableReplacementItems(plan);
-  const thresholds = getReplacementConfirmationThresholds(settings);
-
-  return (
-    executableItems.length > thresholds.fileCount ||
-    executableItems.reduce((total, item) => total + (item.originalSizeBytes ?? 0), 0) > thresholds.sizeBytes ||
-    executableItems.some((item) => item.warnings.length > 0) ||
-    plan.summary.destinationConflicts > 0 ||
-    executableItems.some((item) => isExternalVolumePath(item.originalPath) || isExternalVolumePath(item.outputPath)) ||
-    executableItems.some((item) => item.warningCodes.includes('extension-changed'))
-  );
-}
-
-function getReplacementConfirmationThresholds(settings: AppSettings | null): { fileCount: number; sizeBytes: number } {
-  if (!settings?.requireTypedConfirmationForLargeOperations) {
-    return {
-      fileCount: 10,
-      sizeBytes: TEN_GB_BYTES
-    };
-  }
-
-  return {
-    fileCount: Math.min(10, Math.max(1, settings.typedConfirmationFileCountThreshold)),
-    sizeBytes: Math.min(TEN_GB_BYTES, Math.max(1024 * 1024, settings.typedConfirmationSizeThresholdBytes))
-  };
-}
-
-function getExecutableReplacementItems(plan: ReplacementPlan): ReplacementPlan['items'] {
-  return plan.items.filter(
-    (item) =>
-      item.selectedAction === 'replace-original' &&
-      (item.status === 'ready' || item.status === 'warning')
-  );
-}
-
-function isExternalVolumePath(path: string): boolean {
-  return path.startsWith('/Volumes/');
-}
-
-function mergeMediaPreviewItems(rows: VideoRow[], items: MediaPreviewResultItem[]): VideoRow[] {
-  if (items.length === 0) {
-    return rows;
-  }
-
-  const itemsByPath = new Map<string, MediaPreviewResultItem>();
-
-  for (const item of items) {
-    const key = item.path ?? item.absolutePath;
-
-    if (key) {
-      itemsByPath.set(key, item);
-    }
-  }
-
-  return rows.map((row) => {
-    const item = itemsByPath.get(row.path);
-
-    if (!item) {
-      return row;
-    }
-
-    const nextRow: VideoRow = {
-      ...row,
-      thumbnail: item.thumbnail
-    };
-
-    if (item.previewFrames) {
-      nextRow.previewFrames = item.previewFrames.frames;
-      nextRow.previewFrameBatchId = item.previewFrames.batchId;
-      nextRow.maxPreviewFrameCount = item.previewFrames.maxPreviewFrameCount;
-    }
-
-    return nextRow;
-  });
-}
-
-function mergePreviewClipItems(rows: VideoRow[], items: PreviewClipResultItem[]): VideoRow[] {
-  if (items.length === 0) {
-    return rows;
-  }
-
-  const itemsByPath = new Map<string, PreviewClipResultItem>();
-
-  for (const item of items) {
-    const key = item.path ?? item.absolutePath;
-
-    if (key) {
-      itemsByPath.set(key, item);
-    }
-  }
-
-  return rows.map((row) => {
-    const item = itemsByPath.get(row.path);
-
-    if (!item) {
-      return row;
-    }
-
-    return {
-      ...row,
-      previewFrames: mergePreviewFrames(row.previewFrames ?? [], item.previewFrames),
-      previewFrameBatchId: row.previewFrameBatchId ?? item.previewFrames[0]?.batchId,
-      maxPreviewFrameCount: row.maxPreviewFrameCount ?? item.previewFrames.length
-    };
-  });
-}
-
-function mergePreviewFrames(
-  existingFrames: VideoPreviewFrame[],
-  incomingFrames: VideoPreviewFrame[]
-): VideoPreviewFrame[] {
-  if (existingFrames.length === 0) {
-    return incomingFrames;
-  }
-
-  const incomingByKey = new Map(incomingFrames.map((frame) => [getPreviewFrameKey(frame), frame]));
-  const mergedFrames = existingFrames.map((frame) => {
-    const incoming = incomingByKey.get(getPreviewFrameKey(frame));
-
-    if (!incoming) {
-      return frame;
-    }
-
-    incomingByKey.delete(getPreviewFrameKey(frame));
-    return {
-      ...frame,
-      thumbnail: incoming.thumbnail ?? frame.thumbnail,
-      previewClip: incoming.previewClip ?? frame.previewClip
-    };
-  });
-
-  return [...mergedFrames, ...incomingByKey.values()];
-}
-
-function getPreviewFrameKey(frame: VideoPreviewFrame): string {
-  return `${frame.batchId}:${frame.index}:${frame.timestampSeconds}`;
-}
-
-function toKnownFileOperationItem(row: VideoRow): KnownFileOperationItem {
-  return {
-    id: row.id ?? row.path,
-    sourcePath: row.path,
-    fileName: row.fileName,
-    expectedSizeBytes: row.fileSystemSizeBytes ?? row.sizeBytes ?? row.sourceSizeBytes ?? null,
-    expectedModifiedAtMs: row.modifiedAtMs ?? null,
-    identity: {
-      path: row.path,
-      fileName: row.fileName,
-      extension: row.extension || row.fileExtension || '',
-      sizeBytes: row.fileSystemSizeBytes ?? row.sizeBytes ?? row.sourceSizeBytes ?? null,
-      modifiedAtMs: row.modifiedAtMs ?? null,
-      createdAtMs: row.createdAtMs ?? null,
-      isDirectory: false,
-      isFile: true
-    }
-  };
-}
-
-function getKnownDirectories({
-  auditedRootDirectory,
-  selectedFolders,
-  selectedVideos
-}: {
-  auditedRootDirectory: string | null;
-  selectedFolders: string[];
-  selectedVideos: VideoRow[];
-}): string[] {
-  return [
-    ...new Set([
-      auditedRootDirectory,
-      ...selectedFolders,
-      ...selectedVideos.map((video) => video.directory)
-    ].filter((value): value is string => Boolean(value)))
-  ];
-}
-
-function toPremiereRequestVideo(row: VideoRow): PremiereRequestVideo {
-  return {
-    id: row.id ?? row.path,
-    fileName: row.fileName,
-    absolutePath: row.path,
-    directory: row.directory,
-    durationSeconds: row.durationSeconds,
-    width: row.width,
-    height: row.height,
-    displayAspectRatio: row.displayAspectRatio || null,
-    frameRate: row.frameRate
-  };
-}
-
-function getAuditedRootDirectory(
-  request: AuditRequest | null,
-  summary: AuditSummary | null
-): string | null {
-  if (request?.folderPaths.length === 1) {
-    return request.folderPaths[0];
-  }
-
-  if (request?.folderPaths && request.folderPaths.length !== 1) {
-    return null;
-  }
-
-  const summaryPath = summary?.resolvedDirectory ?? summary?.directoryPath ?? null;
-
-  if (!summaryPath || summaryPath === 'Selected files') {
-    return null;
-  }
-
-  return summaryPath;
-}
-
-function getResultsViewCounts(rows: VideoRow[]): ResultsViewCounts {
-  return {
-    all: rows.length,
-    flagged: rows.filter(isFlaggedRow).length,
-    'low-res': rows.filter((row) => row.isLowResolution).length,
-    aspect: rows.filter((row) => row.isWrongAspectRatio).length,
-    crop: rows.filter(hasCropIssue).length,
-    errors: rows.filter(hasRowError).length
-  };
-}
-
-function matchesResultsViewFilter(row: VideoRow, filter: ResultsViewFilter): boolean {
-  switch (filter) {
-    case 'flagged':
-      return isFlaggedRow(row);
-    case 'low-res':
-      return row.isLowResolution;
-    case 'aspect':
-      return row.isWrongAspectRatio;
-    case 'crop':
-      return hasCropIssue(row);
-    case 'errors':
-      return hasRowError(row);
-    case 'all':
-      return true;
-  }
-}
-
-function isFlaggedRow(row: VideoRow): boolean {
-  return row.isLowResolution || row.isWrongAspectRatio || hasCropIssue(row) || hasRowError(row) || Boolean(row.reasons);
-}
-
-function hasCropIssue(row: VideoRow): boolean {
-  const blackBorder = row.adjustments?.blackBorder;
-
-  if (!blackBorder?.analyzed) {
-    return false;
-  }
-
-  return (
-    blackBorder.detected ||
-    blackBorder.classification === 'nested_borders' ||
-    blackBorder.classification === 'asymmetric_border' ||
-    blackBorder.classification === 'pillarboxed' ||
-    blackBorder.classification === 'letterboxed' ||
-    blackBorder.classification === 'uncertain' ||
-    blackBorder.classification === 'analysis_error' ||
-    blackBorder.recommendedFix?.eligible === true ||
-    blackBorder.recommendedFix?.type === 'crop-scale' ||
-    blackBorder.recommendedFix?.type === 'manual-review'
-  );
-}
-
-function hasRowError(row: VideoRow): boolean {
-  const blackBorder = row.adjustments?.blackBorder;
-
-  return (
-    Boolean(blackBorder?.error) ||
-    blackBorder?.classification === 'analysis_error' ||
-    row.reasons.toLowerCase().includes('error')
-  );
-}
-
-function settingsToAuditOptions(settings: AppSettings): AuditOptions {
-  return {
-    ...DEFAULT_AUDIT_OPTIONS,
-    includeSubfolders: settings.includeSubfoldersDefault,
-    includeLowResolutionAnalysis: settings.lowResolutionAnalysisEnabledDefault,
-    includeBlackBorderAnalysis: settings.blackBorderAnalysisEnabledDefault
-  };
-}
-
-function getPersistedFolderTreeSourcePaths(source: PersistedFolderTreeSource): string[] {
-  return dedupeOverlappingFolderPaths(
-    source.dedupedSelectedFolderPaths.length > 0
-      ? source.dedupedSelectedFolderPaths
-      : source.selectedFolderPaths
-  );
-}
-
-function createPersistedFolderTreeSource({
-  rootPath,
-  selectedFolderPaths,
-  dedupedSelectedFolderPaths,
-  summary,
-  includeSubfolders,
-  lastScannedAt
-}: {
-  rootPath: string;
-  selectedFolderPaths: string[];
-  dedupedSelectedFolderPaths: string[];
-  summary: SelectedFolderSummary;
-  includeSubfolders: boolean;
-  lastScannedAt: string | null;
-}): PersistedFolderTreeSource {
-  const dedupedFolderPaths = dedupeOverlappingFolderPaths(dedupedSelectedFolderPaths);
-
-  return {
-    rootPath,
-    selectedFolderPaths,
-    dedupedSelectedFolderPaths: dedupedFolderPaths,
-    selectedFolderSummary: {
-      ...summary,
-      dedupedFolderPaths,
-      dedupedFolderCount: dedupedFolderPaths.length
-    },
-    includeSubfolders,
-    lastScannedAt
-  };
-}
-
-function mergeRecentPaths(nextPaths: string[], currentPaths: string[]): string[] {
-  return [...new Set([...nextPaths, ...currentPaths])].slice(0, 10);
-}
-
-function getProgressPercent(processedFiles?: number, totalFiles?: number | null): number | null {
-  if (!totalFiles || totalFiles <= 0 || processedFiles === undefined) {
-    return null;
-  }
-
-  return Math.min(100, Math.round((processedFiles / totalFiles) * 100));
-}
-
-function getErrorMessage(error: unknown, fallback: string): string {
-  return error instanceof Error ? error.message : fallback;
-}
-
-function formatDateTime(value: string): string {
-  const date = new Date(value);
-
-  if (Number.isNaN(date.getTime())) {
-    return value;
-  }
-
-  return date.toLocaleString();
-}
