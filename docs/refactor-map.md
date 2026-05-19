@@ -1,14 +1,14 @@
 # Renderer Refactor Map
 
-This map reflects the current renderer after Stage 1 pure-helper extraction. The main renderer orchestration surface is still `src/renderer/hooks/useVideoAuditAppController.ts`, while pure helper blocks now live under `src/renderer/helpers/`.
+This map reflects the current renderer after Stage 2 thin API-client extraction. The main renderer orchestration surface is still `src/renderer/hooks/useVideoAuditAppController.ts`, pure helper blocks live under `src/renderer/helpers/`, and direct preload calls now live under `src/renderer/api/`.
 
 ## Current Controller Responsibilities
 
-`useVideoAuditAppController.ts` still acts as the renderer composition and workflow controller. It owns the public flat controller shape consumed by `src/renderer/App.tsx`, most workflow state, progress subscriptions, dialog visibility flags, row mutation callbacks, and direct calls through `window.videoAudit`.
+`useVideoAuditAppController.ts` still acts as the renderer composition and workflow controller. It owns the public flat controller shape consumed by `src/renderer/App.tsx`, most workflow state, progress subscriptions, dialog visibility flags, and row mutation callbacks. Preload calls are routed through thin renderer API clients.
 
 By domain, the controller currently owns:
 
-- App bootstrap and app info: loads app metadata through `window.videoAudit.app.getInfo`, stores app-info errors, and exposes menu-driven open counters.
+- App bootstrap and app info: loads app metadata through `appClient.getAppInfo`, stores app-info errors, and exposes menu-driven open counters.
 - Settings: loads settings on startup, persists partial updates, resets settings, maps settings into audit options, updates source/output defaults, and stores settings messages.
 - Diagnostics: runs media tool diagnostics and stores diagnostics result/error/loading state.
 - Source selection: stores selected folders, folder-tree summary/root/last-scan metadata, selected files, output folder, selection messages, recent-path persistence, source clearing, and folder-tree selection application.
@@ -90,11 +90,11 @@ Derived state currently includes `visibleVideoRows`, `resultsViewCounts`, `filte
 - App menu subscription: one effect subscribes to `window.videoAudit.app.onCommand`.
 - Escape key listener: one effect adds a `keydown` listener on `window` and removes it on cleanup.
 
-`FolderTreeSelectorDialog` is a component-level exception: it owns folder-tree scan UI state and directly calls `window.videoAudit.folderTree.*` for root selection, scan start/cancel, result loading, and progress subscription.
+`FolderTreeSelectorDialog` is a component-level exception for workflow state ownership: it owns folder-tree scan UI state locally, while its preload calls now route through `folderTreeClient`.
 
 ## Direct Preload/API Calls
 
-The controller still directly uses these preload namespaces:
+The controller no longer directly calls `window.videoAudit.*`. Thin clients in `src/renderer/api/` now call these preload namespaces:
 
 - `window.videoAudit.app`: `getInfo`, `onCommand`.
 - `window.videoAudit.settings`: `get`, `update`, `reset`.
@@ -112,7 +112,7 @@ The controller still directly uses these preload namespaces:
 - `window.videoAudit.replacement`: `createPlan`, `updatePlanActions`, `executePlan`, `cancelExecution`, `onProgress`.
 - `window.videoAudit.premiere`: `getStatus`, `openBridgeApps`, `createImportRequest`.
 
-The controller also directly calls renderer IndexedDB helpers from `src/renderer/storage/auditResultStorage.ts`: `loadStoredAuditResult`, `saveStoredAuditResult`, `saveStoredAuditHistoryEntry`, and `clearStoredAuditResult`.
+The controller still directly calls renderer IndexedDB helpers from `src/renderer/storage/auditResultStorage.ts`: `loadStoredAuditResult`, `saveStoredAuditResult`, `saveStoredAuditHistoryEntry`, and `clearStoredAuditResult`.
 
 ## Pure Helper Functions Currently Inside the Controller
 
@@ -152,17 +152,16 @@ Pure helpers now live in focused renderer helper modules:
 
 ## Recommended Extraction Order
 
-The Stage 1 helper extraction is already complete. The next extraction order should remain close to `docs/refactor-plan.md`:
+The Stage 1 helper extraction and Stage 2 thin API-client extraction are already complete. The next extraction order should remain close to `docs/refactor-plan.md`:
 
-1. Stage 2: introduce thin renderer API clients for direct `window.videoAudit.*` calls. Include the `FolderTreeSelectorDialog` direct folder-tree calls in the map for awareness, but preserve component behavior.
-2. Stage 3: extract audit result state and persistence before extracting workflows that mutate rows.
-3. Stage 4: extract top-level result filtering while leaving PrimeReact column filters inside `VideoResultsTable`.
-4. Stage 5: extract row selection and centralized busy/capability helpers to reduce repeated blocking checks.
-5. Stage 6: extract app bootstrap, settings, and diagnostics.
-6. Stage 7 through Stage 16: extract source selection, path reveal, audit/discovery/ffprobe, operation history, file operations, post-conversion replacement, Auto-Fix/Auto-Crop, media preview, migration, and Premiere bridge in the staged order.
-7. Stage 17 and Stage 18: extract app command/Escape orchestration and full clear-data orchestration only after individual workflow reset/cancel callbacks exist.
-8. Stage 19: slim `useVideoAuditAppController` into a composition adapter while preserving the flat return shape.
-9. Stage 20 remains optional and should wait until workflow ownership is stable.
+1. Stage 3: extract audit result state and persistence before extracting workflows that mutate rows.
+2. Stage 4: extract top-level result filtering while leaving PrimeReact column filters inside `VideoResultsTable`.
+3. Stage 5: extract row selection and centralized busy/capability helpers to reduce repeated blocking checks.
+4. Stage 6: extract app bootstrap, settings, and diagnostics.
+5. Stage 7 through Stage 16: extract source selection, path reveal, audit/discovery/ffprobe, operation history, file operations, post-conversion replacement, Auto-Fix/Auto-Crop, media preview, migration, and Premiere bridge in the staged order.
+6. Stage 17 and Stage 18: extract app command/Escape orchestration and full clear-data orchestration only after individual workflow reset/cancel callbacks exist.
+7. Stage 19: slim `useVideoAuditAppController` into a composition adapter while preserving the flat return shape.
+8. Stage 20 remains optional and should wait until workflow ownership is stable.
 
 ## Risks and Regression-Prone Areas
 

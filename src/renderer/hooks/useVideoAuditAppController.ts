@@ -56,6 +56,21 @@ import type {
 } from '../../shared/types/settings';
 import type { FfprobeResult, VideoPreviewFrame, VideoRow } from '../../shared/types/video';
 import { dedupeOverlappingFolderPaths } from '../../shared/utils/folderPathSelection';
+import * as appClient from '../api/appClient';
+import * as auditClient from '../api/auditClient';
+import * as autoCropClient from '../api/autoCropClient';
+import * as autoFixClient from '../api/autoFixClient';
+import * as diagnosticsClient from '../api/diagnosticsClient';
+import * as dialogClient from '../api/dialogClient';
+import * as discoveryClient from '../api/discoveryClient';
+import * as ffprobeClient from '../api/ffprobeClient';
+import * as fileOperationsClient from '../api/fileOperationsClient';
+import * as mediaPreviewClient from '../api/mediaPreviewClient';
+import * as migrationClient from '../api/migrationClient';
+import * as operationHistoryClient from '../api/operationHistoryClient';
+import * as premiereClient from '../api/premiereClient';
+import * as replacementClient from '../api/replacementClient';
+import * as settingsClient from '../api/settingsClient';
 import { DEFAULT_AUDIT_OPTIONS, settingsToAuditOptions } from '../helpers/auditOptions';
 import { getErrorMessage } from '../helpers/errors';
 import { toKnownFileOperationItem } from '../helpers/fileOperationItems';
@@ -505,8 +520,7 @@ export function useVideoAuditAppController(): VideoAuditAppController {
   useEffect(() => {
     let isMounted = true;
 
-    window.videoAudit.app
-      .getInfo()
+    appClient.getAppInfo()
       .then((info) => {
         if (isMounted) {
           setAppInfo(info);
@@ -528,7 +542,7 @@ export function useVideoAuditAppController(): VideoAuditAppController {
     setPremiereStatusError(null);
 
     try {
-      const status = await window.videoAudit.premiere.getStatus();
+      const status = await premiereClient.getPremiereStatus();
       setPremiereStatus(status);
     } catch (error: unknown) {
       setPremiereStatusError(getErrorMessage(error, 'Unable to check Premiere bridge status.'));
@@ -552,7 +566,7 @@ export function useVideoAuditAppController(): VideoAuditAppController {
     let launchError: string | null = null;
 
     try {
-      const response = await window.videoAudit.premiere.openBridgeApps();
+      const response = await premiereClient.openPremiereBridgeApps();
       setPremiereLaunchMessage(`${response.message} Bridge folder: ${response.bridgeDir || 'Unknown'}`);
 
       if (response.status !== 'opened') {
@@ -581,7 +595,7 @@ export function useVideoAuditAppController(): VideoAuditAppController {
     async function loadInitialState(): Promise<void> {
       try {
         const [loadedSettings, storedAudit] = await Promise.all([
-          window.videoAudit.settings.get(),
+          settingsClient.getSettings(),
           loadStoredAuditResult()
         ]);
 
@@ -652,7 +666,7 @@ export function useVideoAuditAppController(): VideoAuditAppController {
   }, [applyAuditResult]);
 
   useEffect(() => {
-    return window.videoAudit.audit.onProgress((progress) => {
+    return auditClient.subscribeToAuditProgress((progress) => {
       setAuditProgress(progress);
 
       if (progress.jobId) {
@@ -676,7 +690,7 @@ export function useVideoAuditAppController(): VideoAuditAppController {
   }, [applyAuditResult]);
 
   useEffect(() => {
-    return window.videoAudit.discovery.onProgress((progress) => {
+    return discoveryClient.subscribeToDiscoveryProgress((progress) => {
       setDiscoveryProgress(progress);
 
       if (progress.jobId) {
@@ -696,7 +710,7 @@ export function useVideoAuditAppController(): VideoAuditAppController {
   }, []);
 
   useEffect(() => {
-    return window.videoAudit.ffprobe.onProgress((progress) => {
+    return ffprobeClient.subscribeToFfprobeProgress((progress) => {
       setFfprobeProgress(progress);
 
       if (progress.jobId) {
@@ -964,7 +978,7 @@ export function useVideoAuditAppController(): VideoAuditAppController {
     setActiveAction('settings');
 
     try {
-      const updatedSettings = await window.videoAudit.settings.update(partialSettings);
+      const updatedSettings = await settingsClient.updateSettings(partialSettings);
       setSettings(updatedSettings);
       setSettingsMessage('Settings saved.');
       return updatedSettings;
@@ -997,7 +1011,7 @@ export function useVideoAuditAppController(): VideoAuditAppController {
     setActiveAction('folders');
 
     try {
-      const result = await window.videoAudit.dialog.chooseFolders();
+      const result = await dialogClient.chooseFolders();
       await handleSelectionResult(result, (paths) => {
         setSelectedFolders(dedupeOverlappingFolderPaths(paths));
         setSelectedFolderSummary(null);
@@ -1087,7 +1101,7 @@ export function useVideoAuditAppController(): VideoAuditAppController {
     setActiveAction('files');
 
     try {
-      const result = await window.videoAudit.dialog.chooseVideoFiles();
+      const result = await dialogClient.chooseVideoFiles();
       await handleSelectionResult(result, setSelectedFiles);
 
       if (!result.canceled && result.paths.length > 0) {
@@ -1120,7 +1134,7 @@ export function useVideoAuditAppController(): VideoAuditAppController {
     setActiveAction('output');
 
     try {
-      const result = await window.videoAudit.dialog.chooseOutputFolder();
+      const result = await dialogClient.chooseOutputFolder();
       await handleSelectionResult(result, (paths) => setOutputFolder(paths[0] ?? null));
 
       if (!result.canceled && result.paths[0]) {
@@ -1139,7 +1153,7 @@ export function useVideoAuditAppController(): VideoAuditAppController {
     setActiveAction('reveal');
 
     try {
-      const validation = await window.videoAudit.fileOperations.validateKnownPaths({
+      const validation = await fileOperationsClient.validateKnownPaths({
         items: [
           {
             path,
@@ -1155,12 +1169,12 @@ export function useVideoAuditAppController(): VideoAuditAppController {
       }
 
       const result = item.identity.isDirectory
-        ? await window.videoAudit.fileOperations.revealFolder({
+        ? await fileOperationsClient.revealFolder({
             path,
             expectedKind: 'directory',
             expectedFileName: item.identity.fileName
           })
-        : await window.videoAudit.fileOperations.revealFile({
+        : await fileOperationsClient.revealFile({
             path,
             expectedKind: 'file',
             expectedFileName: item.identity.fileName
@@ -1177,7 +1191,7 @@ export function useVideoAuditAppController(): VideoAuditAppController {
     setActiveAction('reveal');
 
     try {
-      const result = await window.videoAudit.fileOperations.revealFile({
+      const result = await fileOperationsClient.revealFile({
         ...item,
         expectedKind: 'file'
       });
@@ -1193,7 +1207,7 @@ export function useVideoAuditAppController(): VideoAuditAppController {
     setActiveAction('reveal');
 
     try {
-      const result = await window.videoAudit.fileOperations.revealFolder({
+      const result = await fileOperationsClient.revealFolder({
         ...item,
         expectedKind: 'directory'
       });
@@ -1248,7 +1262,7 @@ export function useVideoAuditAppController(): VideoAuditAppController {
     setActiveAction('settings');
 
     try {
-      const reset = await window.videoAudit.settings.reset();
+      const reset = await settingsClient.resetSettings();
       setSettings(reset);
       setOutputFolder(reset.defaultOutputDirectory);
       setAuditOptions(settingsToAuditOptions(reset));
@@ -1269,7 +1283,7 @@ export function useVideoAuditAppController(): VideoAuditAppController {
     setToolDiagnosticsError(null);
 
     try {
-      const result = await window.videoAudit.diagnostics.checkTools();
+      const result = await diagnosticsClient.checkTools();
       setToolDiagnostics(result);
       setSettingsMessage(result.message ?? 'Media tool diagnostic complete.');
     } catch (error: unknown) {
@@ -1291,7 +1305,7 @@ export function useVideoAuditAppController(): VideoAuditAppController {
     pendingAuditRequestRef.current = request;
     setLastAuditRequest(request);
 
-    const response = await window.videoAudit.audit.start(request);
+    const response = await auditClient.startAudit(request);
 
     if (response.status !== 'started' || !response.jobId) {
       setWorkflowMessage(response.message ?? 'Could not start audit.');
@@ -1358,7 +1372,7 @@ export function useVideoAuditAppController(): VideoAuditAppController {
     }
 
     try {
-      const progress = await window.videoAudit.audit.cancel(auditJobId);
+      const progress = await auditClient.cancelAudit(auditJobId);
       setAuditProgress(progress);
       setWorkflowMessage(progress.message ?? 'Audit canceled.');
       setActiveAction(null);
@@ -1431,7 +1445,7 @@ export function useVideoAuditAppController(): VideoAuditAppController {
     setActiveAction('operationHistory');
 
     try {
-      const response = await window.videoAudit.operationHistory.listRecent({
+      const response = await operationHistoryClient.listRecentOperations({
         limit: 50
       });
 
@@ -1478,7 +1492,7 @@ export function useVideoAuditAppController(): VideoAuditAppController {
     setActiveAction('operationHistory');
 
     try {
-      const response = await window.videoAudit.operationHistory.getDetails(operationId);
+      const response = await operationHistoryClient.getOperationDetails(operationId);
 
       if (response.status !== 'success' || !response.record) {
         setOperationHistoryError(response.message ?? 'Could not load operation details.');
@@ -1509,7 +1523,7 @@ export function useVideoAuditAppController(): VideoAuditAppController {
     setActiveAction('trashPlan');
 
     try {
-      const response = await window.videoAudit.fileOperations.createTrashPlan({
+      const response = await fileOperationsClient.createTrashPlan({
         operationType: 'trash',
         items: selectedVideos.map(toKnownFileOperationItem),
         knownRootDirectories: getKnownDirectories({
@@ -1560,7 +1574,7 @@ export function useVideoAuditAppController(): VideoAuditAppController {
       setActiveAction('trashExecute');
 
       try {
-        const response = await window.videoAudit.fileOperations.executeTrashPlan({
+        const response = await fileOperationsClient.executeTrashPlan({
           planId: trashPlan.id,
           confirmed: true,
           typedConfirmation
@@ -1619,7 +1633,7 @@ export function useVideoAuditAppController(): VideoAuditAppController {
       setActiveAction('movePlan');
 
       try {
-        const destinationResult = await window.videoAudit.dialog.chooseMoveDestinationFolder();
+        const destinationResult = await dialogClient.chooseMoveDestinationFolder();
 
         if (destinationResult.canceled) {
           return;
@@ -1634,7 +1648,7 @@ export function useVideoAuditAppController(): VideoAuditAppController {
           return;
         }
 
-        const response = await window.videoAudit.fileOperations.createMovePlan({
+        const response = await fileOperationsClient.createMovePlan({
           operationType: 'move',
           items: selectedVideos.map(toKnownFileOperationItem),
           destinationDirectory,
@@ -1682,7 +1696,7 @@ export function useVideoAuditAppController(): VideoAuditAppController {
     setActiveAction('moveExecute');
 
     try {
-      const response = await window.videoAudit.fileOperations.executeMovePlan({
+      const response = await fileOperationsClient.executeMovePlan({
         planId: movePlan.id,
         confirmed: true
       });
@@ -1735,7 +1749,7 @@ export function useVideoAuditAppController(): VideoAuditAppController {
     setActiveAction('archivePlan');
 
     try {
-      const response = await window.videoAudit.fileOperations.createArchivePlan({
+      const response = await fileOperationsClient.createArchivePlan({
         operationType: 'archive',
         items: selectedVideos.map(toKnownFileOperationItem),
         conflictStrategy: settings?.fileManagementConflictStrategy ?? 'rename-with-suffix'
@@ -1780,7 +1794,7 @@ export function useVideoAuditAppController(): VideoAuditAppController {
     setActiveAction('archiveExecute');
 
     try {
-      const response = await window.videoAudit.fileOperations.executeArchivePlan({
+      const response = await fileOperationsClient.executeArchivePlan({
         planId: archivePlan.id,
         confirmed: true
       });
@@ -1859,7 +1873,7 @@ export function useVideoAuditAppController(): VideoAuditAppController {
       setActiveAction('replacementPlan');
 
       try {
-        const response = await window.videoAudit.replacement.createPlan({
+        const response = await replacementClient.createReplacementPlan({
           source,
           defaultAction: 'replace-original',
           autoFixResult: autoFixResult ?? null,
@@ -1900,7 +1914,7 @@ export function useVideoAuditAppController(): VideoAuditAppController {
       setActiveAction('replacementUpdate');
 
       try {
-        const response = await window.videoAudit.replacement.updatePlanActions({
+        const response = await replacementClient.updateReplacementPlanActions({
           planId: postConversionPlan.id,
           actions
         });
@@ -1994,7 +2008,7 @@ export function useVideoAuditAppController(): VideoAuditAppController {
       setActiveAction('replacementExecute');
 
       try {
-        const response = await window.videoAudit.replacement.executePlan({
+        const response = await replacementClient.executeReplacementPlan({
           planId: postConversionPlan.id,
           confirmed: true,
           typedConfirmation,
@@ -2059,7 +2073,7 @@ export function useVideoAuditAppController(): VideoAuditAppController {
     }
 
     try {
-      const progress = await window.videoAudit.replacement.cancelExecution(replacementJobId);
+      const progress = await replacementClient.cancelReplacementExecution(replacementJobId);
       setReplacementProgress(progress);
       setWorkflowMessage(progress.message ?? 'Replacement execution canceled.');
       setActiveAction(null);
@@ -2079,7 +2093,7 @@ export function useVideoAuditAppController(): VideoAuditAppController {
   }, [openOperationHistory, settings?.previewOperationHistoryAfterExecution]);
 
   useEffect(() => {
-    return window.videoAudit.autoFix.onProgress((progress) => {
+    return autoFixClient.subscribeToAutoFixProgress((progress) => {
       setAutoFixProgress(progress);
 
       if (progress.jobId) {
@@ -2129,7 +2143,7 @@ export function useVideoAuditAppController(): VideoAuditAppController {
   }, [createPostConversionPlan, hideVideoPathsFromTable]);
 
   useEffect(() => {
-    return window.videoAudit.autoCrop.onProgress((progress) => {
+    return autoCropClient.subscribeToAutoCropProgress((progress) => {
       setAutoCropProgress(progress);
 
       if (progress.jobId) {
@@ -2174,7 +2188,7 @@ export function useVideoAuditAppController(): VideoAuditAppController {
   }, [createPostConversionPlan]);
 
   useEffect(() => {
-    return window.videoAudit.replacement.onProgress((progress) => {
+    return replacementClient.subscribeToReplacementProgress((progress) => {
       setReplacementProgress(progress);
 
       if (progress.jobId) {
@@ -2261,7 +2275,7 @@ export function useVideoAuditAppController(): VideoAuditAppController {
   );
 
   useEffect(() => {
-    return window.videoAudit.mediaPreview.onProgress((progress) => {
+    return mediaPreviewClient.subscribeToMediaPreviewProgress((progress) => {
       setMediaPreviewProgress(progress);
 
       if (progress.jobId) {
@@ -2298,7 +2312,7 @@ export function useVideoAuditAppController(): VideoAuditAppController {
   }, [applyMediaPreviewResult]);
 
   useEffect(() => {
-    return window.videoAudit.mediaPreview.onClipProgress((progress) => {
+    return mediaPreviewClient.subscribeToClipProgress((progress) => {
       setPreviewClipProgress(progress);
 
       if (progress.jobId) {
@@ -2335,7 +2349,7 @@ export function useVideoAuditAppController(): VideoAuditAppController {
   }, [applyPreviewClipResult]);
 
   useEffect(() => {
-    return window.videoAudit.migration.onProgress((progress) => {
+    return migrationClient.subscribeToMigrationProgress((progress) => {
       setMigrationProgress(progress);
 
       if (progress.jobId) {
@@ -2431,7 +2445,7 @@ export function useVideoAuditAppController(): VideoAuditAppController {
     }
 
     try {
-      const previewCacheResponse = await window.videoAudit.mediaPreview.clearCache();
+      const previewCacheResponse = await mediaPreviewClient.clearCache();
 
       if (previewCacheResponse.status !== 'complete') {
         throw new Error(previewCacheResponse.message || 'Could not clear media preview cache.');
@@ -2439,7 +2453,7 @@ export function useVideoAuditAppController(): VideoAuditAppController {
 
       await clearStoredAuditResult();
 
-      const updatedSettings = await window.videoAudit.settings.update({
+      const updatedSettings = await settingsClient.updateSettings({
         defaultOutputDirectory: null,
         latestSelectedFolder: null,
         latestFolderTreeSource: null,
@@ -2566,7 +2580,7 @@ export function useVideoAuditAppController(): VideoAuditAppController {
     setActiveAction('discovery');
 
     try {
-      const response = await window.videoAudit.discovery.start(request);
+      const response = await discoveryClient.startDiscovery(request);
 
       if (response.status !== 'started' || !response.jobId) {
         setActiveAction(null);
@@ -2588,7 +2602,7 @@ export function useVideoAuditAppController(): VideoAuditAppController {
     }
 
     try {
-      const progress = await window.videoAudit.discovery.cancel(discoveryJobId);
+      const progress = await discoveryClient.cancelDiscovery(discoveryJobId);
       setDiscoveryProgress(progress);
       setWorkflowMessage(progress.message ?? 'File discovery canceled.');
       setActiveAction(null);
@@ -2614,7 +2628,7 @@ export function useVideoAuditAppController(): VideoAuditAppController {
     setActiveAction('ffprobe');
 
     try {
-      const response = await window.videoAudit.ffprobe.start(request);
+      const response = await ffprobeClient.startFfprobe(request);
 
       if (response.status !== 'started' || !response.jobId) {
         setActiveAction(null);
@@ -2636,7 +2650,7 @@ export function useVideoAuditAppController(): VideoAuditAppController {
     }
 
     try {
-      const progress = await window.videoAudit.ffprobe.cancel(ffprobeJobId);
+      const progress = await ffprobeClient.cancelFfprobe(ffprobeJobId);
       setFfprobeProgress(progress);
       setWorkflowMessage(progress.message ?? 'Metadata extraction canceled.');
       setActiveAction(null);
@@ -2696,7 +2710,7 @@ export function useVideoAuditAppController(): VideoAuditAppController {
     setActiveAction('autoFix');
 
     try {
-      const response = await window.videoAudit.autoFix.start({
+      const response = await autoFixClient.startAutoFix({
         videos: selectedVideos,
         outputDirectory: autoFixOutputDirectory
       });
@@ -2721,7 +2735,7 @@ export function useVideoAuditAppController(): VideoAuditAppController {
     }
 
     try {
-      const progress = await window.videoAudit.autoFix.cancel(autoFixJobId);
+      const progress = await autoFixClient.cancelAutoFix(autoFixJobId);
       setAutoFixProgress(progress);
       setWorkflowMessage(progress.message ?? 'Auto-Fix canceled.');
       setActiveAction(null);
@@ -2781,7 +2795,7 @@ export function useVideoAuditAppController(): VideoAuditAppController {
     setActiveAction('autoCrop');
 
     try {
-      const response = await window.videoAudit.autoCrop.start({
+      const response = await autoCropClient.startAutoCrop({
         videos: selectedVideos,
         outputRootDir: autoCropOutputRootDir
       });
@@ -2806,7 +2820,7 @@ export function useVideoAuditAppController(): VideoAuditAppController {
     }
 
     try {
-      const progress = await window.videoAudit.autoCrop.cancel(autoCropJobId);
+      const progress = await autoCropClient.cancelAutoCrop(autoCropJobId);
       setAutoCropProgress(progress);
       setWorkflowMessage(progress.message ?? 'Auto-Crop canceled.');
       setActiveAction(null);
@@ -2863,7 +2877,7 @@ export function useVideoAuditAppController(): VideoAuditAppController {
     setActiveAction('mediaPreview');
 
     try {
-      const response = await window.videoAudit.mediaPreview.start({
+      const response = await mediaPreviewClient.startMediaPreview({
         videos: rows,
         mode: 'thumbnail'
       });
@@ -2888,7 +2902,7 @@ export function useVideoAuditAppController(): VideoAuditAppController {
     }
 
     try {
-      const progress = await window.videoAudit.mediaPreview.cancel(mediaPreviewJobId);
+      const progress = await mediaPreviewClient.cancelMediaPreview(mediaPreviewJobId);
       setMediaPreviewProgress(progress);
       setWorkflowMessage(progress.message ?? 'Thumbnail generation canceled.');
       setActiveAction(null);
@@ -2912,7 +2926,7 @@ export function useVideoAuditAppController(): VideoAuditAppController {
       setPreviewFrameError(null);
 
       try {
-        const response = await window.videoAudit.mediaPreview.generateFrames({
+        const response = await mediaPreviewClient.generateFrames({
           video,
           mode: 'fresh'
         });
@@ -2984,7 +2998,7 @@ export function useVideoAuditAppController(): VideoAuditAppController {
       setActiveAction('previewClip');
 
       try {
-        const response = await window.videoAudit.mediaPreview.startClipGeneration({
+        const response = await mediaPreviewClient.startClipGeneration({
           video,
           frames,
           clipDurationSeconds: settings?.previewClipDurationSecondsDefault ?? 5,
@@ -3013,7 +3027,7 @@ export function useVideoAuditAppController(): VideoAuditAppController {
     }
 
     try {
-      const progress = await window.videoAudit.mediaPreview.cancelClipGeneration(previewClipJobId);
+      const progress = await mediaPreviewClient.cancelClipGeneration(previewClipJobId);
       setPreviewClipProgress(progress);
       setWorkflowMessage(progress.message ?? 'Preview clip generation canceled.');
       setActiveAction(null);
@@ -3060,7 +3074,7 @@ export function useVideoAuditAppController(): VideoAuditAppController {
     setMigrationScanError(null);
 
     try {
-      const result = await window.videoAudit.dialog.chooseFolders();
+      const result = await dialogClient.chooseFolders();
 
       if (result.canceled) {
         return;
@@ -3103,7 +3117,7 @@ export function useVideoAuditAppController(): VideoAuditAppController {
     setMigrationResultError(null);
 
     try {
-      const response = await window.videoAudit.migration.scan({
+      const response = await migrationClient.scanMigration({
         newEditedDir,
         destinationRoot: auditedRootDirectory
       });
@@ -3149,7 +3163,7 @@ export function useVideoAuditAppController(): VideoAuditAppController {
     setActiveAction('migrationExecute');
 
     try {
-      const response = await window.videoAudit.migration.execute({
+      const response = await migrationClient.executeMigration({
         migrationId: migrationScan.migrationId
       });
 
@@ -3349,7 +3363,7 @@ export function useVideoAuditAppController(): VideoAuditAppController {
     [cancelActiveWork, chooseFiles, refreshAudit]
   );
 
-  useEffect(() => window.videoAudit.app.onCommand((command) => {
+  useEffect(() => appClient.subscribeToAppCommands((command) => {
     void handleAppCommand(command);
   }), [handleAppCommand]);
 
@@ -3388,7 +3402,7 @@ export function useVideoAuditAppController(): VideoAuditAppController {
     setPremiereImportError(null);
 
     try {
-      const response = await window.videoAudit.premiere.createImportRequest({
+      const response = await premiereClient.createPremiereImportRequest({
         videos: selectedVideos.map(toPremiereRequestVideo)
       });
 

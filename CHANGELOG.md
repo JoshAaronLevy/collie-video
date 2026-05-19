@@ -7,6 +7,13 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.50.3] - 2026-05-19
+
+### Changed
+
+- Added thin renderer API clients for the typed preload API and routed renderer workflow calls through those clients without changing preload or main-process IPC contracts.
+- Updated the renderer refactor map to reflect the new API-client boundary after Stage 2.
+
 ## [0.50.2] - 2026-05-19
 
 ### Changed

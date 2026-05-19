@@ -14,6 +14,7 @@ import type {
 } from '../../../shared/types/folderTree';
 import { DialogFooter, DialogHeader } from '../DialogChrome';
 import { formatBytes } from '../../helpers/fileSize';
+import * as folderTreeClient from '../../api/folderTreeClient';
 import {
   getFolderTreeSelectionKeysForPaths,
   getFolderTreeSelectionSummary,
@@ -132,7 +133,7 @@ export function FolderTreeSelectorDialog({
 
   const loadScanResult = useCallback(async (completedScanId: string): Promise<void> => {
     try {
-      const response = await window.videoAudit.folderTree.getResult(completedScanId);
+      const response = await folderTreeClient.getScanResult(completedScanId);
 
       if (response.status === 'complete' && response.result) {
         activeScanIdRef.current = null;
@@ -161,7 +162,7 @@ export function FolderTreeSelectorDialog({
   }, [initialRootPath, scanId, scanResult, visible]);
 
   useEffect(() => {
-    return window.videoAudit.folderTree.onScanProgress((progress) => {
+    return folderTreeClient.subscribeToFolderTreeScanProgress((progress) => {
       if (progress.scanId !== activeScanIdRef.current) {
         return;
       }
@@ -222,7 +223,7 @@ export function FolderTreeSelectorDialog({
     setMissingSelectedPaths([]);
 
     try {
-      const response = await window.videoAudit.folderTree.scanRoot(nextRootPath);
+      const response = await folderTreeClient.scanRoot(nextRootPath);
 
       if (response.status !== 'started' || !response.scanId) {
         setError(response.message ?? 'Could not start folder tree scan.');
@@ -260,7 +261,7 @@ export function FolderTreeSelectorDialog({
     setError(null);
 
     try {
-      const result = await window.videoAudit.folderTree.chooseRootFolder();
+      const result = await folderTreeClient.chooseRootFolder();
 
       if (result.canceled) {
         return;
@@ -298,7 +299,7 @@ export function FolderTreeSelectorDialog({
     setIsCancelingScan(true);
 
     try {
-      const response = await window.videoAudit.folderTree.cancelScan(activeScanId);
+      const response = await folderTreeClient.cancelScan(activeScanId);
 
       if (response.progress) {
         setScanProgress(response.progress);
