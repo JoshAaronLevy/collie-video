@@ -79,11 +79,7 @@ import { getKnownDirectories } from '../helpers/knownDirectories';
 import { toPremiereRequestVideo } from '../helpers/premiereRows';
 import { getProgressPercent } from '../helpers/progress';
 import { mergeRecentPaths } from '../helpers/recentPaths';
-import {
-  getAuditedRootDirectory,
-  getResultsViewCounts,
-  matchesResultsViewFilter
-} from '../helpers/resultFilters';
+import { getAuditedRootDirectory } from '../helpers/resultFilters';
 import {
   getExecutableReplacementItemCount,
   getReplacementBulkActionMessage,
@@ -93,6 +89,7 @@ import {
 } from '../helpers/replacementPlan';
 import type { ResultsViewCounts, ResultsViewFilter } from '../types/resultsView';
 import { useAuditResults } from './useAuditResults';
+import { useResultFilters } from './useResultFilters';
 
 type ActiveAction =
   | 'folders'
@@ -410,8 +407,14 @@ export function useVideoAuditAppController(): VideoAuditAppController {
     archiveCurrentResultToHistory,
     clearStoredAuditResultState
   } = useAuditResults({ setSelectedVideos });
-  const [globalFilter, setGlobalFilter] = useState('');
-  const [resultsViewFilter, setResultsViewFilter] = useState<ResultsViewFilter>('all');
+  const {
+    globalFilter,
+    resultsViewFilter,
+    resultsViewCounts,
+    filteredVideoRows,
+    setGlobalFilter,
+    setResultsViewFilter
+  } = useResultFilters(visibleVideoRows);
   const [discoveryJobId, setDiscoveryJobId] = useState<string | null>(null);
   const [discoveryProgress, setDiscoveryProgress] = useState<FileDiscoveryJobSnapshot | null>(null);
   const [ffprobeJobId, setFfprobeJobId] = useState<string | null>(null);
@@ -694,14 +697,6 @@ export function useVideoAuditAppController(): VideoAuditAppController {
     });
   }, []);
 
-  const resultsViewCounts = useMemo(
-    () => getResultsViewCounts(visibleVideoRows),
-    [visibleVideoRows]
-  );
-  const filteredVideoRows = useMemo(
-    () => visibleVideoRows.filter((row) => matchesResultsViewFilter(row, resultsViewFilter)),
-    [resultsViewFilter, visibleVideoRows]
-  );
   const auditedRootDirectory = useMemo(
     () => getAuditedRootDirectory(lastAuditRequest, auditSummary),
     [auditSummary, lastAuditRequest]

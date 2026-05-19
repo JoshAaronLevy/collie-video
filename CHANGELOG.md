@@ -7,6 +7,12 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.50.5] - 2026-05-19
+
+### Changed
+
+- Extracted result search, view-filter state, visible-row counts, and filtered result rows into a focused renderer hook while preserving table global-filter behavior.
+
 ## [0.50.4] - 2026-05-19
 
 ### Changed
