@@ -7,6 +7,12 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.50.21] - 2026-05-19
+
+### Changed
+
+- Grouped `App.tsx` component props into typed local prop sets so the main render tree is easier to scan without changing component behavior.
+
 ## [0.50.20] - 2026-05-19
 
 ### Changed
