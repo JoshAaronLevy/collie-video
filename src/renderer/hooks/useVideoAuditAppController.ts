@@ -50,17 +50,13 @@ import type {
   ReplacementPlanActionUpdate,
   ReplacementPlanBulkAction
 } from '../../shared/types/replacementWorkflow';
-import type {
-  AppSettings,
-  AppSettingsUpdate
-} from '../../shared/types/settings';
+import type { AppSettings } from '../../shared/types/settings';
 import type { FfprobeResult, VideoPreviewFrame, VideoRow } from '../../shared/types/video';
 import { dedupeOverlappingFolderPaths } from '../../shared/utils/folderPathSelection';
 import * as appClient from '../api/appClient';
 import * as auditClient from '../api/auditClient';
 import * as autoCropClient from '../api/autoCropClient';
 import * as autoFixClient from '../api/autoFixClient';
-import * as diagnosticsClient from '../api/diagnosticsClient';
 import * as dialogClient from '../api/dialogClient';
 import * as discoveryClient from '../api/discoveryClient';
 import * as ffprobeClient from '../api/ffprobeClient';
@@ -70,7 +66,6 @@ import * as migrationClient from '../api/migrationClient';
 import * as operationHistoryClient from '../api/operationHistoryClient';
 import * as premiereClient from '../api/premiereClient';
 import * as replacementClient from '../api/replacementClient';
-import * as settingsClient from '../api/settingsClient';
 import { DEFAULT_AUDIT_OPTIONS, settingsToAuditOptions } from '../helpers/auditOptions';
 import { getErrorMessage } from '../helpers/errors';
 import { toKnownFileOperationItem } from '../helpers/fileOperationItems';
@@ -90,8 +85,11 @@ import {
 } from '../helpers/replacementPlan';
 import type { ResultsViewCounts, ResultsViewFilter } from '../types/resultsView';
 import { useAuditResults } from './useAuditResults';
+import { useAppBootstrap } from './useAppBootstrap';
+import { useDiagnosticsWorkflow } from './useDiagnosticsWorkflow';
 import { useResultFilters } from './useResultFilters';
 import { useSelectionState } from './useSelectionState';
+import { useSettingsController } from './useSettingsController';
 import { useWorkflowBusyState } from './useWorkflowBusyState';
 
 type ActiveAction =
@@ -360,18 +358,33 @@ export interface VideoAuditAppController {
 }
 
 export function useVideoAuditAppController(): VideoAuditAppController {
-  const [appInfo, setAppInfo] = useState<AppInfo | null>(null);
-  const [appInfoMessage, setAppInfoMessage] = useState<string | null>(null);
-  const [settings, setSettings] = useState<AppSettings | null>(null);
-  const [settingsMessage, setSettingsMessage] = useState<string | null>(null);
   const [settingsOpenRequestCount, setSettingsOpenRequestCount] = useState(0);
   const [folderTreeOpenRequestCount, setFolderTreeOpenRequestCount] = useState(0);
-  const [toolDiagnostics, setToolDiagnostics] = useState<ToolDiagnosticsResult | null>(null);
-  const [toolDiagnosticsError, setToolDiagnosticsError] = useState<string | null>(null);
-  const [isToolDiagnosticsLoading, setIsToolDiagnosticsLoading] = useState(false);
   const [selectionMessage, setSelectionMessage] = useState<string | null>(null);
   const [workflowMessage, setWorkflowMessage] = useState<string | null>(null);
   const [activeAction, setActiveAction] = useState<ActiveAction>(null);
+  const { appInfo, appInfoMessage } = useAppBootstrap();
+  const handleSettingsActiveChange = useCallback((isActive: boolean): void => {
+    setActiveAction(isActive ? 'settings' : null);
+  }, []);
+  const {
+    settings,
+    settingsMessage,
+    setSettingsMessage,
+    loadSettings,
+    persistSettings,
+    saveSettingsSilently,
+    updateSettingsField,
+    resetSettings: resetStoredSettings
+  } = useSettingsController({
+    onSettingsActiveChange: handleSettingsActiveChange
+  });
+  const {
+    toolDiagnostics,
+    toolDiagnosticsError,
+    isToolDiagnosticsLoading,
+    runToolDiagnostics
+  } = useDiagnosticsWorkflow({ setSettingsMessage });
   const [selectedFolders, setSelectedFolders] = useState<string[]>([]);
   const [selectedFolderSummary, setSelectedFolderSummary] = useState<SelectedFolderSummary | null>(null);
   const [folderTreeRootPath, setFolderTreeRootPath] = useState<string | null>(null);
@@ -501,26 +514,6 @@ export function useVideoAuditAppController(): VideoAuditAppController {
   const [premiereImportError, setPremiereImportError] = useState<string | null>(null);
   const pendingAuditRequestRef = useRef<AuditRequest | null>(null);
 
-  useEffect(() => {
-    let isMounted = true;
-
-    appClient.getAppInfo()
-      .then((info) => {
-        if (isMounted) {
-          setAppInfo(info);
-        }
-      })
-      .catch((error: unknown) => {
-        if (isMounted) {
-          setAppInfoMessage(getErrorMessage(error, 'Could not read app info.'));
-        }
-      });
-
-    return () => {
-      isMounted = false;
-    };
-  }, []);
-
   const refreshPremiereStatus = useCallback(async (): Promise<void> => {
     setIsPremiereStatusLoading(true);
     setPremiereStatusError(null);
@@ -578,16 +571,13 @@ export function useVideoAuditAppController(): VideoAuditAppController {
 
     async function loadInitialState(): Promise<void> {
       try {
-        const [loadedSettings, storedAudit] = await Promise.all([
-          settingsClient.getSettings(),
-          loadStoredAuditResultState()
-        ]);
+        const storedAudit = await loadStoredAuditResultState();
+        const loadedSettings = await loadSettings();
 
         if (!isMounted) {
           return;
         }
 
-        setSettings(loadedSettings);
         setOutputFolder(loadedSettings.defaultOutputDirectory);
 
         const restoredFolderTreeSource = loadedSettings.latestFolderTreeSource;
@@ -640,7 +630,7 @@ export function useVideoAuditAppController(): VideoAuditAppController {
     return () => {
       isMounted = false;
     };
-  }, [applyStoredAuditResult, finishStorageLoading, loadStoredAuditResultState]);
+  }, [applyStoredAuditResult, finishStorageLoading, loadSettings, loadStoredAuditResultState]);
 
   useEffect(() => {
     return auditClient.subscribeToAuditProgress((progress) => {
@@ -795,22 +785,6 @@ export function useVideoAuditAppController(): VideoAuditAppController {
     hasVideoRows: Boolean(videoRows),
     premiereStatus: premiereStatus?.status ?? null
   });
-
-  const persistSettings = useCallback(async (partialSettings: AppSettingsUpdate): Promise<AppSettings | null> => {
-    setActiveAction('settings');
-
-    try {
-      const updatedSettings = await settingsClient.updateSettings(partialSettings);
-      setSettings(updatedSettings);
-      setSettingsMessage('Settings saved.');
-      return updatedSettings;
-    } catch (error: unknown) {
-      setSettingsMessage(getErrorMessage(error, 'Could not save settings.'));
-      return null;
-    } finally {
-      setActiveAction(null);
-    }
-  }, []);
 
   const handleSelectionResult = useCallback(
     async (result: PathSelectionResult, onValidPaths: (paths: string[]) => void): Promise<void> => {
@@ -1041,13 +1015,6 @@ export function useVideoAuditAppController(): VideoAuditAppController {
     }
   }, []);
 
-  const updateSettingsField = useCallback(
-    async <Key extends keyof AppSettings>(key: Key, value: AppSettings[Key]): Promise<void> => {
-      await persistSettings({ [key]: value } as AppSettingsUpdate);
-    },
-    [persistSettings]
-  );
-
   const updateAuditOption = useCallback(
     async <Key extends keyof AuditOptions>(key: Key, value: AuditOptions[Key]): Promise<void> => {
       const nextOptions = {
@@ -1081,39 +1048,19 @@ export function useVideoAuditAppController(): VideoAuditAppController {
   );
 
   const resetSettings = useCallback(async (): Promise<void> => {
-    setActiveAction('settings');
+    const reset = await resetStoredSettings();
 
-    try {
-      const reset = await settingsClient.resetSettings();
-      setSettings(reset);
-      setOutputFolder(reset.defaultOutputDirectory);
-      setAuditOptions(settingsToAuditOptions(reset));
-      setSelectedFolders([]);
-      setSelectedFolderSummary(null);
-      setFolderTreeRootPath(null);
-      setFolderTreeLastScannedAt(null);
-      setSettingsMessage('Settings reset.');
-    } catch (error: unknown) {
-      setSettingsMessage(getErrorMessage(error, 'Could not reset settings.'));
-    } finally {
-      setActiveAction(null);
+    if (!reset) {
+      return;
     }
-  }, []);
 
-  const runToolDiagnostics = useCallback(async (): Promise<void> => {
-    setIsToolDiagnosticsLoading(true);
-    setToolDiagnosticsError(null);
-
-    try {
-      const result = await diagnosticsClient.checkTools();
-      setToolDiagnostics(result);
-      setSettingsMessage(result.message ?? 'Media tool diagnostic complete.');
-    } catch (error: unknown) {
-      setToolDiagnosticsError(getErrorMessage(error, 'Unable to check ffmpeg/ffprobe availability.'));
-    } finally {
-      setIsToolDiagnosticsLoading(false);
-    }
-  }, []);
+    setOutputFolder(reset.defaultOutputDirectory);
+    setAuditOptions(settingsToAuditOptions(reset));
+    setSelectedFolders([]);
+    setSelectedFolderSummary(null);
+    setFolderTreeRootPath(null);
+    setFolderTreeLastScannedAt(null);
+  }, [resetStoredSettings]);
 
   const startAuditRequest = useCallback(async (request: AuditRequest): Promise<AuditStartOutcome> => {
     setWorkflowMessage(null);
@@ -2131,15 +2078,23 @@ export function useVideoAuditAppController(): VideoAuditAppController {
 
       await clearStoredAuditResultState();
 
-      const updatedSettings = await settingsClient.updateSettings({
-        defaultOutputDirectory: null,
-        latestSelectedFolder: null,
-        latestFolderTreeSource: null,
-        lastAuditResultSummary: null
-      });
+      const updatedSettings = await saveSettingsSilently(
+        {
+          defaultOutputDirectory: null,
+          latestSelectedFolder: null,
+          latestFolderTreeSource: null,
+          lastAuditResultSummary: null
+        },
+        {
+          errorMessage: null,
+          throwOnError: true
+        }
+      );
 
-      setSettings(updatedSettings);
-      setSettingsMessage(null);
+      if (!updatedSettings) {
+        return;
+      }
+
       setOutputFolder(updatedSettings.defaultOutputDirectory);
       setAuditOptions(settingsToAuditOptions(updatedSettings));
       setAuditJobId(null);
@@ -2235,6 +2190,7 @@ export function useVideoAuditAppController(): VideoAuditAppController {
     clearStoredAuditResultState,
     outputFolder,
     resetAuditResults,
+    saveSettingsSilently,
     setStorageMessage
   ]);
 
