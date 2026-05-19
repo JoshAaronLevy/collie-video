@@ -45,11 +45,9 @@ import type { FfprobeResult, VideoPreviewFrame, VideoRow } from '../../shared/ty
 import { dedupeOverlappingFolderPaths } from '../../shared/utils/folderPathSelection';
 import * as appClient from '../api/appClient';
 import * as mediaPreviewClient from '../api/mediaPreviewClient';
-import * as premiereClient from '../api/premiereClient';
 import { DEFAULT_AUDIT_OPTIONS, settingsToAuditOptions } from '../helpers/auditOptions';
 import { getErrorMessage } from '../helpers/errors';
 import { getPersistedFolderTreeSourcePaths } from '../helpers/folderTreeSource';
-import { toPremiereRequestVideo } from '../helpers/premiereRows';
 import { getAuditedRootDirectory } from '../helpers/resultFilters';
 import { getWorkflowCapabilities } from '../helpers/workflowCapabilities';
 import type { ResultsViewCounts, ResultsViewFilter } from '../types/resultsView';
@@ -66,6 +64,7 @@ import { useMediaPreviewWorkflow, type MediaPreviewWorkflowActiveAction } from '
 import { useMigrationWorkflow, type MigrationWorkflowActiveAction } from './useMigrationWorkflow';
 import { useOperationHistory, type OperationHistoryActiveAction } from './useOperationHistory';
 import { usePathReveal, type PathRevealActiveAction } from './usePathReveal';
+import { usePremiereBridge, type PremiereBridgeActiveAction } from './usePremiereBridge';
 import {
   usePostConversionWorkflow,
   type PostConversionDialogMode,
@@ -659,65 +658,31 @@ export function useVideoAuditAppController(): VideoAuditAppController {
       activeAction
     }
   });
-  const [premiereStatus, setPremiereStatus] = useState<PremiereStatusResponse | null>(null);
-  const [premiereStatusError, setPremiereStatusError] = useState<string | null>(null);
-  const [premiereLaunchMessage, setPremiereLaunchMessage] = useState<string | null>(null);
-  const [isPremiereStatusLoading, setIsPremiereStatusLoading] = useState(false);
-  const [isPremiereImportSubmitting, setIsPremiereImportSubmitting] = useState(false);
-  const [premiereImportResult, setPremiereImportResult] = useState<PremiereRequestResponse | null>(null);
-  const [premiereImportError, setPremiereImportError] = useState<string | null>(null);
-
-  const refreshPremiereStatus = useCallback(async (): Promise<void> => {
-    setIsPremiereStatusLoading(true);
-    setPremiereStatusError(null);
-
-    try {
-      const status = await premiereClient.getPremiereStatus();
-      setPremiereStatus(status);
-    } catch (error: unknown) {
-      setPremiereStatusError(getErrorMessage(error, 'Unable to check Premiere bridge status.'));
-      setPremiereStatus({
-        status: 'error',
-        message: getErrorMessage(error, 'Unable to check Premiere bridge status.'),
-        bridge: {
-          connected: false,
-          reason: 'status_check_failed'
-        }
-      });
-    } finally {
-      setIsPremiereStatusLoading(false);
-    }
+  const setPremiereBridgeActiveAction = useCallback((action: PremiereBridgeActiveAction): void => {
+    setActiveAction(action);
   }, []);
-
-  const openPremiereBridgeApps = useCallback(async (): Promise<void> => {
-    setActiveAction('premiereLaunch');
-    setPremiereStatusError(null);
-    setPremiereLaunchMessage(null);
-    let launchError: string | null = null;
-
-    try {
-      const response = await premiereClient.openPremiereBridgeApps();
-      setPremiereLaunchMessage(`${response.message} Bridge folder: ${response.bridgeDir || 'Unknown'}`);
-
-      if (response.status !== 'opened') {
-        launchError = response.message;
-      }
-    } catch (error: unknown) {
-      launchError = getErrorMessage(error, 'Unable to open Premiere bridge apps.');
-      setPremiereLaunchMessage(launchError);
-    } finally {
-      setActiveAction(null);
-      await refreshPremiereStatus();
-
-      if (launchError) {
-        setPremiereStatusError(launchError);
-      }
+  const {
+    premiereStatus,
+    premiereStatusError,
+    premiereLaunchMessage,
+    isPremiereStatusLoading,
+    isPremiereImportSubmitting,
+    premiereImportResult,
+    premiereImportError,
+    refreshPremiereStatus,
+    openPremiereBridgeApps,
+    editSelectedInPremiere,
+    resetPremiereBridgeWorkflow
+  } = usePremiereBridge({
+    selectedVideos,
+    selectedPaths,
+    hideVideoPathsFromTable,
+    setWorkflowMessage,
+    setActiveAction: setPremiereBridgeActiveAction,
+    busyState: {
+      activeAction
     }
-  }, [refreshPremiereStatus]);
-
-  useEffect(() => {
-    void refreshPremiereStatus();
-  }, [refreshPremiereStatus]);
+  });
 
   useEffect(() => {
     let isMounted = true;
@@ -1052,9 +1017,7 @@ export function useVideoAuditAppController(): VideoAuditAppController {
       resetMigrationWorkflow();
       resetFileOperationsWorkflow();
       resetPostConversionWorkflow();
-      setPremiereImportResult(null);
-      setPremiereImportError(null);
-      setIsPremiereImportSubmitting(false);
+      resetPremiereBridgeWorkflow();
       resetAuditResults({
         storageMessage: historyMetadataError
           ? `Cache cleared. Scan history metadata could not be saved: ${historyMetadataError}`
@@ -1082,6 +1045,7 @@ export function useVideoAuditAppController(): VideoAuditAppController {
     resetMediaPreviewWorkflow,
     resetMigrationWorkflow,
     resetPostConversionWorkflow,
+    resetPremiereBridgeWorkflow,
     saveSettingsSilently,
     setStorageMessage
   ]);
@@ -1278,63 +1242,6 @@ export function useVideoAuditAppController(): VideoAuditAppController {
       window.removeEventListener('keydown', handleKeyDown);
     };
   }, [handleAppCommand]);
-
-  const editSelectedInPremiere = useCallback(async (): Promise<void> => {
-    if (selectedVideoCount === 0) {
-      setPremiereImportError('Select at least one video to import into Premiere.');
-      return;
-    }
-
-    if (premiereStatus?.status !== 'ready') {
-      setPremiereImportError('Premiere bridge must be ready before importing videos.');
-      await refreshPremiereStatus();
-      return;
-    }
-
-    setActiveAction('premiereImport');
-    setIsPremiereImportSubmitting(true);
-    setPremiereImportResult(null);
-    setPremiereImportError(null);
-
-    try {
-      const response = await premiereClient.createPremiereImportRequest({
-        videos: selectedVideos.map(toPremiereRequestVideo)
-      });
-
-      if (response.premiereStatus) {
-        setPremiereStatus(response.premiereStatus);
-      }
-
-      if (response.status !== 'queued' || !response.requestId) {
-        throw new Error(response.message ?? 'Unable to import selected videos into Premiere.');
-      }
-
-      setPremiereImportResult(response);
-      const importedCount = selectedVideoCount;
-      const hiddenCount = await hideVideoPathsFromTable(selectedPaths);
-      const hiddenText =
-        hiddenCount > 0 ? ` ${hiddenCount.toLocaleString()} video(s) were removed from the table.` : '';
-
-      setWorkflowMessage(
-        `Premiere import requested for ${importedCount.toLocaleString()} video(s).${hiddenText}`
-      );
-      await refreshPremiereStatus();
-    } catch (error: unknown) {
-      const message = getErrorMessage(error, 'Unable to import selected videos into Premiere.');
-      setPremiereImportError(message);
-      setWorkflowMessage(message);
-    } finally {
-      setIsPremiereImportSubmitting(false);
-      setActiveAction(null);
-    }
-  }, [
-    hideVideoPathsFromTable,
-    premiereStatus?.status,
-    refreshPremiereStatus,
-    selectedPaths,
-    selectedVideoCount,
-    selectedVideos
-  ]);
 
   return {
     appInfo,

@@ -7,6 +7,12 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.50.17] - 2026-05-19
+
+### Changed
+
+- Extracted Premiere bridge status refresh, launch handling, import request state, selected-row import validation, row hiding, and startup status loading into a focused renderer hook.
+
 ## [0.50.16] - 2026-05-19
 
 ### Changed
