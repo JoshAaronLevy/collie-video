@@ -7,6 +7,12 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.50.12] - 2026-05-19
+
+### Changed
+
+- Extracted trash, move, and archive file-operation planning, execution, dialog state, row hiding, and operation-history preview behavior into a focused renderer hook.
+
 ## [0.50.11] - 2026-05-19
 
 ### Changed

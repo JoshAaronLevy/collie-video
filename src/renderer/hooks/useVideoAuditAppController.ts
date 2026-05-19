@@ -53,16 +53,13 @@ import * as appClient from '../api/appClient';
 import * as autoCropClient from '../api/autoCropClient';
 import * as autoFixClient from '../api/autoFixClient';
 import * as dialogClient from '../api/dialogClient';
-import * as fileOperationsClient from '../api/fileOperationsClient';
 import * as mediaPreviewClient from '../api/mediaPreviewClient';
 import * as migrationClient from '../api/migrationClient';
 import * as premiereClient from '../api/premiereClient';
 import * as replacementClient from '../api/replacementClient';
 import { DEFAULT_AUDIT_OPTIONS, settingsToAuditOptions } from '../helpers/auditOptions';
 import { getErrorMessage } from '../helpers/errors';
-import { toKnownFileOperationItem } from '../helpers/fileOperationItems';
 import { getPersistedFolderTreeSourcePaths } from '../helpers/folderTreeSource';
-import { getKnownDirectories } from '../helpers/knownDirectories';
 import { toPremiereRequestVideo } from '../helpers/premiereRows';
 import { getProgressPercent } from '../helpers/progress';
 import { getAuditedRootDirectory } from '../helpers/resultFilters';
@@ -81,6 +78,7 @@ import { useAppBootstrap } from './useAppBootstrap';
 import { useDiagnosticsWorkflow } from './useDiagnosticsWorkflow';
 import { useDiscoveryWorkflow, type DiscoveryWorkflowActiveAction } from './useDiscoveryWorkflow';
 import { useFfprobeWorkflow, type FfprobeWorkflowActiveAction } from './useFfprobeWorkflow';
+import { useFileOperationsWorkflow, type FileOperationsWorkflowActiveAction } from './useFileOperationsWorkflow';
 import { useOperationHistory, type OperationHistoryActiveAction } from './useOperationHistory';
 import { usePathReveal, type PathRevealActiveAction } from './usePathReveal';
 import { useResultFilters } from './useResultFilters';
@@ -560,24 +558,6 @@ export function useVideoAuditAppController(): VideoAuditAppController {
   const [migrationResultError, setMigrationResultError] = useState<string | null>(null);
   const [isMigrationScanDialogVisible, setIsMigrationScanDialogVisible] = useState(false);
   const [isMigrationResultDialogVisible, setIsMigrationResultDialogVisible] = useState(false);
-  const [trashPlan, setTrashPlan] = useState<TrashOperationPlan | null>(null);
-  const [trashPlanError, setTrashPlanError] = useState<string | null>(null);
-  const [trashResult, setTrashResult] = useState<FileOperationResult | null>(null);
-  const [trashResultError, setTrashResultError] = useState<string | null>(null);
-  const [isTrashConfirmDialogVisible, setIsTrashConfirmDialogVisible] = useState(false);
-  const [isTrashResultDialogVisible, setIsTrashResultDialogVisible] = useState(false);
-  const [movePlan, setMovePlan] = useState<MoveOperationPlan | null>(null);
-  const [movePlanError, setMovePlanError] = useState<string | null>(null);
-  const [moveResult, setMoveResult] = useState<FileOperationResult | null>(null);
-  const [moveResultError, setMoveResultError] = useState<string | null>(null);
-  const [isMoveConfirmDialogVisible, setIsMoveConfirmDialogVisible] = useState(false);
-  const [isMoveResultDialogVisible, setIsMoveResultDialogVisible] = useState(false);
-  const [archivePlan, setArchivePlan] = useState<ArchiveOperationPlan | null>(null);
-  const [archivePlanError, setArchivePlanError] = useState<string | null>(null);
-  const [archiveResult, setArchiveResult] = useState<FileOperationResult | null>(null);
-  const [archiveResultError, setArchiveResultError] = useState<string | null>(null);
-  const [isArchiveConfirmDialogVisible, setIsArchiveConfirmDialogVisible] = useState(false);
-  const [isArchiveResultDialogVisible, setIsArchiveResultDialogVisible] = useState(false);
   const [postConversionPlan, setPostConversionPlan] = useState<ReplacementPlan | null>(null);
   const [postConversionSourceLabel, setPostConversionSourceLabel] = useState<string | null>(null);
   const [postConversionMode, setPostConversionMode] = useState<PostConversionDialogMode>('choices');
@@ -779,6 +759,58 @@ export function useVideoAuditAppController(): VideoAuditAppController {
     replacementProgress,
     isPremiereImportSubmitting
   });
+  const setFileOperationsActiveAction = useCallback((action: FileOperationsWorkflowActiveAction): void => {
+    setActiveAction(action);
+  }, []);
+  const {
+    trashPlan,
+    trashPlanError,
+    trashResult,
+    trashResultError,
+    isTrashConfirmDialogVisible,
+    isTrashResultDialogVisible,
+    openTrashDialog,
+    closeTrashDialog,
+    executeTrashPlan,
+    closeTrashResultDialog,
+    movePlan,
+    movePlanError,
+    moveResult,
+    moveResultError,
+    isMoveConfirmDialogVisible,
+    isMoveResultDialogVisible,
+    openMoveDialog,
+    closeMoveDialog,
+    executeMovePlan,
+    closeMoveResultDialog,
+    archivePlan,
+    archivePlanError,
+    archiveResult,
+    archiveResultError,
+    isArchiveConfirmDialogVisible,
+    isArchiveResultDialogVisible,
+    openArchiveDialog,
+    closeArchiveDialog,
+    executeArchivePlan,
+    closeArchiveResultDialog,
+    resetFileOperationsWorkflow
+  } = useFileOperationsWorkflow({
+    selectedVideos,
+    selectedFolders,
+    auditedRootDirectory,
+    outputFolder,
+    fileManagementConflictStrategy: settings?.fileManagementConflictStrategy,
+    previewOperationHistoryAfterExecution: settings?.previewOperationHistoryAfterExecution,
+    hideVideoPathsFromTable,
+    openOperationHistory,
+    setWorkflowMessage,
+    setActiveAction: setFileOperationsActiveAction,
+    busyState: {
+      isTrashExecuting,
+      isMoveExecuting,
+      isArchiveExecuting
+    }
+  });
   const autoFixPercent = getProgressPercent(autoFixProgress?.processedVideos, autoFixProgress?.totalVideos);
   const autoCropPercent = getProgressPercent(autoCropProgress?.processedFiles, autoCropProgress?.totalFiles);
   const mediaPreviewPercent = getProgressPercent(
@@ -869,330 +901,6 @@ export function useVideoAuditAppController(): VideoAuditAppController {
     });
     setAuditOptions(settingsToAuditOptions(reset));
   }, [applySourceSelectionState, resetStoredSettings]);
-
-  const openTrashDialog = useCallback(async (): Promise<void> => {
-    if (selectedVideoCount === 0) {
-      setWorkflowMessage('Select at least one video before moving files to Trash.');
-      return;
-    }
-
-    setTrashPlan(null);
-    setTrashPlanError(null);
-    setTrashResult(null);
-    setTrashResultError(null);
-    setActiveAction('trashPlan');
-
-    try {
-      const response = await fileOperationsClient.createTrashPlan({
-        operationType: 'trash',
-        items: selectedVideos.map(toKnownFileOperationItem),
-        knownRootDirectories: getKnownDirectories({
-          auditedRootDirectory,
-          selectedFolders,
-          selectedVideos
-        }),
-        knownOutputDirectories: outputFolder ? [outputFolder] : []
-      });
-
-      if (response.status !== 'planned' || !response.plan) {
-        setTrashPlanError(response.message ?? 'Could not create a Move to Trash plan.');
-        setWorkflowMessage(response.message ?? 'Could not create a Move to Trash plan.');
-        return;
-      }
-
-      setTrashPlan(response.plan);
-      setIsTrashConfirmDialogVisible(true);
-      setWorkflowMessage(null);
-    } catch (error: unknown) {
-      const message = getErrorMessage(error, 'Could not create a Move to Trash plan.');
-      setTrashPlanError(message);
-      setWorkflowMessage(message);
-    } finally {
-      setActiveAction(null);
-    }
-  }, [auditedRootDirectory, outputFolder, selectedFolders, selectedVideoCount, selectedVideos]);
-
-  const closeTrashDialog = useCallback((): void => {
-    if (isTrashExecuting) {
-      return;
-    }
-
-    setIsTrashConfirmDialogVisible(false);
-    setTrashPlanError(null);
-  }, [isTrashExecuting]);
-
-  const executeTrashPlan = useCallback(
-    async (typedConfirmation: string | null): Promise<void> => {
-      if (!trashPlan) {
-        setTrashPlanError('Create a Move to Trash plan before executing.');
-        return;
-      }
-
-      setTrashPlanError(null);
-      setTrashResult(null);
-      setTrashResultError(null);
-      setActiveAction('trashExecute');
-
-      try {
-        const response = await fileOperationsClient.executeTrashPlan({
-          planId: trashPlan.id,
-          confirmed: true,
-          typedConfirmation
-        });
-
-        if (!response.result) {
-          const message = response.message ?? 'Move to Trash did not complete.';
-          setTrashPlanError(message);
-          setWorkflowMessage(message);
-          return;
-        }
-
-        setTrashResult(response.result);
-        setIsTrashConfirmDialogVisible(false);
-        setIsTrashResultDialogVisible(true);
-        setTrashPlan(null);
-        setWorkflowMessage(response.message ?? 'Move to Trash complete.');
-
-        const trashedPaths = response.result.items
-          .filter((item) => item.status === 'success')
-          .map((item) => item.sourcePath);
-        await hideVideoPathsFromTable(trashedPaths);
-      } catch (error: unknown) {
-        const message = getErrorMessage(error, 'Could not move selected files to Trash.');
-        setTrashPlanError(message);
-        setTrashResultError(message);
-        setWorkflowMessage(message);
-      } finally {
-        setActiveAction(null);
-      }
-    },
-    [hideVideoPathsFromTable, trashPlan]
-  );
-
-  const closeTrashResultDialog = useCallback((): void => {
-    setIsTrashResultDialogVisible(false);
-    setTrashResultError(null);
-    if (settings?.previewOperationHistoryAfterExecution) {
-      void openOperationHistory();
-    }
-  }, [openOperationHistory, settings?.previewOperationHistoryAfterExecution]);
-
-  const openMoveDialog = useCallback(
-    async (conflictStrategy?: DestinationConflictStrategy): Promise<void> => {
-      if (selectedVideoCount === 0) {
-        setWorkflowMessage('Select at least one video before moving files.');
-        return;
-      }
-
-      const effectiveConflictStrategy = conflictStrategy ?? settings?.fileManagementConflictStrategy ?? 'skip';
-
-      setMovePlan(null);
-      setMovePlanError(null);
-      setMoveResult(null);
-      setMoveResultError(null);
-      setActiveAction('movePlan');
-
-      try {
-        const destinationResult = await dialogClient.chooseMoveDestinationFolder();
-
-        if (destinationResult.canceled) {
-          return;
-        }
-
-        const destinationDirectory = destinationResult.paths[0];
-
-        if (!destinationDirectory) {
-          const reason = destinationResult.invalidPaths[0]?.reason ?? 'Choose a valid destination folder.';
-          setMovePlanError(reason);
-          setWorkflowMessage(reason);
-          return;
-        }
-
-        const response = await fileOperationsClient.createMovePlan({
-          operationType: 'move',
-          items: selectedVideos.map(toKnownFileOperationItem),
-          destinationDirectory,
-          conflictStrategy: effectiveConflictStrategy
-        });
-
-        if (response.status !== 'planned' || !response.plan) {
-          setMovePlanError(response.message ?? 'Could not create a move plan.');
-          setWorkflowMessage(response.message ?? 'Could not create a move plan.');
-          return;
-        }
-
-        setMovePlan(response.plan);
-        setIsMoveConfirmDialogVisible(true);
-        setWorkflowMessage(null);
-      } catch (error: unknown) {
-        const message = getErrorMessage(error, 'Could not create a move plan.');
-        setMovePlanError(message);
-        setWorkflowMessage(message);
-      } finally {
-        setActiveAction(null);
-      }
-    },
-    [selectedVideoCount, selectedVideos, settings?.fileManagementConflictStrategy]
-  );
-
-  const closeMoveDialog = useCallback((): void => {
-    if (isMoveExecuting) {
-      return;
-    }
-
-    setIsMoveConfirmDialogVisible(false);
-    setMovePlanError(null);
-  }, [isMoveExecuting]);
-
-  const executeMovePlan = useCallback(async (): Promise<void> => {
-    if (!movePlan) {
-      setMovePlanError('Create a move plan before executing.');
-      return;
-    }
-
-    setMovePlanError(null);
-    setMoveResult(null);
-    setMoveResultError(null);
-    setActiveAction('moveExecute');
-
-    try {
-      const response = await fileOperationsClient.executeMovePlan({
-        planId: movePlan.id,
-        confirmed: true
-      });
-
-      if (!response.result) {
-        const message = response.message ?? 'Move operation did not complete.';
-        setMovePlanError(message);
-        setWorkflowMessage(message);
-        return;
-      }
-
-      setMoveResult(response.result);
-      setIsMoveConfirmDialogVisible(false);
-      setIsMoveResultDialogVisible(true);
-      setMovePlan(null);
-      setWorkflowMessage(response.message ?? 'Move operation complete.');
-
-      const movedPaths = response.result.items
-        .filter((item) => item.status === 'success')
-        .map((item) => item.sourcePath);
-      await hideVideoPathsFromTable(movedPaths);
-    } catch (error: unknown) {
-      const message = getErrorMessage(error, 'Could not move selected files.');
-      setMovePlanError(message);
-      setMoveResultError(message);
-      setWorkflowMessage(message);
-    } finally {
-      setActiveAction(null);
-    }
-  }, [hideVideoPathsFromTable, movePlan]);
-
-  const closeMoveResultDialog = useCallback((): void => {
-    setIsMoveResultDialogVisible(false);
-    setMoveResultError(null);
-    if (settings?.previewOperationHistoryAfterExecution) {
-      void openOperationHistory();
-    }
-  }, [openOperationHistory, settings?.previewOperationHistoryAfterExecution]);
-
-  const openArchiveDialog = useCallback(async (): Promise<void> => {
-    if (selectedVideoCount === 0) {
-      setWorkflowMessage('Select at least one video before archiving originals.');
-      return;
-    }
-
-    setArchivePlan(null);
-    setArchivePlanError(null);
-    setArchiveResult(null);
-    setArchiveResultError(null);
-    setActiveAction('archivePlan');
-
-    try {
-      const response = await fileOperationsClient.createArchivePlan({
-        operationType: 'archive',
-        items: selectedVideos.map(toKnownFileOperationItem),
-        conflictStrategy: settings?.fileManagementConflictStrategy ?? 'rename-with-suffix'
-      });
-
-      if (response.status !== 'planned' || !response.plan) {
-        setArchivePlanError(response.message ?? 'Could not create an archive plan.');
-        setWorkflowMessage(response.message ?? 'Could not create an archive plan.');
-        return;
-      }
-
-      setArchivePlan(response.plan);
-      setIsArchiveConfirmDialogVisible(true);
-      setWorkflowMessage(null);
-    } catch (error: unknown) {
-      const message = getErrorMessage(error, 'Could not create an archive plan.');
-      setArchivePlanError(message);
-      setWorkflowMessage(message);
-    } finally {
-      setActiveAction(null);
-    }
-  }, [selectedVideoCount, selectedVideos, settings?.fileManagementConflictStrategy]);
-
-  const closeArchiveDialog = useCallback((): void => {
-    if (isArchiveExecuting) {
-      return;
-    }
-
-    setIsArchiveConfirmDialogVisible(false);
-    setArchivePlanError(null);
-  }, [isArchiveExecuting]);
-
-  const executeArchivePlan = useCallback(async (): Promise<void> => {
-    if (!archivePlan) {
-      setArchivePlanError('Create an archive plan before executing.');
-      return;
-    }
-
-    setArchivePlanError(null);
-    setArchiveResult(null);
-    setArchiveResultError(null);
-    setActiveAction('archiveExecute');
-
-    try {
-      const response = await fileOperationsClient.executeArchivePlan({
-        planId: archivePlan.id,
-        confirmed: true
-      });
-
-      if (!response.result) {
-        const message = response.message ?? 'Archive operation did not complete.';
-        setArchivePlanError(message);
-        setWorkflowMessage(message);
-        return;
-      }
-
-      setArchiveResult(response.result);
-      setIsArchiveConfirmDialogVisible(false);
-      setIsArchiveResultDialogVisible(true);
-      setArchivePlan(null);
-      setWorkflowMessage(response.message ?? 'Archive operation complete.');
-
-      const archivedPaths = response.result.items
-        .filter((item) => item.status === 'success')
-        .map((item) => item.sourcePath);
-      await hideVideoPathsFromTable(archivedPaths);
-    } catch (error: unknown) {
-      const message = getErrorMessage(error, 'Could not archive selected originals.');
-      setArchivePlanError(message);
-      setArchiveResultError(message);
-      setWorkflowMessage(message);
-    } finally {
-      setActiveAction(null);
-    }
-  }, [archivePlan, hideVideoPathsFromTable]);
-
-  const closeArchiveResultDialog = useCallback((): void => {
-    setIsArchiveResultDialogVisible(false);
-    setArchiveResultError(null);
-    if (settings?.previewOperationHistoryAfterExecution) {
-      void openOperationHistory();
-    }
-  }, [openOperationHistory, settings?.previewOperationHistoryAfterExecution]);
 
   const createPostConversionPlan = useCallback(
     async ({
@@ -1794,24 +1502,7 @@ export function useVideoAuditAppController(): VideoAuditAppController {
       setMigrationResultError(null);
       setIsMigrationScanDialogVisible(false);
       setIsMigrationResultDialogVisible(false);
-      setTrashPlan(null);
-      setTrashPlanError(null);
-      setTrashResult(null);
-      setTrashResultError(null);
-      setIsTrashConfirmDialogVisible(false);
-      setIsTrashResultDialogVisible(false);
-      setMovePlan(null);
-      setMovePlanError(null);
-      setMoveResult(null);
-      setMoveResultError(null);
-      setIsMoveConfirmDialogVisible(false);
-      setIsMoveResultDialogVisible(false);
-      setArchivePlan(null);
-      setArchivePlanError(null);
-      setArchiveResult(null);
-      setArchiveResultError(null);
-      setIsArchiveConfirmDialogVisible(false);
-      setIsArchiveResultDialogVisible(false);
+      resetFileOperationsWorkflow();
       setPostConversionPlan(null);
       setPostConversionSourceLabel(null);
       setPostConversionMode('choices');
@@ -1846,6 +1537,7 @@ export function useVideoAuditAppController(): VideoAuditAppController {
     resetAuditResults,
     resetAuditWorkflow,
     resetDiscoveryWorkflow,
+    resetFileOperationsWorkflow,
     resetFfprobeWorkflow,
     saveSettingsSilently,
     setStorageMessage
