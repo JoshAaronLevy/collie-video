@@ -42,7 +42,6 @@ import type {
 import type { AppSettings } from '../../shared/types/settings';
 import type { FfprobeResult, VideoPreviewFrame, VideoRow } from '../../shared/types/video';
 import { dedupeOverlappingFolderPaths } from '../../shared/utils/folderPathSelection';
-import * as mediaPreviewClient from '../api/mediaPreviewClient';
 import { DEFAULT_AUDIT_OPTIONS, settingsToAuditOptions } from '../helpers/auditOptions';
 import { getErrorMessage } from '../helpers/errors';
 import { getPersistedFolderTreeSourcePaths } from '../helpers/folderTreeSource';
@@ -55,6 +54,7 @@ import { useAuditWorkflow, type AuditStartOutcome, type AuditWorkflowActiveActio
 import { useAppBootstrap } from './useAppBootstrap';
 import { useAutoCropWorkflow, type AutoCropWorkflowActiveAction } from './useAutoCropWorkflow';
 import { useAutoFixWorkflow, type AutoFixWorkflowActiveAction } from './useAutoFixWorkflow';
+import { useClearAuditDataWorkflow, type ClearAuditDataActiveAction } from './useClearAuditDataWorkflow';
 import { useDiagnosticsWorkflow } from './useDiagnosticsWorkflow';
 import { useDiscoveryWorkflow, type DiscoveryWorkflowActiveAction } from './useDiscoveryWorkflow';
 import { useFfprobeWorkflow, type FfprobeWorkflowActiveAction } from './useFfprobeWorkflow';
@@ -959,94 +959,33 @@ export function useVideoAuditAppController(): VideoAuditAppController {
     await hideVideoPathsFromTable(selectedPaths);
   }, [hideVideoPathsFromTable, selectedPaths, selectedVideoCount]);
 
-  const clearAuditData = useCallback(async (): Promise<void> => {
-    setActiveAction('clearCache');
-    setStorageMessage('Clearing cache...');
-    setWorkflowMessage(null);
-
-    const { savedHistoryMetadata, historyMetadataError } = await archiveCurrentResultToHistory({
-      outputFolder
-    });
-
-    try {
-      const previewCacheResponse = await mediaPreviewClient.clearCache();
-
-      if (previewCacheResponse.status !== 'complete') {
-        throw new Error(previewCacheResponse.message || 'Could not clear media preview cache.');
-      }
-
-      await clearStoredAuditResultState();
-
-      const updatedSettings = await saveSettingsSilently(
-        {
-          defaultOutputDirectory: null,
-          latestSelectedFolder: null,
-          latestFolderTreeSource: null,
-          lastAuditResultSummary: null
-        },
-        {
-          errorMessage: null,
-          throwOnError: true
-        }
-      );
-
-      if (!updatedSettings) {
-        return;
-      }
-
-      applySourceSelectionState({
-        outputFolder: updatedSettings.defaultOutputDirectory,
-        selectedFolders: [],
-        selectedFolderSummary: null,
-        folderTreeRootPath: null,
-        folderTreeLastScannedAt: null,
-        selectedFiles: [],
-        selectionMessage: null
-      });
-      setAuditOptions(settingsToAuditOptions(updatedSettings));
-      resetAuditWorkflow();
-      setGlobalFilter('');
-      setResultsViewFilter('all');
-      resetDiscoveryWorkflow();
-      resetFfprobeWorkflow();
-      resetAutoFixWorkflow();
-      resetAutoCropWorkflow();
-      resetMediaPreviewWorkflow();
-      resetMigrationWorkflow();
-      resetFileOperationsWorkflow();
-      resetPostConversionWorkflow();
-      resetPremiereBridgeWorkflow();
-      resetAuditResults({
-        storageMessage: historyMetadataError
-          ? `Cache cleared. Scan history metadata could not be saved: ${historyMetadataError}`
-          : savedHistoryMetadata
-            ? 'Cache cleared. Scan metadata saved for future history.'
-            : 'Cache cleared.'
-      });
-    } catch (error: unknown) {
-      setStorageMessage(getErrorMessage(error, 'Could not clear cache.'));
-    } finally {
-      setActiveAction(null);
-    }
-  }, [
-    applySourceSelectionState,
+  const setClearAuditDataActiveAction = useCallback((action: ClearAuditDataActiveAction): void => {
+    setActiveAction(action);
+  }, []);
+  const { clearAuditData } = useClearAuditDataWorkflow({
+    outputFolder,
     archiveCurrentResultToHistory,
     clearStoredAuditResultState,
-    outputFolder,
-    resetAuditResults,
+    saveSettingsSilently,
+    applySourceSelectionState,
+    setAuditOptions,
     resetAuditWorkflow,
-    resetAutoCropWorkflow,
-    resetAutoFixWorkflow,
+    setGlobalFilter,
+    setResultsViewFilter,
     resetDiscoveryWorkflow,
-    resetFileOperationsWorkflow,
     resetFfprobeWorkflow,
+    resetAutoFixWorkflow,
+    resetAutoCropWorkflow,
     resetMediaPreviewWorkflow,
     resetMigrationWorkflow,
+    resetFileOperationsWorkflow,
     resetPostConversionWorkflow,
     resetPremiereBridgeWorkflow,
-    saveSettingsSilently,
-    setStorageMessage
-  ]);
+    resetAuditResults,
+    setStorageMessage,
+    setWorkflowMessage,
+    setActiveAction: setClearAuditDataActiveAction
+  });
 
   const { settingsOpenRequestCount } = useAppCommands({
     requestFolderTreeOpen,

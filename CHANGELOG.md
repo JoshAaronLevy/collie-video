@@ -7,6 +7,12 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.50.19] - 2026-05-19
+
+### Changed
+
+- Extracted clear data/cache orchestration, preview-cache clearing, stored-result clearing, settings/source/result resets, workflow resets, and cache status messaging into a focused renderer hook.
+
 ## [0.50.18] - 2026-05-19
 
 ### Changed
