@@ -32,11 +32,7 @@ import type {
   PremiereRequestResponse,
   PremiereStatusResponse
 } from '../../shared/types/premiere';
-import type {
-  MigrationJobSnapshot,
-  MigrationResult,
-  MigrationScanResult
-} from '../../shared/types/migration';
+import type { MigrationJobSnapshot, MigrationResult, MigrationScanResult } from '../../shared/types/migration';
 import type { OperationHistoryRecord } from '../../shared/types/operationHistory';
 import type {
   ReplacementAction,
@@ -48,15 +44,12 @@ import type { AppSettings } from '../../shared/types/settings';
 import type { FfprobeResult, VideoPreviewFrame, VideoRow } from '../../shared/types/video';
 import { dedupeOverlappingFolderPaths } from '../../shared/utils/folderPathSelection';
 import * as appClient from '../api/appClient';
-import * as dialogClient from '../api/dialogClient';
 import * as mediaPreviewClient from '../api/mediaPreviewClient';
-import * as migrationClient from '../api/migrationClient';
 import * as premiereClient from '../api/premiereClient';
 import { DEFAULT_AUDIT_OPTIONS, settingsToAuditOptions } from '../helpers/auditOptions';
 import { getErrorMessage } from '../helpers/errors';
 import { getPersistedFolderTreeSourcePaths } from '../helpers/folderTreeSource';
 import { toPremiereRequestVideo } from '../helpers/premiereRows';
-import { getProgressPercent } from '../helpers/progress';
 import { getAuditedRootDirectory } from '../helpers/resultFilters';
 import { getWorkflowCapabilities } from '../helpers/workflowCapabilities';
 import type { ResultsViewCounts, ResultsViewFilter } from '../types/resultsView';
@@ -70,6 +63,7 @@ import { useDiscoveryWorkflow, type DiscoveryWorkflowActiveAction } from './useD
 import { useFfprobeWorkflow, type FfprobeWorkflowActiveAction } from './useFfprobeWorkflow';
 import { useFileOperationsWorkflow, type FileOperationsWorkflowActiveAction } from './useFileOperationsWorkflow';
 import { useMediaPreviewWorkflow, type MediaPreviewWorkflowActiveAction } from './useMediaPreviewWorkflow';
+import { useMigrationWorkflow, type MigrationWorkflowActiveAction } from './useMigrationWorkflow';
 import { useOperationHistory, type OperationHistoryActiveAction } from './useOperationHistory';
 import { usePathReveal, type PathRevealActiveAction } from './usePathReveal';
 import {
@@ -562,15 +556,6 @@ export function useVideoAuditAppController(): VideoAuditAppController {
       activeAction
     }
   });
-  const [migrationNewEditedDir, setMigrationNewEditedDirState] = useState('');
-  const [migrationScan, setMigrationScan] = useState<MigrationScanResult | null>(null);
-  const [migrationScanError, setMigrationScanError] = useState<string | null>(null);
-  const [migrationJobId, setMigrationJobId] = useState<string | null>(null);
-  const [migrationProgress, setMigrationProgress] = useState<MigrationJobSnapshot | null>(null);
-  const [migrationResult, setMigrationResult] = useState<MigrationResult | null>(null);
-  const [migrationResultError, setMigrationResultError] = useState<string | null>(null);
-  const [isMigrationScanDialogVisible, setIsMigrationScanDialogVisible] = useState(false);
-  const [isMigrationResultDialogVisible, setIsMigrationResultDialogVisible] = useState(false);
   const setOperationHistoryActiveAction = useCallback((action: OperationHistoryActiveAction): void => {
     setActiveAction(action);
   }, []);
@@ -813,6 +798,35 @@ export function useVideoAuditAppController(): VideoAuditAppController {
     () => getAuditedRootDirectory(lastAuditRequest, auditSummary),
     [auditSummary, lastAuditRequest]
   );
+  const setMigrationActiveAction = useCallback((action: MigrationWorkflowActiveAction): void => {
+    setActiveAction(action);
+  }, []);
+  const {
+    migrationNewEditedDir,
+    migrationScan,
+    migrationScanError,
+    migrationProgress,
+    migrationPercent,
+    migrationResult,
+    migrationResultError,
+    isMigrationScanDialogVisible,
+    isMigrationResultDialogVisible,
+    setMigrationNewEditedDir,
+    openMigrationDialog,
+    closeMigrationDialog,
+    selectMigrationFolder,
+    startMigrationScan,
+    executeMigration,
+    closeMigrationResultDialog,
+    resetMigrationWorkflow
+  } = useMigrationWorkflow({
+    auditedRootDirectory,
+    setWorkflowMessage,
+    setActiveAction: setMigrationActiveAction,
+    busyState: {
+      activeAction
+    }
+  });
   const {
     isAuditActive,
     isDiscoveryActive,
@@ -900,7 +914,6 @@ export function useVideoAuditAppController(): VideoAuditAppController {
       isArchiveExecuting
     }
   });
-  const migrationPercent = getProgressPercent(migrationProgress?.processedFiles, migrationProgress?.totalFiles);
   const {
     canRunAudit,
     canRefreshAudit,
@@ -975,45 +988,6 @@ export function useVideoAuditAppController(): VideoAuditAppController {
     setAuditOptions(settingsToAuditOptions(reset));
   }, [applySourceSelectionState, resetStoredSettings]);
 
-  useEffect(() => {
-    return migrationClient.subscribeToMigrationProgress((progress) => {
-      setMigrationProgress(progress);
-
-      if (progress.jobId) {
-        setMigrationJobId(progress.jobId);
-      }
-
-      if (progress.status === 'running' || progress.status === 'starting') {
-        setActiveAction('migrationExecute');
-      }
-
-      if (progress.status === 'complete' && progress.result) {
-        setActiveAction(null);
-        setMigrationResult(progress.result);
-        setMigrationResultError(null);
-        setIsMigrationScanDialogVisible(false);
-        setIsMigrationResultDialogVisible(true);
-        setWorkflowMessage(
-          `Migration complete. ${progress.result.summary.filesCopiedToDestination.toLocaleString()} copied, ${progress.result.summary.destinationMatchesArchived.toLocaleString()} archived.`
-        );
-      }
-
-      if (progress.status === 'error') {
-        setActiveAction(null);
-        setMigrationResultError(progress.error ?? progress.message ?? 'Migration failed.');
-        setIsMigrationScanDialogVisible(false);
-        setIsMigrationResultDialogVisible(true);
-        setWorkflowMessage(progress.message ?? 'Migration failed.');
-      }
-
-      if (progress.status === 'canceled') {
-        setActiveAction(null);
-        setMigrationResultError(null);
-        setWorkflowMessage(progress.message ?? 'Migration canceled.');
-      }
-    });
-  }, []);
-
   const removeSelectedVideos = useCallback(async (): Promise<void> => {
     if (selectedVideoCount === 0) {
       return;
@@ -1075,15 +1049,7 @@ export function useVideoAuditAppController(): VideoAuditAppController {
       resetAutoFixWorkflow();
       resetAutoCropWorkflow();
       resetMediaPreviewWorkflow();
-      setMigrationNewEditedDirState('');
-      setMigrationScan(null);
-      setMigrationScanError(null);
-      setMigrationJobId(null);
-      setMigrationProgress(null);
-      setMigrationResult(null);
-      setMigrationResultError(null);
-      setIsMigrationScanDialogVisible(false);
-      setIsMigrationResultDialogVisible(false);
+      resetMigrationWorkflow();
       resetFileOperationsWorkflow();
       resetPostConversionWorkflow();
       setPremiereImportResult(null);
@@ -1114,164 +1080,11 @@ export function useVideoAuditAppController(): VideoAuditAppController {
     resetFileOperationsWorkflow,
     resetFfprobeWorkflow,
     resetMediaPreviewWorkflow,
+    resetMigrationWorkflow,
     resetPostConversionWorkflow,
     saveSettingsSilently,
     setStorageMessage
   ]);
-
-  const setMigrationNewEditedDir = useCallback((value: string): void => {
-    setMigrationNewEditedDirState(value);
-    setMigrationScan(null);
-    setMigrationScanError(null);
-    setMigrationResult(null);
-    setMigrationResultError(null);
-  }, []);
-
-  const openMigrationDialog = useCallback((): void => {
-    if (!auditedRootDirectory) {
-      setWorkflowMessage('Migration needs a single audited root folder. Run or refresh an audit from one folder first.');
-      return;
-    }
-
-    setMigrationScan(null);
-    setMigrationScanError(null);
-    setMigrationProgress(null);
-    setMigrationResult(null);
-    setMigrationResultError(null);
-    setIsMigrationResultDialogVisible(false);
-    setIsMigrationScanDialogVisible(true);
-  }, [auditedRootDirectory]);
-
-  const closeMigrationDialog = useCallback((): void => {
-    if (isMigrationActive) {
-      return;
-    }
-
-    setIsMigrationScanDialogVisible(false);
-    setMigrationScanError(null);
-    setMigrationResultError(null);
-  }, [isMigrationActive]);
-
-  const selectMigrationFolder = useCallback(async (): Promise<void> => {
-    setActiveAction('migrationScan');
-    setMigrationScanError(null);
-
-    try {
-      const result = await dialogClient.chooseFolders();
-
-      if (result.canceled) {
-        return;
-      }
-
-      const selectedPath = result.paths[0];
-
-      if (selectedPath) {
-        setMigrationNewEditedDir(selectedPath);
-      }
-
-      if (result.invalidPaths.length > 0) {
-        setMigrationScanError(`${result.invalidPaths.length.toLocaleString()} selected path(s) could not be used.`);
-      }
-    } catch (error: unknown) {
-      setMigrationScanError(getErrorMessage(error, 'Could not choose a new edits folder.'));
-    } finally {
-      setActiveAction(null);
-    }
-  }, [setMigrationNewEditedDir]);
-
-  const startMigrationScan = useCallback(async (): Promise<void> => {
-    const newEditedDir = migrationNewEditedDir.trim();
-
-    if (!auditedRootDirectory) {
-      setMigrationScanError('Migration needs a single audited root folder.');
-      return;
-    }
-
-    if (!newEditedDir) {
-      setMigrationScanError('Choose the folder that contains the new edited videos.');
-      return;
-    }
-
-    setActiveAction('migrationScan');
-    setMigrationScan(null);
-    setMigrationScanError(null);
-    setMigrationProgress(null);
-    setMigrationResult(null);
-    setMigrationResultError(null);
-
-    try {
-      const response = await migrationClient.scanMigration({
-        newEditedDir,
-        destinationRoot: auditedRootDirectory
-      });
-
-      if (response.status !== 'complete' || !response.result) {
-        setMigrationScanError(response.message ?? 'Migration scan failed.');
-        return;
-      }
-
-      setMigrationScan(response.result);
-      setWorkflowMessage(
-        `Migration scan complete. ${response.result.summary.newFilesFound.toLocaleString()} new file(s) found.`
-      );
-    } catch (error: unknown) {
-      setMigrationScanError(getErrorMessage(error, 'Migration scan failed.'));
-    } finally {
-      setActiveAction(null);
-    }
-  }, [auditedRootDirectory, migrationNewEditedDir]);
-
-  const executeMigration = useCallback(async (): Promise<void> => {
-    if (!migrationScan) {
-      setMigrationResultError('Run a migration scan before executing.');
-      return;
-    }
-
-    setMigrationResult(null);
-    setMigrationResultError(null);
-    setMigrationProgress({
-      jobId: null,
-      migrationId: migrationScan.migrationId,
-      status: 'starting',
-      phase: 'validating',
-      totalFiles: migrationScan.items.length,
-      processedFiles: 0,
-      copiedCount: 0,
-      archivedCount: 0,
-      failedCount: 0,
-      currentFile: null,
-      message: 'Starting migration.',
-      error: null
-    });
-    setActiveAction('migrationExecute');
-
-    try {
-      const response = await migrationClient.executeMigration({
-        migrationId: migrationScan.migrationId
-      });
-
-      if (response.status !== 'started' || !response.jobId) {
-        setActiveAction(null);
-        setMigrationResultError(response.message ?? 'Could not start migration.');
-        return;
-      }
-
-      setMigrationJobId(response.jobId);
-      setWorkflowMessage(response.message ?? 'Migration started.');
-    } catch (error: unknown) {
-      setActiveAction(null);
-      setMigrationResultError(getErrorMessage(error, 'Could not start migration.'));
-    }
-  }, [migrationScan]);
-
-  const closeMigrationResultDialog = useCallback((): void => {
-    if (isMigrationActive) {
-      return;
-    }
-
-    setIsMigrationResultDialogVisible(false);
-    setMigrationResultError(null);
-  }, [isMigrationActive]);
 
   const cancelActiveWork = useCallback(async (): Promise<void> => {
     if (isAuditActive) {
