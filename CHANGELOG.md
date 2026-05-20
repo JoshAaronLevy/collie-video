@@ -7,6 +7,12 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.50.62] - 2026-05-20
+
+### Added
+
+- Added local OpenCV/Python setup docs, requirements tracking, and JSON-emitting helper scripts for future visual duplicate analysis preparation.
+
 ## [0.50.61] - 2026-05-20
 
 ### Added
