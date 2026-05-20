@@ -36,6 +36,7 @@ import type {
 import type { ProjectIndex, ProjectIndexItem, VideoProject } from '../../shared/types/project';
 import type {
   ReplacementAction,
+  ReplacementExecutionAction,
   ReplacementExecutionJobSnapshot,
   ReplacementPlan,
   ReplacementPlanBulkAction
@@ -235,6 +236,7 @@ export interface VideoAuditAppController {
   replacementResultError: string | null;
   isReplacementExecuting: boolean;
   isReplacementResultDialogVisible: boolean;
+  postConversionExecutionAction: ReplacementExecutionAction | null;
   operationHistoryRecords: OperationHistoryRecord[];
   selectedOperationHistoryRecord: OperationHistoryRecord | null;
   operationHistoryError: string | null;
@@ -341,7 +343,10 @@ export interface VideoAuditAppController {
   closeArchiveResultDialog: () => void;
   changePostConversionPlanAction: (itemId: string, selectedAction: ReplacementAction) => Promise<void>;
   applyPostConversionPlanBulkAction: (action: ReplacementPlanBulkAction) => Promise<void>;
-  replacePostConversionOriginals: (typedConfirmation: string | null) => Promise<void>;
+  executePostConversionPlan: (
+    actionOverride: ReplacementExecutionAction | null,
+    typedConfirmation: string | null
+  ) => Promise<void>;
   reviewPostConversionPlan: () => void;
   leavePostConversionOutputs: () => void;
   backToPostConversionChoices: () => void;

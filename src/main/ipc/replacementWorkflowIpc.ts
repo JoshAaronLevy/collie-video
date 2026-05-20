@@ -80,7 +80,7 @@ export function registerReplacementWorkflowIpcHandlers(): void {
         skippedCount: 0,
         failedCount: 0,
         currentFile: null,
-        message: 'Starting replacement execution.',
+        message: `Starting ${getPreparedExecutionLabel(prepared.prepared)}.`,
         error: null
       });
 
@@ -91,7 +91,7 @@ export function registerReplacementWorkflowIpcHandlers(): void {
         jobId: job.id,
         planId: prepared.prepared.plan.id,
         status: 'started',
-        message: 'Replacement execution started.',
+        message: `${getPreparedExecutionLabel(prepared.prepared)} started.`,
         totalItems: prepared.prepared.plan.items.length
       };
     }
@@ -167,8 +167,8 @@ async function runReplacementExecutionJob(
 
     replacementExecutionJobs.setResult(job, result);
     notifyLongJobComplete(
-      result.status === 'canceled' ? 'Replacement canceled' : 'Replacement complete',
-      `${result.summary.succeeded.toLocaleString()} replaced, ${(
+      result.status === 'canceled' ? `${getReplacementNoun(result)} canceled` : `${getReplacementNoun(result)} complete`,
+      `${result.summary.succeeded.toLocaleString()} ${getReplacementSuccessVerb(result)}, ${(
         result.summary.failed + result.summary.skipped
       ).toLocaleString()} need attention.`
     );
@@ -239,6 +239,24 @@ function createMissingReplacementJobSnapshot(jobId: string): ReplacementExecutio
 }
 
 function getReplacementResultMessage(result: FileOperationResult): string {
+  if (result.type === 'trash') {
+    if (result.status === 'success') {
+      return `${result.summary.succeeded.toLocaleString()} file(s) moved to Trash.`;
+    }
+
+    if (result.status === 'canceled') {
+      return 'Move to Trash canceled.';
+    }
+
+    if (result.status === 'failed') {
+      return 'No files were moved to Trash.';
+    }
+
+    return `${result.summary.succeeded.toLocaleString()} file(s) moved to Trash; ${(
+      result.summary.failed + result.summary.skipped
+    ).toLocaleString()} item(s) need attention.`;
+  }
+
   if (result.status === 'success') {
     return `${result.summary.succeeded.toLocaleString()} file(s) replaced.`;
   }
@@ -254,4 +272,16 @@ function getReplacementResultMessage(result: FileOperationResult): string {
   return `${result.summary.succeeded.toLocaleString()} file(s) replaced; ${(
     result.summary.failed + result.summary.skipped
   ).toLocaleString()} item(s) need attention.`;
+}
+
+function getReplacementNoun(result: FileOperationResult): string {
+  return result.type === 'trash' ? 'Move to Trash' : 'Replacement';
+}
+
+function getReplacementSuccessVerb(result: FileOperationResult): string {
+  return result.type === 'trash' ? 'moved to Trash' : 'replaced';
+}
+
+function getPreparedExecutionLabel(prepared: PreparedReplacementExecution): string {
+  return prepared.actionOverride === 'trash-original' ? 'Move to Trash' : 'Replacement execution';
 }

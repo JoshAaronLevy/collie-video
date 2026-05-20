@@ -7,6 +7,7 @@ import { ProgressBar } from 'primereact/progressbar';
 import { Tag } from 'primereact/tag';
 import type {
   ReplacementAction,
+  ReplacementExecutionAction,
   ReplacementExecutionJobSnapshot,
   ReplacementPlan,
   ReplacementPlanBulkAction,
@@ -18,6 +19,7 @@ import { ReplacementPlanSummary } from './ReplacementPlanSummary';
 import { ReplacementReviewTable } from './ReplacementReviewTable';
 
 const REPLACE_CONFIRMATION = 'REPLACE';
+const TRASH_CONFIRMATION = 'Move to Trash';
 const TEN_GB_BYTES = 10 * 1024 * 1024 * 1024;
 
 export type PostConversionDialogMode = 'choices' | 'manual-review';
@@ -35,9 +37,10 @@ interface PostConversionDialogProps {
   isExecuting: boolean;
   progress: ReplacementExecutionJobSnapshot | null;
   percent: number | null;
+  executionAction: ReplacementExecutionAction | null;
   onPlanActionChange: (itemId: string, selectedAction: ReplacementAction) => void;
   onPlanBulkAction: (action: ReplacementPlanBulkAction) => void;
-  onReplaceOriginals: (typedConfirmation: string | null) => void;
+  onExecutePlan: (actionOverride: ReplacementExecutionAction | null, typedConfirmation: string | null) => void;
   onCancelExecution: () => void;
   onReviewManually: () => void;
   onLeaveOutputs: () => void;
@@ -58,9 +61,10 @@ export function PostConversionDialog({
   isExecuting,
   progress,
   percent,
+  executionAction,
   onPlanActionChange,
   onPlanBulkAction,
-  onReplaceOriginals,
+  onExecutePlan,
   onCancelExecution,
   onReviewManually,
   onLeaveOutputs,
@@ -68,16 +72,56 @@ export function PostConversionDialog({
   onHide
 }: PostConversionDialogProps): ReactElement {
   const [typedConfirmation, setTypedConfirmation] = useState('');
-  const highRiskReasons = useMemo(() => (plan ? getHighRiskReasons(plan, settings) : []), [plan, settings]);
-  const requiresConfirmation = highRiskReasons.length > 0;
-  const executableCount = plan?.items.filter(isExecutableReplacementItem).length ?? 0;
+  const replaceHighRiskReasons = useMemo(
+    () => (plan ? getHighRiskReasons(plan, settings, 'replace-original') : []),
+    [plan, settings]
+  );
+  const trashHighRiskReasons = useMemo(
+    () => (plan ? getHighRiskReasons(plan, settings, 'trash-original') : []),
+    [plan, settings]
+  );
+  const selectedHighRiskReasons = useMemo(
+    () => (plan ? getHighRiskReasons(plan, settings, null) : []),
+    [plan, settings]
+  );
+  const replaceRequiresConfirmation = replaceHighRiskReasons.length > 0;
+  const trashRequiresConfirmation = trashHighRiskReasons.length > 0;
+  const selectedRequiresConfirmation = selectedHighRiskReasons.length > 0;
+  const directActionCount = plan?.items.filter((item) => isExecutableReplacementItem(item, 'replace-original')).length ?? 0;
+  const selectedExecutableCount = plan?.items.filter((item) => isExecutableReplacementItem(item, null)).length ?? 0;
   const isBusy = isPlanning || isUpdatingActions || isExecuting;
   const canReplace = Boolean(
     plan &&
-      executableCount > 0 &&
+      directActionCount > 0 &&
       !isBusy &&
-      (!requiresConfirmation || typedConfirmation === REPLACE_CONFIRMATION)
+      (!replaceRequiresConfirmation || typedConfirmation === REPLACE_CONFIRMATION)
   );
+  const canTrashOriginals = Boolean(
+    plan &&
+      directActionCount > 0 &&
+      !isBusy &&
+      (!trashRequiresConfirmation || typedConfirmation === TRASH_CONFIRMATION)
+  );
+  const canExecuteSelectedActions = Boolean(
+    plan &&
+      selectedExecutableCount > 0 &&
+      !isBusy &&
+      (!selectedRequiresConfirmation || typedConfirmation === getSelectedConfirmationPhrase(plan))
+  );
+  const confirmationRows = getConfirmationRows({
+    mode,
+    plan,
+    replaceRequiresConfirmation,
+    trashRequiresConfirmation,
+    selectedRequiresConfirmation
+  });
+  const confirmationReasons = [
+    ...new Set([
+      ...replaceHighRiskReasons,
+      ...trashHighRiskReasons,
+      ...selectedHighRiskReasons
+    ])
+  ];
 
   useEffect(() => {
     if (visible) {
@@ -131,13 +175,35 @@ export function PostConversionDialog({
                 onClick={onReviewManually}
               />
             ) : null}
+            {mode === 'choices' ? (
+              <Button
+                label="Move Originals to Trash"
+                icon="pi pi-trash"
+                severity="warning"
+                outlined
+                disabled={!canTrashOriginals}
+                loading={isExecuting && executionAction === 'trash-original'}
+                onClick={() => onExecutePlan('trash-original', trashRequiresConfirmation ? typedConfirmation : null)}
+              />
+            ) : null}
             <Button
               label={mode === 'manual-review' ? 'Execute Selected Actions' : 'Replace Originals'}
               icon="pi pi-sync"
               severity="danger"
-              disabled={!canReplace}
-              loading={isExecuting}
-              onClick={() => onReplaceOriginals(requiresConfirmation ? typedConfirmation : null)}
+              disabled={mode === 'manual-review' ? !canExecuteSelectedActions : !canReplace}
+              loading={isExecuting && (mode === 'manual-review' || executionAction === 'replace-original')}
+              onClick={() =>
+                onExecutePlan(
+                  mode === 'manual-review' ? null : 'replace-original',
+                  getTypedConfirmationForSubmit({
+                    mode,
+                    plan,
+                    typedConfirmation,
+                    replaceRequiresConfirmation,
+                    selectedRequiresConfirmation
+                  })
+                )
+              }
             />
           </DialogFooter>
         )
@@ -157,12 +223,15 @@ export function PostConversionDialog({
         {isExecuting ? (
           <section className="replacement-progress" aria-label="Replacement progress">
             <ProgressBar value={percent ?? 0} />
-            <p>{progress?.message ?? 'Replacing originals with converted files...'}</p>
+            <p>{progress?.message ?? getProgressFallback(executionAction)}</p>
             <div className="replacement-progress-counts">
               <Tag
-                value={`${(progress?.processedItems ?? 0).toLocaleString()} / ${(progress?.totalItems ?? executableCount).toLocaleString()}`}
+                value={`${(progress?.processedItems ?? 0).toLocaleString()} / ${(progress?.totalItems ?? (selectedExecutableCount || directActionCount)).toLocaleString()}`}
               />
-              <Tag value={`${(progress?.succeededCount ?? 0).toLocaleString()} replaced`} severity="success" />
+              <Tag
+                value={`${(progress?.succeededCount ?? 0).toLocaleString()} ${getSuccessProgressLabel(executionAction)}`}
+                severity="success"
+              />
               <Tag value={`${(progress?.skippedCount ?? 0).toLocaleString()} skipped`} severity="warning" />
               <Tag value={`${(progress?.failedCount ?? 0).toLocaleString()} failed`} severity="danger" />
             </div>
@@ -187,15 +256,18 @@ export function PostConversionDialog({
           <>
             <ReplacementPlanSummary plan={plan} />
 
-            {highRiskReasons.length > 0 ? (
+            {confirmationRows.length > 0 ? (
               <section className="typed-confirmation-row">
-                <span>Type {REPLACE_CONFIRMATION} to confirm</span>
+                <span>Typed confirmation required</span>
                 <InputText
                   value={typedConfirmation}
-                  placeholder={REPLACE_CONFIRMATION}
+                  placeholder={confirmationRows.map((row) => row.phrase).join(' / ')}
                   onChange={(event) => setTypedConfirmation(event.target.value)}
                 />
-                <small>{highRiskReasons.join(' ')}</small>
+                <small>
+                  {confirmationRows.map((row) => `${row.label}: ${row.phrase}`).join('  ')}
+                  {confirmationReasons.length > 0 ? ` ${confirmationReasons.join(' ')}` : ''}
+                </small>
               </section>
             ) : null}
 
@@ -222,21 +294,36 @@ export function PostConversionDialog({
                     <strong>No file changes</strong>
                     <small>Keep converted videos in the output folder.</small>
                   </button>
+                  <button
+                    type="button"
+                    className="post-conversion-option"
+                    disabled={!canTrashOriginals}
+                    onClick={() => onExecutePlan('trash-original', trashRequiresConfirmation ? typedConfirmation : null)}
+                  >
+                    <span>Move originals to Trash</span>
+                    <strong>Keep fixed outputs</strong>
+                    <small>Move source videos to macOS Trash and leave converted videos in the output folder.</small>
+                  </button>
                 </section>
 
                 <Message
                   severity={plan.summary.blocked > 0 ? 'warn' : 'info'}
-                  text="Replace originals with converted files moves original files to macOS Trash, then moves converted files into the original source folders."
+                  text="Replace Originals moves source files to macOS Trash, then moves converted files into the original source folders. Move Originals to Trash leaves converted files in the output folder."
                 />
               </>
             ) : (
               <ReplacementReviewTable
                 plan={plan}
                 isBusy={isBusy}
-                canExecute={canReplace}
+                canExecute={canExecuteSelectedActions}
                 onActionChange={onPlanActionChange}
                 onBulkAction={onPlanBulkAction}
-                onExecute={() => onReplaceOriginals(requiresConfirmation ? typedConfirmation : null)}
+                onExecute={() =>
+                  onExecutePlan(
+                    null,
+                    selectedRequiresConfirmation ? typedConfirmation : null
+                  )
+                }
               />
             )}
           </>
@@ -246,16 +333,25 @@ export function PostConversionDialog({
   );
 }
 
-function isExecutableReplacementItem(item: ReplacementPlanItem): boolean {
+function isExecutableReplacementItem(
+  item: ReplacementPlanItem,
+  actionOverride: ReplacementExecutionAction | null
+): boolean {
+  const action = actionOverride ?? item.selectedAction;
+
   return (
-    item.selectedAction === 'replace-original' &&
+    (action === 'replace-original' || action === 'trash-original') &&
     (item.status === 'ready' || item.status === 'warning')
   );
 }
 
-function getHighRiskReasons(plan: ReplacementPlan, settings: AppSettings | null): string[] {
+function getHighRiskReasons(
+  plan: ReplacementPlan,
+  settings: AppSettings | null,
+  actionOverride: ReplacementExecutionAction | null
+): string[] {
   const reasons: string[] = [];
-  const executableItems = plan.items.filter(isExecutableReplacementItem);
+  const executableItems = plan.items.filter((item) => isExecutableReplacementItem(item, actionOverride));
   const thresholds = getReplacementConfirmationThresholds(settings);
 
   if (executableItems.length > thresholds.fileCount) {
@@ -283,6 +379,96 @@ function getHighRiskReasons(plan: ReplacementPlan, settings: AppSettings | null)
   }
 
   return reasons;
+}
+
+function getConfirmationRows({
+  mode,
+  plan,
+  replaceRequiresConfirmation,
+  trashRequiresConfirmation,
+  selectedRequiresConfirmation
+}: {
+  mode: PostConversionDialogMode;
+  plan: ReplacementPlan | null;
+  replaceRequiresConfirmation: boolean;
+  trashRequiresConfirmation: boolean;
+  selectedRequiresConfirmation: boolean;
+}): { label: string; phrase: string }[] {
+  if (!plan) {
+    return [];
+  }
+
+  if (mode === 'manual-review') {
+    return selectedRequiresConfirmation
+      ? [{ label: 'Execute Selected Actions', phrase: getSelectedConfirmationPhrase(plan) }]
+      : [];
+  }
+
+  const rows: { label: string; phrase: string }[] = [];
+
+  if (replaceRequiresConfirmation) {
+    rows.push({ label: 'Replace Originals', phrase: REPLACE_CONFIRMATION });
+  }
+
+  if (trashRequiresConfirmation) {
+    rows.push({ label: 'Move Originals to Trash', phrase: TRASH_CONFIRMATION });
+  }
+
+  return rows;
+}
+
+function getSelectedConfirmationPhrase(plan: ReplacementPlan | null): string {
+  if (!plan) {
+    return REPLACE_CONFIRMATION;
+  }
+
+  return plan.items.some((item) => item.selectedAction === 'replace-original' && isExecutableReplacementItem(item, null))
+    ? REPLACE_CONFIRMATION
+    : TRASH_CONFIRMATION;
+}
+
+function getTypedConfirmationForSubmit({
+  mode,
+  plan,
+  typedConfirmation,
+  replaceRequiresConfirmation,
+  selectedRequiresConfirmation
+}: {
+  mode: PostConversionDialogMode;
+  plan: ReplacementPlan | null;
+  typedConfirmation: string;
+  replaceRequiresConfirmation: boolean;
+  selectedRequiresConfirmation: boolean;
+}): string | null {
+  if (mode === 'manual-review') {
+    return selectedRequiresConfirmation ? typedConfirmation : null;
+  }
+
+  return plan && replaceRequiresConfirmation ? typedConfirmation : null;
+}
+
+function getProgressFallback(action: ReplacementExecutionAction | null): string {
+  if (action === 'trash-original') {
+    return 'Moving originals to Trash...';
+  }
+
+  if (action === 'replace-original') {
+    return 'Replacing originals with converted files...';
+  }
+
+  return 'Executing selected actions...';
+}
+
+function getSuccessProgressLabel(action: ReplacementExecutionAction | null): string {
+  if (action === 'trash-original') {
+    return 'trashed';
+  }
+
+  if (action === 'replace-original') {
+    return 'replaced';
+  }
+
+  return 'completed';
 }
 
 function getReplacementConfirmationThresholds(settings: AppSettings | null): { fileCount: number; sizeBytes: number } {

@@ -189,6 +189,11 @@ function getRevealAction(result: FileOperationResult | null): { label: string; p
     return destinationPath ? { label: 'Reveal Replaced File', path: destinationPath } : null;
   }
 
+  if (result.type === 'trash') {
+    const outputPath = result.items.find((item) => item.status === 'success')?.outputPath ?? null;
+    return outputPath ? { label: 'Reveal Converted Output', path: outputPath } : null;
+  }
+
   return null;
 }
 

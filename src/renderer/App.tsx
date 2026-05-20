@@ -532,9 +532,10 @@ export function App(): ReactElement {
     isExecuting: controller.isReplacementExecuting,
     progress: controller.replacementProgress,
     percent: controller.replacementPercent,
+    executionAction: controller.postConversionExecutionAction,
     onPlanActionChange: controller.changePostConversionPlanAction,
     onPlanBulkAction: controller.applyPostConversionPlanBulkAction,
-    onReplaceOriginals: controller.replacePostConversionOriginals,
+    onExecutePlan: controller.executePostConversionPlan,
     onCancelExecution: controller.cancelReplacementExecution,
     onReviewManually: controller.reviewPostConversionPlan,
     onLeaveOutputs: controller.leavePostConversionOutputs,
@@ -692,8 +693,14 @@ export function App(): ReactElement {
   const replacementResultDialogProps = {
     visible: controller.isReplacementResultDialogVisible,
     result: controller.replacementResult,
-    title: 'Replacement Result',
-    description: 'Review replaced originals, moved converted outputs, and any items that need attention.',
+    title:
+      controller.replacementResult?.type === 'trash'
+        ? 'Move Originals to Trash Result'
+        : 'Replacement Result',
+    description:
+      controller.replacementResult?.type === 'trash'
+        ? 'Review originals moved to macOS Trash and any items that need attention.'
+        : 'Review replaced originals, moved converted outputs, and any items that need attention.',
     error: controller.replacementResultError,
     onRevealPath: controller.revealPath,
     onHide: controller.closeReplacementResultDialog

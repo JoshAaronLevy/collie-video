@@ -7,6 +7,12 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.50.61] - 2026-05-20
+
+### Added
+
+- Added a post-conversion option to move original source videos to macOS Trash after Auto-Fix or Auto-Crop while keeping converted outputs in the output folder.
+
 ## [0.50.60] - 2026-05-20
 
 ### Fixed

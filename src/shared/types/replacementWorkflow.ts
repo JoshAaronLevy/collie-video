@@ -13,6 +13,8 @@ export type ReplacementAction =
   | 'archive-original'
   | 'skip';
 
+export type ReplacementExecutionAction = 'replace-original' | 'trash-original';
+
 export type ReplacementPlanItemStatus =
   | 'ready'
   | 'warning'
@@ -122,6 +124,7 @@ export interface ReplacementPlanActionUpdate {
 
 export type ReplacementPlanBulkAction =
   | 'ready-replace'
+  | 'ready-trash'
   | 'warning-skip'
   | 'keep-output'
   | 'clear-actions';
@@ -142,6 +145,7 @@ export type ReplacementOriginalDisposition = 'move-original-to-trash';
 export interface ExecuteReplacementPlanRequest {
   planId: string;
   confirmed: boolean;
+  actionOverride?: ReplacementExecutionAction | null;
   typedConfirmation?: string | null;
   originalDisposition?: ReplacementOriginalDisposition;
 }

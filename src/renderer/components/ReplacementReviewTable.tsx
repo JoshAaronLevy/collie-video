@@ -32,6 +32,7 @@ type TagSeverity = 'success' | 'info' | 'warning' | 'danger' | 'secondary';
 
 const ACTION_OPTIONS: ActionOption[] = [
   { label: 'Replace Original', value: 'replace-original' },
+  { label: 'Move Original to Trash', value: 'trash-original' },
   { label: 'Keep Output', value: 'keep-output' },
   { label: 'Skip', value: 'skip' }
 ];
@@ -84,6 +85,15 @@ export function ReplacementReviewTable({
             onClick={() => onBulkAction('ready-replace')}
           />
           <Button
+            label="Set Ready To Trash"
+            icon="pi pi-trash"
+            severity="secondary"
+            outlined
+            size="small"
+            disabled={isBusy || readyCount === 0}
+            onClick={() => onBulkAction('ready-trash')}
+          />
+          <Button
             label="Skip Warnings"
             icon="pi pi-ban"
             severity="secondary"
@@ -125,11 +135,9 @@ export function ReplacementReviewTable({
         <Tag value={`${filteredItems.length.toLocaleString()} shown`} />
         <Tag value={`${executableCount.toLocaleString()} executable`} severity="success" />
         <Tag value={`${actionCounts.replaceOriginal.toLocaleString()} replace`} severity="danger" />
+        <Tag value={`${actionCounts.trashOriginal.toLocaleString()} trash`} severity="warning" />
         <Tag value={`${actionCounts.keepOutput.toLocaleString()} keep`} severity="info" />
         <Tag value={`${actionCounts.skip.toLocaleString()} skip`} severity="secondary" />
-        {actionCounts.trashOriginal > 0 ? (
-          <Tag value={`${actionCounts.trashOriginal.toLocaleString()} unsupported trash`} severity="warning" />
-        ) : null}
         {actionCounts.archiveOriginal > 0 ? (
           <Tag value={`${actionCounts.archiveOriginal.toLocaleString()} unsupported archive`} severity="warning" />
         ) : null}
@@ -363,7 +371,10 @@ function getActionCounts(items: ReplacementPlanItem[]): {
 }
 
 function isExecutableReplacementItem(item: ReplacementPlanItem): boolean {
-  return item.selectedAction === 'replace-original' && isExecutableStatus(item);
+  return (
+    (item.selectedAction === 'replace-original' || item.selectedAction === 'trash-original') &&
+    isExecutableStatus(item)
+  );
 }
 
 function isExecutableStatus(item: ReplacementPlanItem): boolean {

@@ -5,15 +5,16 @@ import { basename, isAbsolute, normalize } from 'node:path';
 import { shell } from 'electron';
 import type {
   FileOperationErrorCode,
+  FileOperationPlan,
   FileOperationPlanStatus,
   FileOperationResult,
   FileOperationResultItem,
   FileOperationWarningCode,
-  ReplacementOperationPlan,
-  ReplacementOperationPlanItem
+  FileOperationType
 } from '../../shared/types/fileOperations';
 import type {
   ExecuteReplacementPlanRequest,
+  ReplacementExecutionAction,
   ReplacementOriginalDisposition,
   ReplacementPlan,
   ReplacementPlanErrorCode,
@@ -34,11 +35,13 @@ import {
 } from './replacementPlanService';
 
 const REPLACE_CONFIRMATION_PHRASE = 'REPLACE';
+const TRASH_CONFIRMATION_PHRASE = 'Move to Trash';
 const TEN_GB_BYTES = 10 * 1024 * 1024 * 1024;
 
 export interface PreparedReplacementExecution {
   plan: ReplacementPlan;
   originalDisposition: ReplacementOriginalDisposition;
+  actionOverride: ReplacementExecutionAction | null;
 }
 
 export type PrepareReplacementExecutionResult =
@@ -116,19 +119,31 @@ export function prepareReplacementExecution(
     };
   }
 
-  if (getExecutableItems(plan).length === 0) {
+  const actionOverride = normalizeActionOverride(request.actionOverride);
+
+  if (actionOverride === 'unsupported') {
     return {
       ok: false,
       status: 'invalid_request',
-      message: 'No replacement items are ready to execute.'
+      message: 'Unsupported post-conversion action.'
     };
   }
 
-  if (requiresReplacementConfirmation(plan) && request.typedConfirmation !== REPLACE_CONFIRMATION_PHRASE) {
+  if (getExecutableItems(plan, actionOverride).length === 0) {
     return {
       ok: false,
       status: 'invalid_request',
-      message: `Type "${REPLACE_CONFIRMATION_PHRASE}" to confirm this replacement operation.`
+      message: 'No post-conversion items are ready to execute.'
+    };
+  }
+
+  const confirmationPhrase = getConfirmationPhrase(plan, actionOverride);
+
+  if (requiresReplacementConfirmation(plan, actionOverride) && request.typedConfirmation !== confirmationPhrase) {
+    return {
+      ok: false,
+      status: 'invalid_request',
+      message: `Type "${confirmationPhrase}" to confirm this post-conversion operation.`
     };
   }
 
@@ -136,7 +151,8 @@ export function prepareReplacementExecution(
     ok: true,
     prepared: {
       plan,
-      originalDisposition
+      originalDisposition,
+      actionOverride
     }
   };
 }
@@ -144,11 +160,12 @@ export function prepareReplacementExecution(
 export async function runReplacementExecution({
   plan,
   originalDisposition,
+  actionOverride,
   signal,
   onProgress
 }: RunReplacementExecutionOptions): Promise<FileOperationResult> {
   const startedAt = nowIsoString();
-  const operationPlan = toReplacementOperationPlan(plan);
+  const operationPlan = toReplacementOperationPlan(plan, actionOverride);
   const historyRecord = await createOperationRecord({
     plan: operationPlan,
     startedAt
@@ -162,14 +179,15 @@ export async function runReplacementExecution({
     skippedCount: 0,
     failedCount: 0,
     currentFile: null,
-    message: 'Starting replacement execution.'
+    message: `Starting ${getExecutionLabel(plan, actionOverride)}.`
   });
 
   for (const item of plan.items) {
     let resultItem: FileOperationResultItem;
+    const effectiveAction = getEffectiveAction(item, actionOverride);
 
     if (signal?.aborted) {
-      resultItem = createCanceledResultItem(item);
+      resultItem = createCanceledResultItem(item, effectiveAction);
     } else {
       onProgress?.({
         phase: 'executing',
@@ -178,9 +196,9 @@ export async function runReplacementExecution({
         skippedCount: countStatus(resultItems, 'skipped'),
         failedCount: countStatus(resultItems, 'failed'),
         currentFile: item.originalFileName,
-        message: `Replacing ${item.originalFileName}.`
+        message: `${getPresentProgressVerb(effectiveAction)} ${item.originalFileName}.`
       });
-      resultItem = await executeReplacementItem(item, originalDisposition);
+      resultItem = await executeReplacementItem(item, originalDisposition, effectiveAction);
     }
 
     resultItems.push(resultItem);
@@ -201,7 +219,7 @@ export async function runReplacementExecution({
   const result: FileOperationResult = {
     id: randomUUID(),
     planId: plan.id,
-    type: 'replace-original-with-output',
+    type: getResultType(plan, actionOverride),
     status: signal?.aborted ? 'canceled' : summarizeResultStatus(resultItems),
     createdAt: plan.createdAt,
     startedAt,
@@ -222,18 +240,19 @@ export async function runReplacementExecution({
 
 async function executeReplacementItem(
   item: ReplacementPlanItem,
-  originalDisposition: ReplacementOriginalDisposition
+  originalDisposition: ReplacementOriginalDisposition,
+  effectiveAction: ReplacementExecutionAction | ReplacementPlanItem['selectedAction']
 ): Promise<FileOperationResultItem> {
   const startedAt = nowIsoString();
-  const baseResult = toBaseResultItem(item, startedAt);
+  const baseResult = toBaseResultItem(item, startedAt, effectiveAction);
 
-  if (item.selectedAction !== 'replace-original') {
+  if (effectiveAction !== 'replace-original' && effectiveAction !== 'trash-original') {
     return {
       ...baseResult,
       status: 'skipped',
       completedAt: nowIsoString(),
       errorCode: 'operation-not-allowed',
-      error: 'Replacement item action is not replace-original.'
+      error: 'Replacement item action is not executable.'
     };
   }
 
@@ -255,6 +274,13 @@ async function executeReplacementItem(
       errorCode: 'operation-not-allowed',
       error: 'Only moving originals to macOS Trash is supported.'
     };
+  }
+
+  if (effectiveAction === 'trash-original') {
+    return executeTrashOriginalItem({
+      item,
+      baseResult
+    });
   }
 
   if (!item.proposedFinalPath || !isAbsolute(item.proposedFinalPath)) {
@@ -434,6 +460,100 @@ async function executeReplacementItem(
   });
 }
 
+async function executeTrashOriginalItem({
+  item,
+  baseResult
+}: {
+  item: ReplacementPlanItem;
+  baseResult: Omit<FileOperationResultItem, 'status' | 'completedAt'>;
+}): Promise<FileOperationResultItem> {
+  const originalValidation = await validateKnownPath({
+    id: item.id,
+    path: item.originalPath,
+    expectedKind: 'file',
+    expectedFileName: item.originalFileName,
+    expectedSizeBytes: item.originalSizeBytes,
+    expectedModifiedAtMs: item.originalModifiedAtMs,
+    requireSupportedVideoExtension: true
+  });
+
+  if (!originalValidation.isValid) {
+    return {
+      ...baseResult,
+      status: 'failed',
+      completedAt: nowIsoString(),
+      sourceBefore: originalValidation.identity ?? item.originalIdentity,
+      errorCode: getValidationErrorCode(originalValidation, 'source'),
+      error: originalValidation.errors[0] ?? 'Original file no longer matches the replacement plan.'
+    };
+  }
+
+  const outputValidation = await validateKnownPath({
+    id: item.id,
+    path: item.outputPath,
+    expectedKind: 'file',
+    expectedFileName: item.outputFileName,
+    expectedSizeBytes: item.outputSizeBytes,
+    expectedModifiedAtMs: item.outputModifiedAtMs,
+    requireSupportedVideoExtension: true
+  });
+
+  if (!outputValidation.isValid) {
+    return {
+      ...baseResult,
+      status: 'failed',
+      completedAt: nowIsoString(),
+      sourceBefore: originalValidation.identity ?? item.originalIdentity,
+      errorCode: getValidationErrorCode(outputValidation, 'output'),
+      error: outputValidation.errors[0] ?? 'Converted output no longer matches the replacement plan.'
+    };
+  }
+
+  try {
+    await shell.trashItem(item.originalPath);
+  } catch (error: unknown) {
+    return {
+      ...baseResult,
+      status: 'failed',
+      completedAt: nowIsoString(),
+      sourceBefore: originalValidation.identity ?? item.originalIdentity,
+      errorCode: 'operation-not-allowed',
+      error: getErrorMessage(error, 'Unable to move original file to Trash.')
+    };
+  }
+
+  const originalAfter = await validateKnownPath({
+    id: item.id,
+    path: item.originalPath,
+    expectedKind: 'file',
+    expectedFileName: item.originalFileName,
+    requireSupportedVideoExtension: true
+  });
+
+  if (originalAfter.exists) {
+    return {
+      ...baseResult,
+      status: 'failed',
+      completedAt: nowIsoString(),
+      sourceBefore: originalValidation.identity ?? item.originalIdentity,
+      sourceAfter: originalAfter.identity,
+      errorCode: 'operation-not-allowed',
+      error: 'Original path was not clear after moving the original to Trash.'
+    };
+  }
+
+  return {
+    ...baseResult,
+    status: 'success',
+    completedAt: nowIsoString(),
+    sourceBefore: originalValidation.identity ?? item.originalIdentity,
+    sourceAfter: originalAfter.identity,
+    destinationAfter: outputValidation.identity,
+    errorCode: null,
+    error: null
+  };
+}
+
 async function moveOutputIntoPlace({
   outputPath,
   finalPath,
@@ -522,12 +642,15 @@ async function verifyFinalReplacement({
   };
 }
 
-function toReplacementOperationPlan(plan: ReplacementPlan): ReplacementOperationPlan {
+function toReplacementOperationPlan(
+  plan: ReplacementPlan,
+  actionOverride: ReplacementExecutionAction | null
+): FileOperationPlan {
   return {
     id: plan.id,
-    type: 'replace-original-with-output',
+    type: getResultType(plan, actionOverride),
     createdAt: plan.createdAt,
-    items: plan.items.map(toReplacementOperationPlanItem),
+    items: plan.items.map((item) => toReplacementOperationPlanItem(item, actionOverride)),
     summary: {
       total: plan.items.length,
       ready: plan.items.filter((item) => item.status === 'ready').length,
@@ -538,13 +661,18 @@ function toReplacementOperationPlan(plan: ReplacementPlan): ReplacementOperation
   };
 }
 
-function toReplacementOperationPlanItem(item: ReplacementPlanItem): ReplacementOperationPlanItem {
+function toReplacementOperationPlanItem(
+  item: ReplacementPlanItem,
+  actionOverride: ReplacementExecutionAction | null
+): FileOperationPlan['items'][number] {
+  const effectiveAction = getEffectiveAction(item, actionOverride);
+  const operationType = getOperationTypeForAction(effectiveAction);
+
   return {
     id: item.id,
-    operationType: 'replace-original-with-output',
-    originalPath: item.originalPath,
+    operationType,
     sourcePath: item.originalPath,
-    destinationPath: item.proposedFinalPath,
+    destinationPath: operationType === 'replace-original-with-output' ? item.proposedFinalPath : null,
     outputPath: item.outputPath,
     fileName: item.originalFileName,
     expectedSizeBytes: item.originalSizeBytes,
@@ -555,21 +683,23 @@ function toReplacementOperationPlanItem(item: ReplacementPlanItem): ReplacementO
     warningCodes: mapWarningCodes(item.warningCodes),
     warnings: [...item.warnings],
     errorCodes: item.errorCodes.map(toFileOperationErrorCode).filter((code): code is FileOperationErrorCode => Boolean(code)),
-    errors: [...item.errors],
-    replacementAction: item.selectedAction === 'replace-original' ? 'replace-original-with-output' : 'skip'
+    errors: [...item.errors]
   };
 }
 
 function toBaseResultItem(
   item: ReplacementPlanItem,
-  startedAt: string
+  startedAt: string,
+  effectiveAction: ReplacementExecutionAction | ReplacementPlanItem['selectedAction']
 ): Omit<FileOperationResultItem, 'status' | 'completedAt'> {
+  const operationType = getOperationTypeForAction(effectiveAction);
+
   return {
     id: randomUUID(),
     planItemId: item.id,
-    operationType: 'replace-original-with-output',
+    operationType,
     sourcePath: item.originalPath,
-    destinationPath: item.proposedFinalPath,
+    destinationPath: operationType === 'replace-original-with-output' ? item.proposedFinalPath : null,
     outputPath: item.outputPath,
     fileName: item.originalFileName,
     startedAt,
@@ -582,9 +712,12 @@ function toBaseResultItem(
   };
 }
 
-function createCanceledResultItem(item: ReplacementPlanItem): FileOperationResultItem {
+function createCanceledResultItem(
+  item: ReplacementPlanItem,
+  effectiveAction: ReplacementExecutionAction | ReplacementPlanItem['selectedAction']
+): FileOperationResultItem {
   return {
-    ...toBaseResultItem(item, nowIsoString()),
+    ...toBaseResultItem(item, nowIsoString(), effectiveAction),
     status: 'skipped',
     completedAt: nowIsoString(),
     errorCode: 'operation-not-allowed',
@@ -592,16 +725,22 @@ function createCanceledResultItem(item: ReplacementPlanItem): FileOperationResul
   };
 }
 
-function getExecutableItems(plan: ReplacementPlan): ReplacementPlanItem[] {
+function getExecutableItems(
+  plan: ReplacementPlan,
+  actionOverride: ReplacementExecutionAction | null
+): ReplacementPlanItem[] {
   return plan.items.filter(
     (item) =>
-      item.selectedAction === 'replace-original' &&
+      isExecutableAction(getEffectiveAction(item, actionOverride)) &&
       (item.status === 'ready' || item.status === 'warning')
   );
 }
 
-function requiresReplacementConfirmation(plan: ReplacementPlan): boolean {
-  const executableItems = getExecutableItems(plan);
+function requiresReplacementConfirmation(
+  plan: ReplacementPlan,
+  actionOverride: ReplacementExecutionAction | null
+): boolean {
+  const executableItems = getExecutableItems(plan, actionOverride);
 
   return (
     executableItems.length > 10 ||
@@ -619,6 +758,89 @@ function normalizeOriginalDisposition(value: unknown): ReplacementOriginalDispos
   }
 
   return null;
+}
+
+function normalizeActionOverride(value: unknown): ReplacementExecutionAction | null | 'unsupported' {
+  if (value === undefined || value === null) {
+    return null;
+  }
+
+  if (value === 'replace-original' || value === 'trash-original') {
+    return value;
+  }
+
+  return 'unsupported';
+}
+
+function getEffectiveAction(
+  item: ReplacementPlanItem,
+  actionOverride: ReplacementExecutionAction | null
+): ReplacementExecutionAction | ReplacementPlanItem['selectedAction'] {
+  return actionOverride ?? item.selectedAction;
+}
+
+function isExecutableAction(action: ReplacementExecutionAction | ReplacementPlanItem['selectedAction']): boolean {
+  return action === 'replace-original' || action === 'trash-original';
+}
+
+function getConfirmationPhrase(
+  plan: ReplacementPlan,
+  actionOverride: ReplacementExecutionAction | null
+): string {
+  if (actionOverride === 'trash-original') {
+    return TRASH_CONFIRMATION_PHRASE;
+  }
+
+  if (actionOverride === 'replace-original') {
+    return REPLACE_CONFIRMATION_PHRASE;
+  }
+
+  return getExecutableItems(plan, null).some((item) => item.selectedAction === 'replace-original')
+    ? REPLACE_CONFIRMATION_PHRASE
+    : TRASH_CONFIRMATION_PHRASE;
+}
+
+function getResultType(
+  plan: ReplacementPlan,
+  actionOverride: ReplacementExecutionAction | null
+): FileOperationType {
+  const executableActions = getExecutableItems(plan, actionOverride).map((item) =>
+    getEffectiveAction(item, actionOverride)
+  );
+
+  if (
+    executableActions.length > 0 &&
+    executableActions.every((action) => action === 'trash-original')
+  ) {
+    return 'trash';
+  }
+
+  return 'replace-original-with-output';
+}
+
+function getOperationTypeForAction(
+  action: ReplacementExecutionAction | ReplacementPlanItem['selectedAction']
+): FileOperationType {
+  return action === 'trash-original' ? 'trash' : 'replace-original-with-output';
+}
+
+function getPresentProgressVerb(action: ReplacementExecutionAction | ReplacementPlanItem['selectedAction']): string {
+  if (action === 'trash-original') {
+    return 'Moving to Trash';
+  }
+
+  if (action === 'replace-original') {
+    return 'Replacing';
+  }
+
+  return 'Skipping';
+}
+
+function getExecutionLabel(
+  plan: ReplacementPlan,
+  actionOverride: ReplacementExecutionAction | null
+): string {
+  return getResultType(plan, actionOverride) === 'trash' ? 'Move to Trash' : 'replacement execution';
 }
 
 function toFileOperationPlanStatus(item: ReplacementPlanItem): FileOperationPlanStatus {

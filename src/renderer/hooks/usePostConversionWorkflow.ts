@@ -4,6 +4,7 @@ import type { AutoFixResult } from '../../shared/types/autoFix';
 import type { FileOperationResult } from '../../shared/types/fileOperations';
 import type {
   ReplacementAction,
+  ReplacementExecutionAction,
   ReplacementExecutionJobSnapshot,
   ReplacementPlan,
   ReplacementPlanActionUpdate,
@@ -58,10 +59,14 @@ interface UsePostConversionWorkflowValue {
   replacementResult: FileOperationResult | null;
   replacementResultError: string | null;
   isReplacementResultDialogVisible: boolean;
+  postConversionExecutionAction: ReplacementExecutionAction | null;
   createPostConversionPlan: (input: CreatePostConversionPlanInput) => Promise<boolean>;
   changePostConversionPlanAction: (itemId: string, selectedAction: ReplacementAction) => Promise<void>;
   applyPostConversionPlanBulkAction: (action: ReplacementPlanBulkAction) => Promise<void>;
-  replacePostConversionOriginals: (typedConfirmation: string | null) => Promise<void>;
+  executePostConversionPlan: (
+    actionOverride: ReplacementExecutionAction | null,
+    typedConfirmation: string | null
+  ) => Promise<void>;
   reviewPostConversionPlan: () => void;
   leavePostConversionOutputs: () => void;
   backToPostConversionChoices: () => void;
@@ -90,6 +95,8 @@ export function usePostConversionWorkflow({
   const [replacementResult, setReplacementResult] = useState<FileOperationResult | null>(null);
   const [replacementResultError, setReplacementResultError] = useState<string | null>(null);
   const [isReplacementResultDialogVisible, setIsReplacementResultDialogVisible] = useState(false);
+  const [postConversionExecutionAction, setPostConversionExecutionAction] =
+    useState<ReplacementExecutionAction | null>(null);
 
   const replacementPercent = getProgressPercent(
     replacementProgress?.processedItems,
@@ -108,6 +115,7 @@ export function usePostConversionWorkflow({
     setReplacementResult(null);
     setReplacementResultError(null);
     setIsReplacementResultDialogVisible(false);
+    setPostConversionExecutionAction(null);
   }, []);
 
   const createPostConversionPlan = useCallback(
@@ -241,30 +249,38 @@ export function usePostConversionWorkflow({
     [postConversionPlan, updatePostConversionPlanActions]
   );
 
-  const replacePostConversionOriginals = useCallback(
-    async (typedConfirmation: string | null): Promise<void> => {
+  const executePostConversionPlan = useCallback(
+    async (
+      actionOverride: ReplacementExecutionAction | null,
+      typedConfirmation: string | null
+    ): Promise<void> => {
       if (!postConversionPlan) {
-        setPostConversionError('Create a replacement plan before replacing originals.');
+        setPostConversionError('Create a replacement plan before executing post-conversion actions.');
         return;
       }
 
-      const executableCount = getExecutableReplacementItemCount(postConversionPlan);
+      const executableCount = getExecutableReplacementItemCount(postConversionPlan, actionOverride);
 
       if (executableCount === 0) {
-        setPostConversionError('No replacement items are ready.');
+        setPostConversionError('No post-conversion items are ready.');
         return;
       }
 
+      const confirmationPhrase = getConfirmationPhrase(postConversionPlan, actionOverride);
+
       if (
-        requiresReplacementConfirmation(postConversionPlan, settings) &&
-        typedConfirmation !== REPLACE_CONFIRMATION_PHRASE
+        requiresReplacementConfirmation(postConversionPlan, settings, actionOverride) &&
+        typedConfirmation !== confirmationPhrase
       ) {
-        setPostConversionError('Type REPLACE before replacing originals.');
+        setPostConversionError(`Type ${confirmationPhrase} before executing this action.`);
         return;
       }
+
+      const executionLabel = getExecutionActionLabel(postConversionPlan, actionOverride);
 
       setPostConversionError(null);
       setPostConversionMessage(null);
+      setPostConversionExecutionAction(actionOverride);
       setReplacementProgress({
         jobId: null,
         planId: postConversionPlan.id,
@@ -276,7 +292,7 @@ export function usePostConversionWorkflow({
         skippedCount: 0,
         failedCount: 0,
         currentFile: null,
-        message: 'Starting replacement execution.',
+        message: `Starting ${executionLabel}.`,
         error: null
       });
       setReplacementResult(null);
@@ -288,6 +304,7 @@ export function usePostConversionWorkflow({
         const response = await replacementClient.executeReplacementPlan({
           planId: postConversionPlan.id,
           confirmed: true,
+          actionOverride,
           typedConfirmation,
           originalDisposition: 'move-original-to-trash'
         });
@@ -301,9 +318,9 @@ export function usePostConversionWorkflow({
 
         setReplacementJobId(response.jobId);
         setPostConversionMessage(
-          response.message ?? `${executableCount.toLocaleString()} replacement item(s) queued.`
+          response.message ?? `${executableCount.toLocaleString()} post-conversion item(s) queued.`
         );
-        setWorkflowMessage(response.message ?? 'Replacement execution started.');
+        setWorkflowMessage(response.message ?? `${executionLabel} started.`);
       } catch (error: unknown) {
         const message = getErrorMessage(error, 'Could not start replacement execution.');
         setActiveAction(null);
@@ -389,6 +406,7 @@ export function usePostConversionWorkflow({
         setActiveAction(null);
         setReplacementResult(progress.result);
         setReplacementResultError(null);
+        setPostConversionExecutionAction(null);
         setIsPostConversionDialogVisible(false);
         setIsReplacementResultDialogVisible(true);
 
@@ -405,12 +423,14 @@ export function usePostConversionWorkflow({
 
       if (progress.status === 'error') {
         setActiveAction(null);
+        setPostConversionExecutionAction(null);
         setReplacementResultError(progress.error ?? progress.message ?? 'Replacement execution failed.');
         setWorkflowMessage(progress.message ?? 'Replacement execution failed.');
       }
 
       if (progress.status === 'canceled') {
         setActiveAction(null);
+        setPostConversionExecutionAction(null);
         setReplacementResult(progress.result ?? null);
         setReplacementResultError(null);
         setIsPostConversionDialogVisible(false);
@@ -432,10 +452,11 @@ export function usePostConversionWorkflow({
     replacementResult,
     replacementResultError,
     isReplacementResultDialogVisible,
+    postConversionExecutionAction,
     createPostConversionPlan,
     changePostConversionPlanAction,
     applyPostConversionPlanBulkAction,
-    replacePostConversionOriginals,
+    executePostConversionPlan,
     reviewPostConversionPlan,
     leavePostConversionOutputs,
     backToPostConversionChoices,
@@ -451,3 +472,54 @@ function isRunningReplacementProgress(progress: ReplacementExecutionJobSnapshot 
 }
 
 const REPLACE_CONFIRMATION_PHRASE = 'REPLACE';
+const TRASH_CONFIRMATION_PHRASE = 'Move to Trash';
+
+function getConfirmationPhrase(
+  plan: ReplacementPlan,
+  actionOverride: ReplacementExecutionAction | null
+): string {
+  if (actionOverride) {
+    return actionOverride === 'trash-original' ? TRASH_CONFIRMATION_PHRASE : REPLACE_CONFIRMATION_PHRASE;
+  }
+
+  return plan.items.some(
+    (item) =>
+      item.selectedAction === 'replace-original' &&
+      (item.status === 'ready' || item.status === 'warning')
+  )
+    ? REPLACE_CONFIRMATION_PHRASE
+    : TRASH_CONFIRMATION_PHRASE;
+}
+
+function getPrimarySelectedExecutionAction(plan: ReplacementPlan): ReplacementExecutionAction | null {
+  if (
+    plan.items.some(
+      (item) =>
+        item.selectedAction === 'replace-original' &&
+        (item.status === 'ready' || item.status === 'warning')
+    )
+  ) {
+    return 'replace-original';
+  }
+
+  if (
+    plan.items.some(
+      (item) =>
+        item.selectedAction === 'trash-original' &&
+        (item.status === 'ready' || item.status === 'warning')
+    )
+  ) {
+    return 'trash-original';
+  }
+
+  return null;
+}
+
+function getExecutionActionLabel(
+  plan: ReplacementPlan,
+  actionOverride: ReplacementExecutionAction | null
+): string {
+  const action = actionOverride ?? getPrimarySelectedExecutionAction(plan);
+
+  return action === 'trash-original' ? 'moving originals to Trash' : 'replacement execution';
+}

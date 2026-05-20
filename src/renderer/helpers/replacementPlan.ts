@@ -1,6 +1,11 @@
 import type { AutoCropResult } from '../../shared/types/autoCrop';
 import type { AutoFixResult } from '../../shared/types/autoFix';
-import type { ReplacementPlan, ReplacementPlanActionUpdate, ReplacementPlanBulkAction } from '../../shared/types/replacementWorkflow';
+import type {
+  ReplacementExecutionAction,
+  ReplacementPlan,
+  ReplacementPlanActionUpdate,
+  ReplacementPlanBulkAction
+} from '../../shared/types/replacementWorkflow';
 import type { AppSettings } from '../../shared/types/settings';
 
 const TEN_GB_BYTES = 10 * 1024 * 1024 * 1024;
@@ -21,6 +26,15 @@ export function getReplacementBulkActionUpdates(
       .map((item) => ({
         itemId: item.id,
         selectedAction: 'replace-original'
+      }));
+  }
+
+  if (action === 'ready-trash') {
+    return plan.items
+      .filter((item) => item.status === 'ready')
+      .map((item) => ({
+        itemId: item.id,
+        selectedAction: 'trash-original'
       }));
   }
 
@@ -51,6 +65,10 @@ export function getReplacementBulkActionMessage(action: ReplacementPlanBulkActio
     return 'Ready items were set to replace originals.';
   }
 
+  if (action === 'ready-trash') {
+    return 'Ready items were set to move originals to Trash.';
+  }
+
   if (action === 'warning-skip') {
     return 'Warning items were set to skip.';
   }
@@ -62,12 +80,19 @@ export function getReplacementBulkActionMessage(action: ReplacementPlanBulkActio
   return 'Replacement actions were cleared.';
 }
 
-export function getExecutableReplacementItemCount(plan: ReplacementPlan): number {
-  return getExecutableReplacementItems(plan).length;
+export function getExecutableReplacementItemCount(
+  plan: ReplacementPlan,
+  actionOverride?: ReplacementExecutionAction | null
+): number {
+  return getExecutableReplacementItems(plan, actionOverride).length;
 }
 
-export function requiresReplacementConfirmation(plan: ReplacementPlan, settings: AppSettings | null): boolean {
-  const executableItems = getExecutableReplacementItems(plan);
+export function requiresReplacementConfirmation(
+  plan: ReplacementPlan,
+  settings: AppSettings | null,
+  actionOverride?: ReplacementExecutionAction | null
+): boolean {
+  const executableItems = getExecutableReplacementItems(plan, actionOverride);
   const thresholds = getReplacementConfirmationThresholds(settings);
 
   return (
@@ -94,12 +119,18 @@ export function getReplacementConfirmationThresholds(settings: AppSettings | nul
   };
 }
 
-export function getExecutableReplacementItems(plan: ReplacementPlan): ReplacementPlan['items'] {
-  return plan.items.filter(
-    (item) =>
-      item.selectedAction === 'replace-original' &&
+export function getExecutableReplacementItems(
+  plan: ReplacementPlan,
+  actionOverride?: ReplacementExecutionAction | null
+): ReplacementPlan['items'] {
+  return plan.items.filter((item) => {
+    const action = actionOverride ?? item.selectedAction;
+
+    return (
+      (action === 'replace-original' || action === 'trash-original') &&
       (item.status === 'ready' || item.status === 'warning')
-  );
+    );
+  });
 }
 
 export function isExternalVolumePath(path: string): boolean {
