@@ -3,8 +3,10 @@ import { access, mkdir, readdir, readFile, rename, unlink, writeFile } from 'nod
 import { basename, dirname } from 'node:path';
 import type {
   ProjectCreateRequest,
+  ProjectDeleteResponse,
   ProjectIndex,
   ProjectIndexItem,
+  ProjectMutationResponse,
   ProjectSaveRequest,
   VideoProject
 } from '../../shared/types/project';
@@ -30,22 +32,11 @@ const MAX_PROJECT_NAME_LENGTH = 120;
 
 let projectMutationQueue: Promise<unknown> = Promise.resolve();
 
-export interface ProjectMutationResult {
-  project: VideoProject;
-  index: ProjectIndex;
-}
-
-export interface ProjectDeleteResult {
-  id: string;
-  deleted: boolean;
-  index: ProjectIndex;
-}
-
 export async function listProjects(): Promise<ProjectIndex> {
   return readReconciledProjectIndex();
 }
 
-export async function createProject(input: ProjectCreateRequest): Promise<ProjectMutationResult> {
+export async function createProject(input: ProjectCreateRequest): Promise<ProjectMutationResponse> {
   return mutateProjects(async () => {
     const now = nowIsoString();
     const projectId = await createProjectId();
@@ -70,7 +61,7 @@ export async function createProject(input: ProjectCreateRequest): Promise<Projec
   });
 }
 
-export async function saveProject(input: ProjectSaveRequest): Promise<ProjectMutationResult | null> {
+export async function saveProject(input: ProjectSaveRequest): Promise<ProjectMutationResponse | null> {
   return mutateProjects(async () => {
     const projectId = normalizeProjectId(input.id);
     const index = await readReconciledProjectIndex();
@@ -107,7 +98,7 @@ export async function loadProject(projectId: string): Promise<VideoProject | nul
   return readProjectFile(normalizeProjectId(projectId));
 }
 
-export async function deleteProject(projectId: string): Promise<ProjectDeleteResult> {
+export async function deleteProject(projectId: string): Promise<ProjectDeleteResponse> {
   return mutateProjects(async () => {
     const normalizedProjectId = normalizeProjectId(projectId);
     const projectPath = getProjectFilePath(normalizedProjectId);

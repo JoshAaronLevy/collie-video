@@ -89,6 +89,17 @@ export interface ProjectSaveRequest {
   project: Omit<VideoProject, 'id' | 'createdAt' | 'updatedAt'>;
 }
 
+export interface ProjectMutationResponse {
+  project: VideoProject;
+  index: ProjectIndex;
+}
+
+export interface ProjectDeleteResponse {
+  id: string;
+  deleted: boolean;
+  index: ProjectIndex;
+}
+
 export interface ProjectLoadRequest {
   id: string;
 }

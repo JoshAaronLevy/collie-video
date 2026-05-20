@@ -77,6 +77,14 @@ import type {
   OperationHistoryListResponse
 } from '../shared/types/operationHistory';
 import type {
+  ProjectCreateRequest,
+  ProjectDeleteResponse,
+  ProjectIndex,
+  ProjectMutationResponse,
+  ProjectSaveRequest,
+  VideoProject
+} from '../shared/types/project';
+import type {
   CreateReplacementPlanRequest,
   CreateReplacementPlanResponse,
   ExecuteReplacementPlanRequest,
@@ -182,6 +190,14 @@ export interface VideoAuditApi {
   operationHistory: {
     listRecent: (request?: OperationHistoryListRequest) => Promise<OperationHistoryListResponse>;
     getDetails: (operationId: string) => Promise<OperationHistoryDetailsResponse>;
+  };
+  projects: {
+    list: () => Promise<ProjectIndex>;
+    create: (request: ProjectCreateRequest) => Promise<ProjectMutationResponse>;
+    save: (request: ProjectSaveRequest) => Promise<ProjectMutationResponse | null>;
+    load: (projectId: string) => Promise<VideoProject | null>;
+    delete: (projectId: string) => Promise<ProjectDeleteResponse>;
+    setLastActive: (projectId: string | null) => Promise<ProjectIndex>;
   };
   replacement: {
     createPlan: (request: CreateReplacementPlanRequest) => Promise<CreateReplacementPlanResponse>;
@@ -403,6 +419,15 @@ export const videoAuditApi: VideoAuditApi = {
       ipcRenderer.invoke(IPC_CHANNELS.operationHistoryList, request),
     getDetails: (operationId: string) =>
       ipcRenderer.invoke(IPC_CHANNELS.operationHistoryGetDetails, operationId)
+  },
+  projects: {
+    list: () => ipcRenderer.invoke(IPC_CHANNELS.projectList),
+    create: (request: ProjectCreateRequest) => ipcRenderer.invoke(IPC_CHANNELS.projectCreate, request),
+    save: (request: ProjectSaveRequest) => ipcRenderer.invoke(IPC_CHANNELS.projectSave, request),
+    load: (projectId: string) => ipcRenderer.invoke(IPC_CHANNELS.projectLoad, projectId),
+    delete: (projectId: string) => ipcRenderer.invoke(IPC_CHANNELS.projectDelete, projectId),
+    setLastActive: (projectId: string | null) =>
+      ipcRenderer.invoke(IPC_CHANNELS.projectSetLastActive, projectId)
   },
   replacement: {
     createPlan: (request: CreateReplacementPlanRequest) =>

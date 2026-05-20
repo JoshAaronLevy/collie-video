@@ -7,6 +7,12 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.50.37] - 2026-05-20
+
+### Added
+
+- Added the named-project IPC, preload, and renderer-client boundary so the renderer can list, create, save, load, delete, and mark active projects through typed APIs.
+
 ## [0.50.36] - 2026-05-20
 
 ### Added
