@@ -84,6 +84,8 @@ After making changes, summarize:
 
 # Stage 1: Formalize Availability Semantics And Row Eligibility
 
+**Intelligence Level: High**
+
 ## Context & Problem
 
 We need one canonical definition for file availability and row processing eligibility before expanding the missing-file workflow.
@@ -111,6 +113,8 @@ In addition to the shared commands, review the helper names and call sites to co
 
 # Stage 2: Extract A Project File Availability Workflow Hook
 
+**Intelligence Level: High**
+
 ## Context & Problem
 
 Project restore currently performs availability validation inline inside `useVideoAuditAppController.ts`. The controller should stay a composition adapter, while file-availability workflow state belongs in a focused hook.
@@ -137,6 +141,8 @@ Manually review that opening/restoring a project still triggers availability val
 ---
 
 # Stage 3: Missing Files Warning Dialog
+
+**Intelligence Level: Medium**
 
 ## Context & Problem
 
@@ -168,6 +174,8 @@ Manually inspect the dialog in code for copy, button labels, and non-destructive
 
 # Stage 4: Disable Missing Row Selection In The DataTable
 
+**Intelligence Level: High**
+
 ## Context & Problem
 
 If the user dismisses the missing-files warning, missing rows may remain visible in the table. They must be unchecked and disabled so they cannot be selected for processing.
@@ -196,6 +204,8 @@ Manually verify from code that missing rows cannot be selected through checkbox 
 
 # Stage 5: Remove Missing Rows From The Active Project
 
+**Intelligence Level: High**
+
 ## Context & Problem
 
 The warning dialog needs a non-destructive action that removes missing videos from the active project and data table while leaving source media untouched.
@@ -222,6 +232,8 @@ Manually verify that row counts update, the project can be saved after removal, 
 ---
 
 # Stage 6: Strategic Recheck Triggers
+
+**Intelligence Level: Extra High**
 
 ## Context & Problem
 
@@ -250,6 +262,8 @@ Manually verify project restore, manual check, focus-return throttling, and at l
 
 # Stage 7: UI Status, Counts, And Notification Polish
 
+**Intelligence Level: Medium**
+
 ## Context & Problem
 
 Availability state should be visible and actionable without turning the app into a warning-heavy experience.
@@ -277,6 +291,8 @@ Manually inspect the affected UI states if practical: clean check, missing warni
 
 # Stage 8: Persistence, Project Index, And Dirty-State Behavior
 
+**Intelligence Level: High**
+
 ## Context & Problem
 
 The active project and project index must reflect missing-row removal predictably, while dismissed warnings and transient availability metadata should not dirty or persist project files.
@@ -303,6 +319,8 @@ Manually inspect saved project JSON behavior where practical: availability shoul
 ---
 
 # Stage 9: Verification And Cleanup
+
+**Intelligence Level: Medium**
 
 ## Context & Problem
 
