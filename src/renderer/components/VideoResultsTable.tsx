@@ -55,21 +55,6 @@ interface VideoResultsTableProps {
   onRevealKnownFile: (item: KnownPathValidationItem) => void;
 }
 
-const globalFilterFields = [
-  'displayFile',
-  'fileName',
-  'displayDirectory',
-  'directory',
-  'fileType',
-  'resolution',
-  'displayAspectRatio',
-  'adjustments.blackBorder.classification',
-  'adjustments.blackBorder.confidence',
-  'adjustments.blackBorder.recommendedFix.reason',
-  'reasons',
-  'status'
-];
-
 type TagSeverity = 'success' | 'info' | 'warning' | 'danger' | 'secondary';
 type DurationFilterValue =
   | 'under-5'
@@ -264,8 +249,6 @@ export function VideoResultsTable({
         sortMode="multiple"
         removableSort
         filterDisplay="row"
-        globalFilter={globalFilter}
-        globalFilterFields={globalFilterFields}
         stripedRows
         size="small"
         scrollable

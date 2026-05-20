@@ -10,6 +10,7 @@ interface ResultsToolbarProps {
   globalFilter: string;
   resultsViewFilter: ResultsViewFilter;
   resultsViewCounts: ResultsViewCounts;
+  visibleRowCount: number;
   isAuditActive: boolean;
   isStorageLoading: boolean;
   isCacheClearing: boolean;
@@ -25,6 +26,7 @@ export function ResultsToolbar({
   globalFilter,
   resultsViewFilter,
   resultsViewCounts,
+  visibleRowCount,
   isAuditActive,
   isStorageLoading,
   isCacheClearing,
@@ -39,14 +41,14 @@ export function ResultsToolbar({
   const viewOptions = useMemo(
     () =>
       [
-        { label: 'All', value: 'all' },
-        { label: 'Flagged', value: 'flagged' },
-        { label: 'Low-res', value: 'low-res' },
-        { label: 'Aspect', value: 'aspect' },
-        { label: 'Crop', value: 'crop' },
-        { label: 'Errors', value: 'errors' }
+        { label: formatViewOptionLabel('All', resultsViewCounts.all), value: 'all' },
+        { label: formatViewOptionLabel('Flagged', resultsViewCounts.flagged), value: 'flagged' },
+        { label: formatViewOptionLabel('Low-res', resultsViewCounts['low-res']), value: 'low-res' },
+        { label: formatViewOptionLabel('Aspect', resultsViewCounts.aspect), value: 'aspect' },
+        { label: formatViewOptionLabel('Crop', resultsViewCounts.crop), value: 'crop' },
+        { label: formatViewOptionLabel('Errors', resultsViewCounts.errors), value: 'errors' }
       ] satisfies { label: string; value: ResultsViewFilter }[],
-    []
+    [resultsViewCounts]
   );
   const overflowItems = useMemo<MenuItem[]>(
     () => [
@@ -59,8 +61,6 @@ export function ResultsToolbar({
     ],
     [canRefreshAudit, isAuditActive, onRefreshAudit]
   );
-  const activeCount = resultsViewCounts[resultsViewFilter] ?? 0;
-
   return (
     <section className="results-toolbar" aria-label="Results controls">
       <div className="results-toolbar-primary">
@@ -91,7 +91,7 @@ export function ResultsToolbar({
 
       <div className="results-toolbar-secondary">
         <span className="results-filter-count">
-          {activeCount.toLocaleString()} shown
+          {visibleRowCount.toLocaleString()} shown
         </span>
 
         <Menu id="results-toolbar-menu" model={overflowItems} popup ref={menuRef} />
@@ -118,4 +118,8 @@ export function ResultsToolbar({
       </div>
     </section>
   );
+}
+
+function formatViewOptionLabel(label: string, count: number): string {
+  return `${label} (${count.toLocaleString()})`;
 }

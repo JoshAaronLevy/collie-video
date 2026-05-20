@@ -106,6 +106,7 @@ export interface VideoAuditAppController {
   globalFilter: string;
   resultsViewFilter: ResultsViewFilter;
   resultsViewCounts: ResultsViewCounts;
+  visibleRowCount: number;
   showThumbnails: boolean;
   isAuditActive: boolean;
   isDiscoveryActive: boolean;

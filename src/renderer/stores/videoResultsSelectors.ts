@@ -36,6 +36,10 @@ export function selectVisibleRowsForResultView(state: VideoResultsStoreState): V
   return getVisibleRowsForResultView(selectSearchedRows(state), state.activeViewFilter);
 }
 
+export function selectVisibleRowCount(state: VideoResultsStoreState): number {
+  return selectVisibleRowsForResultView(state).length;
+}
+
 export function selectRowsForActiveView(state: VideoResultsStoreState): VideoRow[] {
   return selectVisibleRowsForResultView(state);
 }

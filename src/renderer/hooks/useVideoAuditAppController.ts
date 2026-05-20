@@ -135,9 +135,10 @@ export function useVideoAuditAppController(): VideoAuditAppController {
     resultsViewFilter,
     resultsViewCounts,
     filteredVideoRows,
+    visibleRowCount,
     setGlobalFilter,
     setResultsViewFilter
-  } = useResultFilters(visibleVideoRows);
+  } = useResultFilters();
   const applyRefreshAuditSources = useCallback((selection: {
     selectedFolders: string[];
     selectedFiles: string[];
@@ -607,6 +608,7 @@ export function useVideoAuditAppController(): VideoAuditAppController {
     globalFilter,
     resultsViewFilter,
     resultsViewCounts,
+    visibleRowCount,
     showThumbnails,
     isAuditActive,
     isDiscoveryActive,

@@ -106,6 +106,7 @@ export function App(): ReactElement {
     globalFilter: controller.globalFilter,
     resultsViewFilter: controller.resultsViewFilter,
     resultsViewCounts: controller.resultsViewCounts,
+    visibleRowCount: controller.visibleRowCount,
     isAuditActive: controller.isAuditActive,
     isStorageLoading: controller.isStorageLoading,
     isCacheClearing: controller.activeAction === 'clearCache',

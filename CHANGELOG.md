@@ -7,6 +7,12 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.50.28] - 2026-05-20
+
+### Changed
+
+- Moved top-level result search, view filtering, visible rows, and toolbar counts onto the shared results store pipeline so count labels and table rows use the same search-aware derivation.
+
 ## [0.50.27] - 2026-05-19
 
 ### Changed
