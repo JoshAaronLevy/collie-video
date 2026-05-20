@@ -5,6 +5,7 @@ import type {
   MediaPreviewResultItem,
   PreviewClipResult
 } from '../../shared/types/mediaPreview';
+import type { VideoProjectAuditState } from '../../shared/types/project';
 import type { VideoRow } from '../../shared/types/video';
 import { getErrorMessage } from '../helpers/errors';
 import { formatDateTime } from '../helpers/formatting';
@@ -22,7 +23,7 @@ import { useVideoResultsStore } from '../stores/useVideoResultsStore';
 interface ApplyAuditResultOptions {
   persist: boolean;
   source?: Exclude<VideoResultsWorkspaceSource, 'empty'>;
-  savedAt?: string;
+  savedAt?: string | null;
   showThumbnails?: boolean;
 }
 
@@ -53,6 +54,10 @@ export interface UseAuditResultsValue {
     result: AuditResult,
     request: AuditRequest | null,
     options: ApplyAuditResultOptions
+  ) => Promise<void>;
+  applyProjectAuditState: (
+    auditState: VideoProjectAuditState,
+    options: { showThumbnails: boolean }
   ) => Promise<void>;
   persistCurrentResult: (nextResult: AuditResult, thumbnailValue?: boolean) => Promise<void>;
   hideVideoPathsFromTable: (paths: string[]) => Promise<number>;
@@ -146,7 +151,7 @@ export function useAuditResults(): UseAuditResultsValue {
           request,
           result: normalizedResult,
           showThumbnails: options.showThumbnails ?? useVideoResultsStore.getState().showThumbnails,
-          savedAt: options.savedAt
+          savedAt: options.savedAt ?? undefined
         });
 
         setStorageSavedAtInStore(storedState.savedAt);
@@ -171,6 +176,40 @@ export function useAuditResults(): UseAuditResultsValue {
       });
     },
     [applyAuditResult]
+  );
+
+  const applyProjectAuditState = useCallback(
+    async (
+      auditState: VideoProjectAuditState,
+      options: { showThumbnails: boolean }
+    ): Promise<void> => {
+      if (auditState.result) {
+        await applyAuditResult(auditState.result, auditState.request, {
+          persist: false,
+          source: 'project',
+          savedAt: auditState.savedAt,
+          showThumbnails: options.showThumbnails
+        });
+        setStorageMessageState(
+          auditState.savedAt
+            ? `Restored project audit from ${formatDateTime(auditState.savedAt)}.`
+            : 'Restored project audit.'
+        );
+        return;
+      }
+
+      if (auditState.request) {
+        resetForAuditStartInStore(auditState.request);
+      } else {
+        clearResultsInStore();
+      }
+
+      const resultsStore = useVideoResultsStore.getState();
+      resultsStore.setShowThumbnails(options.showThumbnails);
+      resultsStore.setStorageSavedAt(auditState.savedAt);
+      setStorageMessageState('Restored project without saved rows.');
+    },
+    [applyAuditResult, clearResultsInStore, resetForAuditStartInStore]
   );
 
   const finishStorageLoading = useCallback((): void => {
@@ -301,6 +340,7 @@ export function useAuditResults(): UseAuditResultsValue {
     lastAuditRequest,
     loadStoredAuditResultState,
     applyStoredAuditResult,
+    applyProjectAuditState,
     finishStorageLoading,
     applyAuditResult,
     persistCurrentResult,

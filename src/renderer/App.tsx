@@ -1,5 +1,6 @@
 import { useEffect, useState, type ComponentProps, type ReactElement } from 'react';
 import { Dialog } from 'primereact/dialog';
+import type { VideoProject } from '../shared/types/project';
 import { AppHeader } from './components/AppHeader';
 import { AuditProgressPanel } from './components/AuditProgressPanel';
 import { AutoCropDialog } from './components/AutoCropDialog';
@@ -13,6 +14,7 @@ import { MigrationScanDialog } from './components/MigrationScanDialog';
 import { OperationHistoryDialog } from './components/OperationHistoryDialog';
 import { PostConversionDialog } from './components/PostConversionDialog';
 import { ProjectNameDialog } from './components/ProjectNameDialog';
+import { ProjectOpenDialog } from './components/ProjectOpenDialog';
 import { ProjectSidebar } from './components/ProjectSidebar';
 import { ResultsToolbar } from './components/ResultsToolbar';
 import { SelectionActionBar } from './components/SelectionActionBar';
@@ -37,6 +39,8 @@ export function App(): ReactElement {
   const [isDiagnosticsVisible, setIsDiagnosticsVisible] = useState(false);
   const [isProjectSidebarVisible, setIsProjectSidebarVisible] = useState(false);
   const [isProjectNameDialogVisible, setIsProjectNameDialogVisible] = useState(false);
+  const [projectOpenDialogProject, setProjectOpenDialogProject] = useState<VideoProject | null>(null);
+  const [isProjectOpenSubmitting, setIsProjectOpenSubmitting] = useState(false);
   const hasSources = controller.selectedFolders.length > 0 || controller.selectedFiles.length > 0;
   const hasAuditData = Boolean(controller.videoRows) || Boolean(controller.storageSavedAt);
   const tableDisplayRootPath = controller.folderTreeRootPath ?? controller.auditedRootDirectory;
@@ -87,6 +91,67 @@ export function App(): ReactElement {
     setIsProjectSidebarVisible(true);
   };
 
+  const closeProjectOpenSurfaces = (): void => {
+    setProjectOpenDialogProject(null);
+    setIsProjectSidebarVisible(false);
+    setIsProjectNameDialogVisible(false);
+    setIsSourceSetupVisible(false);
+    setIsFolderTreeSelectorVisible(false);
+    setIsUtilitiesVisible(false);
+    setIsSettingsVisible(false);
+    setIsDiagnosticsVisible(false);
+  };
+
+  const openSavedProject = async (projectId: string): Promise<void> => {
+    setIsProjectOpenSubmitting(true);
+
+    try {
+      const project = await controller.loadProject(projectId);
+
+      if (project) {
+        setProjectOpenDialogProject(project);
+      }
+    } finally {
+      setIsProjectOpenSubmitting(false);
+    }
+  };
+
+  const restoreOpenProject = async (): Promise<void> => {
+    if (!projectOpenDialogProject) {
+      return;
+    }
+
+    setIsProjectOpenSubmitting(true);
+
+    try {
+      const restored = await controller.restoreProject(projectOpenDialogProject);
+
+      if (restored) {
+        closeProjectOpenSurfaces();
+      }
+    } finally {
+      setIsProjectOpenSubmitting(false);
+    }
+  };
+
+  const scanOpenProjectAgain = async (): Promise<void> => {
+    if (!projectOpenDialogProject) {
+      return;
+    }
+
+    setIsProjectOpenSubmitting(true);
+
+    try {
+      const outcome = await controller.scanProjectAgain(projectOpenDialogProject);
+
+      if (outcome === 'started') {
+        closeProjectOpenSurfaces();
+      }
+    } finally {
+      setIsProjectOpenSubmitting(false);
+    }
+  };
+
   const appHeaderProps = {
     appInfo: controller.appInfo,
     auditSummary: controller.auditSummary,
@@ -116,7 +181,10 @@ export function App(): ReactElement {
     onRefresh: () => {
       void controller.loadProjectIndex();
     },
-    onSaveCurrentProject: requestProjectSave
+    onSaveCurrentProject: requestProjectSave,
+    onOpenProject: (projectId: string) => {
+      void openSavedProject(projectId);
+    }
   } satisfies ComponentProps<typeof ProjectSidebar>;
 
   const sourceSummaryProps = {
@@ -537,6 +605,16 @@ export function App(): ReactElement {
       <AppHeader {...appHeaderProps} />
 
       <ProjectSidebar {...projectSidebarProps} />
+
+      <ProjectOpenDialog
+        visible={Boolean(projectOpenDialogProject)}
+        project={projectOpenDialogProject}
+        isSubmitting={isProjectOpenSubmitting}
+        canOpenProject={controller.canOpenProject}
+        onRestore={restoreOpenProject}
+        onScanAgain={scanOpenProjectAgain}
+        onHide={() => setProjectOpenDialogProject(null)}
+      />
 
       <section className="app-workspace">
         <SourceSummaryBar {...sourceSummaryProps} />

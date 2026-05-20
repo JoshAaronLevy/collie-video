@@ -35,6 +35,7 @@ interface UseAuditWorkflowValue {
   auditProgress: AuditJobSnapshot | null;
   auditPercent: number | null;
   runAudit: () => Promise<AuditStartOutcome>;
+  runAuditRequest: (request: AuditRequest) => Promise<AuditStartOutcome>;
   refreshAudit: () => Promise<void>;
   cancelAudit: () => Promise<void>;
   resetAuditWorkflow: () => void;
@@ -181,6 +182,7 @@ export function useAuditWorkflow({
     auditProgress,
     auditPercent,
     runAudit,
+    runAuditRequest: startAuditRequest,
     refreshAudit,
     cancelAudit,
     resetAuditWorkflow

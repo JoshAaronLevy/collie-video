@@ -223,6 +223,7 @@ export interface VideoAuditAppController {
   premiereImportError: string | null;
   canEditSelectedInPremiere: boolean;
   canGenerateThumbnails: boolean;
+  canOpenProject: boolean;
   applyFolderTreeSelection: (
     folderPaths: string[],
     rootPath: string,
@@ -245,6 +246,8 @@ export interface VideoAuditAppController {
   createProject: (name: string) => Promise<VideoProject | null>;
   saveProject: () => Promise<VideoProject | null>;
   loadProject: (projectId: string) => Promise<VideoProject | null>;
+  restoreProject: (project: VideoProject) => Promise<boolean>;
+  scanProjectAgain: (project: VideoProject) => Promise<AuditStartOutcome>;
   activateProject: (project: VideoProject | null) => Promise<void>;
   deleteProject: (projectId: string) => Promise<boolean>;
   clearProjectStatus: () => void;

@@ -12,7 +12,7 @@ import {
 import { getActiveRows, getVideoRowId } from '../helpers/resultFilters';
 import type { ResultsViewFilter } from '../types/resultsView';
 
-export type VideoResultsWorkspaceSource = 'empty' | 'audit' | 'stored-audit';
+export type VideoResultsWorkspaceSource = 'empty' | 'audit' | 'stored-audit' | 'project';
 
 export interface VideoResultsWorkspaceMeta {
   source: VideoResultsWorkspaceSource;
@@ -146,7 +146,7 @@ function getHydratedVideoResultsState(
     rows: normalizedResult.videos,
     summary: normalizedResult.summary,
     errors: normalizedResult.errors,
-    lastAuditRequest: request ?? state.lastAuditRequest,
+    lastAuditRequest: request,
     selectedRowIds: [],
     showThumbnails: showThumbnails ?? state.showThumbnails,
     storageSavedAt: nextSavedAt,

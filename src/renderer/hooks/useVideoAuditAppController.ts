@@ -1,13 +1,16 @@
 import { useCallback, useMemo, useState } from 'react';
+import type { AuditRequest } from '../../shared/types/audit';
+import type { VideoProject } from '../../shared/types/project';
 import { buildVideoProjectSnapshot } from '../helpers/projectSnapshot';
 import { getAuditedRootDirectory } from '../helpers/resultFilters';
 import { getWorkflowCapabilities } from '../helpers/workflowCapabilities';
 import { useAppCommands } from '../app/useAppCommands';
 import { useVideoResultsStore } from '../stores/useVideoResultsStore';
+import type { ResultsViewFilter } from '../types/resultsView';
 import type { ActiveAction, VideoAuditAppController } from '../types/videoAuditAppController';
 import { useAuditResults } from './useAuditResults';
 import { useAuditSourceController } from './useAuditSourceController';
-import { useAuditWorkflow } from './useAuditWorkflow';
+import { useAuditWorkflow, type AuditStartOutcome } from './useAuditWorkflow';
 import { useAppBootstrap } from './useAppBootstrap';
 import { useAutoCropWorkflow } from './useAutoCropWorkflow';
 import { useAutoFixWorkflow } from './useAutoFixWorkflow';
@@ -119,6 +122,7 @@ export function useVideoAuditAppController(): VideoAuditAppController {
     applyStoredAuditResult,
     finishStorageLoading,
     applyAuditResult,
+    applyProjectAuditState,
     hideVideoPathsFromTable,
     restoreRemovedVideos,
     mergeMediaPreviewResult,
@@ -195,6 +199,7 @@ export function useVideoAuditAppController(): VideoAuditAppController {
     auditProgress,
     auditPercent,
     runAudit,
+    runAuditRequest,
     refreshAudit,
     cancelAudit,
     resetAuditWorkflow
@@ -567,6 +572,130 @@ export function useVideoAuditAppController(): VideoAuditAppController {
     setActiveAction: setWorkflowActiveAction
   });
 
+  const resetTransientWorkflowState = useCallback((): void => {
+    setWorkflowMessage(null);
+    setActiveAction(null);
+    resetAuditWorkflow();
+    resetDiscoveryWorkflow();
+    resetFfprobeWorkflow();
+    resetAutoFixWorkflow();
+    resetAutoCropWorkflow();
+    resetMediaPreviewWorkflow();
+    resetMigrationWorkflow();
+    resetFileOperationsWorkflow();
+    resetPostConversionWorkflow();
+    resetPremiereBridgeWorkflow();
+    closeOperationHistory();
+  }, [
+    closeOperationHistory,
+    resetAuditWorkflow,
+    resetAutoCropWorkflow,
+    resetAutoFixWorkflow,
+    resetDiscoveryWorkflow,
+    resetFfprobeWorkflow,
+    resetFileOperationsWorkflow,
+    resetMediaPreviewWorkflow,
+    resetMigrationWorkflow,
+    resetPostConversionWorkflow,
+    resetPremiereBridgeWorkflow
+  ]);
+
+  const applyProjectWorkspaceState = useCallback(
+    async (project: VideoProject): Promise<void> => {
+      const request = cloneAuditRequest(project.audit.request);
+
+      applySourceSelectionState({
+        selectedFolders: [...project.sources.selectedFolders],
+        selectedFolderSummary: project.sources.selectedFolderSummary
+          ? {
+              ...project.sources.selectedFolderSummary,
+              selectedFolderPaths: [...project.sources.selectedFolderSummary.selectedFolderPaths],
+              dedupedFolderPaths: [...project.sources.selectedFolderSummary.dedupedFolderPaths]
+            }
+          : null,
+        folderTreeRootPath: project.sources.folderTreeRootPath,
+        folderTreeLastScannedAt: project.sources.folderTreeLastScannedAt,
+        selectedFiles: [...project.sources.selectedFiles],
+        outputFolder: project.sources.outputFolder,
+        selectionMessage: null
+      });
+
+      if (request) {
+        setAuditOptions({ ...request.options });
+      }
+
+      await applyProjectAuditState(
+        {
+          request,
+          result: project.audit.result,
+          savedAt: project.audit.savedAt
+        },
+        {
+          showThumbnails: project.workspace.showThumbnails
+        }
+      );
+
+      const resultsStore = useVideoResultsStore.getState();
+      resultsStore.setSearchQuery(project.workspace.searchQuery);
+      resultsStore.setActiveViewFilter(getRestoredResultsViewFilter(project.workspace.activeViewFilter));
+      resultsStore.setShowThumbnails(project.workspace.showThumbnails);
+      resultsStore.clearSelection();
+    },
+    [applyProjectAuditState, applySourceSelectionState, setAuditOptions]
+  );
+
+  const restoreProject = useCallback(
+    async (project: VideoProject): Promise<boolean> => {
+      if (isAnyBlockingWorkflowActive) {
+        setWorkflowMessage('Finish or cancel the active workflow before opening a project.');
+        return false;
+      }
+
+      resetTransientWorkflowState();
+      await applyProjectWorkspaceState(project);
+      await activateProject(project);
+      setWorkflowMessage(`Restored "${project.name}".`);
+      return true;
+    },
+    [
+      activateProject,
+      applyProjectWorkspaceState,
+      isAnyBlockingWorkflowActive,
+      resetTransientWorkflowState,
+      setWorkflowMessage
+    ]
+  );
+
+  const scanProjectAgain = useCallback(
+    async (project: VideoProject): Promise<AuditStartOutcome> => {
+      const request = cloneAuditRequest(project.audit.request);
+
+      if (!request) {
+        setWorkflowMessage('This project does not have a saved audit request to scan again.');
+        return 'not_started';
+      }
+
+      if (isAnyBlockingWorkflowActive) {
+        setWorkflowMessage('Finish or cancel the active workflow before scanning a saved project.');
+        return 'not_started';
+      }
+
+      resetTransientWorkflowState();
+      await applyProjectWorkspaceState(project);
+      await activateProject(project);
+
+      return runAuditRequest(request);
+    },
+    [
+      activateProject,
+      applyProjectWorkspaceState,
+      isAnyBlockingWorkflowActive,
+      resetTransientWorkflowState,
+      runAuditRequest,
+      setWorkflowMessage
+    ]
+  );
+
   const { settingsOpenRequestCount } = useAppCommands({
     requestFolderTreeOpen,
     chooseFiles,
@@ -765,6 +894,7 @@ export function useVideoAuditAppController(): VideoAuditAppController {
     premiereImportError,
     canEditSelectedInPremiere,
     canGenerateThumbnails,
+    canOpenProject: !isAnyBlockingWorkflowActive,
     applyFolderTreeSelection,
     chooseFolders,
     chooseFiles,
@@ -782,6 +912,8 @@ export function useVideoAuditAppController(): VideoAuditAppController {
     createProject,
     saveProject,
     loadProject,
+    restoreProject,
+    scanProjectAgain,
     activateProject,
     deleteProject,
     clearProjectStatus,
@@ -849,4 +981,33 @@ export function useVideoAuditAppController(): VideoAuditAppController {
     openPremiereBridgeApps,
     editSelectedInPremiere
   };
+}
+
+function cloneAuditRequest(request: AuditRequest | null): AuditRequest | null {
+  if (!request) {
+    return null;
+  }
+
+  return {
+    folderPaths: [...request.folderPaths],
+    filePaths: [...request.filePaths],
+    options: {
+      ...request.options
+    }
+  };
+}
+
+function getRestoredResultsViewFilter(value: string): ResultsViewFilter {
+  if (
+    value === 'all' ||
+    value === 'flagged' ||
+    value === 'low-res' ||
+    value === 'aspect' ||
+    value === 'crop' ||
+    value === 'errors'
+  ) {
+    return value;
+  }
+
+  return 'all';
 }
