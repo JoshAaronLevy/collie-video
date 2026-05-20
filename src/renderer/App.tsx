@@ -1,7 +1,6 @@
 import { useEffect, useState, type ComponentProps, type ReactElement } from 'react';
 import { Button } from 'primereact/button';
 import { Dialog } from 'primereact/dialog';
-import { Message } from 'primereact/message';
 import type { ProjectIndexItem, VideoProject } from '../shared/types/project';
 import type { DuplicateScanResult } from '../shared/types/duplicateScan';
 import { AppHeader } from './components/AppHeader';
@@ -11,6 +10,7 @@ import { AutoFixDialog } from './components/AutoFixDialog';
 import { DiagnosticsDialog } from './components/DiagnosticsDialog';
 import { DialogHeader } from './components/DialogChrome';
 import { DuplicateScanDialog } from './components/DuplicateScanDialog';
+import { DuplicateReviewWorkspace } from './components/DuplicateReviewWorkspace';
 import { FileOperationConfirmDialog } from './components/FileOperationConfirmDialog';
 import { FileOperationResultDialog } from './components/FileOperationResultDialog';
 import { MigrationResultDialog } from './components/MigrationResultDialog';
@@ -31,7 +31,6 @@ import { ThumbnailGenerationDialog } from './components/ThumbnailGenerationDialo
 import { UtilityPanel } from './components/UtilityPanel';
 import { VideoResultsTable } from './components/VideoResultsTable';
 import { FolderTreeSelectorDialog } from './components/source/FolderTreeSelectorDialog';
-import { formatBytes } from './helpers/fileSize';
 import { useResultFilters } from './hooks/useResultFilters';
 import { useVideoAuditAppController } from './hooks/useVideoAuditAppController';
 
@@ -724,8 +723,11 @@ export function App(): ReactElement {
         {workspaceMode === 'duplicate-review' && controller.duplicateScanResult ? (
           <DuplicateReviewWorkspace
             result={controller.duplicateScanResult}
+            markedCandidateIds={controller.duplicateMarkedCandidateIds}
             markedCount={controller.duplicateMarkedCandidateCount}
             markedSizeBytes={controller.duplicateMarkedCandidateSizeBytes}
+            onMarkCandidate={controller.markDuplicateCandidate}
+            onClearMarks={controller.clearDuplicateCandidateMarks}
             onBackToResults={() => setWorkspaceMode('results')}
           />
         ) : (
@@ -849,56 +851,5 @@ function WorkspaceSwitcher({
         />
       </div>
     </section>
-  );
-}
-
-function DuplicateReviewWorkspace({
-  result,
-  markedCount,
-  markedSizeBytes,
-  onBackToResults
-}: {
-  result: DuplicateScanResult;
-  markedCount: number;
-  markedSizeBytes: number;
-  onBackToResults: () => void;
-}): ReactElement {
-  return (
-    <section className="duplicate-review-workspace" aria-label="Duplicate Review workspace">
-      <div className="duplicate-review-header">
-        <div>
-          <p className="eyebrow">Duplicate Review</p>
-          <h2>Dupe Scan Results</h2>
-          <span title={result.scannedFolder}>Scanned folder: {result.scannedFolder}</span>
-        </div>
-        <Button label="Back to Results" icon="pi pi-table" severity="secondary" outlined onClick={onBackToResults} />
-      </div>
-
-      <div className="duplicate-review-summary-grid">
-        <SummaryMetric label="Source videos" value={result.sourceCount.toLocaleString()} />
-        <SummaryMetric label="Groups with matches" value={result.groups.length.toLocaleString()} />
-        <SummaryMetric label="Duplicate candidates" value={result.matchCount.toLocaleString()} />
-        <SummaryMetric label="Videos checked" value={result.checkedVideoFileCount.toLocaleString()} />
-        <SummaryMetric label="Files scanned" value={result.scannedFileCount.toLocaleString()} />
-        <SummaryMetric
-          label="Marked for Trash"
-          value={`${markedCount.toLocaleString()} - ${formatBytes(markedSizeBytes)}`}
-        />
-      </div>
-
-      <Message
-        severity="info"
-        text="Duplicate candidates were found. The expandable candidate review table and Move Marked Files to Trash controls are planned for the next stage; no candidates are pre-marked."
-      />
-    </section>
-  );
-}
-
-function SummaryMetric({ label, value }: { label: string; value: string }): ReactElement {
-  return (
-    <div>
-      <span>{label}</span>
-      <strong title={value}>{value}</strong>
-    </div>
   );
 }

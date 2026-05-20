@@ -7,6 +7,12 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.50.54] - 2026-05-20
+
+### Added
+
+- Added the Stage 6 Duplicate Review workspace with PrimeReact row-expansion group review, protected source summaries, nested candidate comparison tables, mark-for-trash checkboxes, and grouped/global marked counts.
+
 ## [0.50.53] - 2026-05-20
 
 ### Added
