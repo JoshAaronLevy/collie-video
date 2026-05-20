@@ -1,4 +1,4 @@
-import { lstat } from 'node:fs/promises';
+import { lstat, stat } from 'node:fs/promises';
 import { basename, extname, isAbsolute } from 'node:path';
 import { isSupportedVideoExtension } from '../../shared/constants/videoExtensions';
 import type {
@@ -25,12 +25,14 @@ export async function validateKnownPath(item: KnownPathValidationItem): Promise<
   }
 
   try {
-    const stats = await lstat(path);
+    const linkStats = await lstat(path);
 
-    if (stats.isSymbolicLink()) {
+    if (linkStats.isSymbolicLink()) {
       errors.push('Symbolic links are not supported for file-management actions.');
       return buildValidationResult({ item, path, expectedKind, exists: true, identity: null, warnings, errors });
     }
+
+    const stats = await stat(path);
 
     const identity: FileIdentity = {
       path,

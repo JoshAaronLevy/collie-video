@@ -170,7 +170,9 @@ function getSearchableResultValues(row: VideoRow): Array<string | null | undefin
     blackBorder?.confidence,
     blackBorder?.recommendedFix?.reason,
     row.reasons,
-    row.status
+    row.status,
+    row.fileAvailability?.status,
+    row.fileAvailability?.message
   ];
 }
 

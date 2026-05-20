@@ -165,11 +165,17 @@ function cloneAuditResult(result: AuditResult | null, rows: VideoRow[]): AuditRe
     summary: {
       ...result.summary
     },
-    videos: rows.map((row) => ({
-      ...row,
-      visible: row.visible !== false
-    })),
+    videos: rows.map(cloneProjectVideoRow),
     errors: result.errors.map((error) => ({ ...error }))
+  };
+}
+
+function cloneProjectVideoRow(row: VideoRow): VideoRow {
+  const { fileAvailability: _fileAvailability, ...projectRow } = row;
+
+  return {
+    ...projectRow,
+    visible: row.visible !== false
   };
 }
 

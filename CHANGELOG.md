@@ -7,6 +7,12 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.50.44] - 2026-05-20
+
+### Added
+
+- Added non-destructive project file-availability validation after restore, using main-process stat checks through the typed preload/client boundary and surfacing missing or changed saved files in the workspace.
+
 ## [0.50.43] - 2026-05-20
 
 ### Added

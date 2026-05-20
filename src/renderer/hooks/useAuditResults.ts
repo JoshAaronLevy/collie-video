@@ -6,7 +6,7 @@ import type {
   PreviewClipResult
 } from '../../shared/types/mediaPreview';
 import type { VideoProjectAuditState } from '../../shared/types/project';
-import type { VideoRow } from '../../shared/types/video';
+import type { VideoFileAvailability, VideoRow } from '../../shared/types/video';
 import { getErrorMessage } from '../helpers/errors';
 import { formatDateTime } from '../helpers/formatting';
 import { getActiveRows, getRemovedRowCount } from '../helpers/resultFilters';
@@ -65,6 +65,7 @@ export interface UseAuditResultsValue {
   mergeMediaPreviewResult: (result: MediaPreviewResult) => Promise<void>;
   mergeMediaPreviewItemsIntoRows: (items: MediaPreviewResultItem[]) => Promise<void>;
   mergePreviewClipResult: (result: PreviewClipResult) => Promise<void>;
+  mergeFileAvailabilityIntoRows: (items: Array<{ path: string; availability: VideoFileAvailability }>) => void;
   resetResultStateForAuditStart: (request: AuditRequest) => void;
   resetAuditResults: (options?: ResetAuditResultsOptions) => void;
   setStorageMessage: (message: string | null) => void;
@@ -90,6 +91,7 @@ export function useAuditResults(): UseAuditResultsValue {
   const restoreRemovedRowsInStore = useVideoResultsStore((state) => state.restoreRemovedRows);
   const mergeMediaPreviewItemsInStore = useVideoResultsStore((state) => state.mergeMediaPreviewItems);
   const mergePreviewClipItemsInStore = useVideoResultsStore((state) => state.mergePreviewClipItems);
+  const mergeFileAvailabilityInStore = useVideoResultsStore((state) => state.mergeFileAvailability);
   const [isStorageLoading, setIsStorageLoading] = useState(true);
   const [storageMessage, setStorageMessageState] = useState<string | null>(null);
 
@@ -282,6 +284,13 @@ export function useAuditResults(): UseAuditResultsValue {
     [resetForAuditStartInStore]
   );
 
+  const mergeFileAvailabilityIntoRows = useCallback(
+    (items: Array<{ path: string; availability: VideoFileAvailability }>): void => {
+      mergeFileAvailabilityInStore(items);
+    },
+    [mergeFileAvailabilityInStore]
+  );
+
   const resetAuditResults = useCallback(
     (options: ResetAuditResultsOptions = {}): void => {
       clearResultsInStore();
@@ -349,6 +358,7 @@ export function useAuditResults(): UseAuditResultsValue {
     mergeMediaPreviewResult,
     mergeMediaPreviewItemsIntoRows,
     mergePreviewClipResult,
+    mergeFileAvailabilityIntoRows,
     resetResultStateForAuditStart,
     resetAuditResults,
     setStorageMessage,

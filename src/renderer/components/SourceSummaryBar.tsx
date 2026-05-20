@@ -11,6 +11,7 @@ interface SourceSummaryBarProps {
   selectedFiles: string[];
   outputFolder: string | null;
   auditOptions: AuditOptions;
+  fileAvailabilityMessage: string | null;
   isAuditActive: boolean;
   canRunAudit: boolean;
   onRunAudit: () => void;
@@ -24,6 +25,7 @@ export function SourceSummaryBar({
   selectedFiles,
   outputFolder,
   auditOptions,
+  fileAvailabilityMessage,
   isAuditActive,
   canRunAudit,
   onRunAudit,
@@ -48,6 +50,7 @@ export function SourceSummaryBar({
           Output: {outputFolder ? shortenPath(outputFolder) : 'Not set'}
         </span>
         {folderTreeSummary ? <span>{folderTreeSummary}</span> : null}
+        {fileAvailabilityMessage ? <span>{fileAvailabilityMessage}</span> : null}
       </div>
 
       <div className="source-option-strip" aria-label="Audit options">

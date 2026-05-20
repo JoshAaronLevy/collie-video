@@ -4,7 +4,7 @@ import type {
   MediaPreviewResultItem,
   PreviewClipResultItem
 } from '../../shared/types/mediaPreview';
-import type { VideoRow } from '../../shared/types/video';
+import type { VideoFileAvailability, VideoRow } from '../../shared/types/video';
 import {
   mergeMediaPreviewItems as mergeMediaPreviewItemsIntoRows,
   mergePreviewClipItems as mergePreviewClipItemsIntoRows
@@ -32,6 +32,11 @@ export type ApplyVideoResultsInput = HydrateVideoResultsInput;
 export interface VideoRowPatch {
   path: string;
   patch: Partial<VideoRow> | ((row: VideoRow) => VideoRow);
+}
+
+export interface VideoFileAvailabilityPatch {
+  path: string;
+  availability: VideoFileAvailability;
 }
 
 export interface VideoResultsStoreState {
@@ -65,6 +70,7 @@ export interface VideoResultsStoreState {
   restoreRemovedRows: () => void;
   mergeMediaPreviewItems: (items: MediaPreviewResultItem[]) => void;
   mergePreviewClipItems: (items: PreviewClipResultItem[]) => void;
+  mergeFileAvailability: (items: VideoFileAvailabilityPatch[]) => void;
   patchRowsByPath: (patches: VideoRowPatch[]) => number;
 }
 
@@ -301,6 +307,30 @@ export const useVideoResultsStore = create<VideoResultsStoreState>()((set, get) 
     }
 
     const nextRows = mergePreviewClipItemsIntoRows(state.rows, items);
+
+    set(getRowsCommitState(state, nextRows));
+  },
+
+  mergeFileAvailability: (items) => {
+    const state = get();
+
+    if (!state.auditResult || items.length === 0) {
+      return;
+    }
+
+    const availabilityByPath = new Map(items.map((item) => [item.path, item.availability]));
+    const nextRows = state.rows.map((row) => {
+      const availability = availabilityByPath.get(row.path);
+
+      if (!availability) {
+        return row;
+      }
+
+      return {
+        ...row,
+        fileAvailability: availability
+      };
+    });
 
     set(getRowsCommitState(state, nextRows));
   },

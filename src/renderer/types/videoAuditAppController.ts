@@ -86,6 +86,7 @@ export interface VideoAuditAppController {
   isToolDiagnosticsLoading: boolean;
   selectionMessage: string | null;
   workflowMessage: string | null;
+  fileAvailabilityMessage: string | null;
   activeAction: ActiveAction;
   projectIndexItems: ProjectIndexItem[];
   activeProjectId: string | null;

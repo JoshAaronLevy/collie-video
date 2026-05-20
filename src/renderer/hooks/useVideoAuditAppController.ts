@@ -1,6 +1,12 @@
-import { useCallback, useMemo, useState } from 'react';
+import { useCallback, useMemo, useRef, useState } from 'react';
 import type { AuditRequest } from '../../shared/types/audit';
 import type { VideoProject } from '../../shared/types/project';
+import * as fileOperationsClient from '../api/fileOperationsClient';
+import {
+  buildProjectAvailabilityMergeResult,
+  buildProjectAvailabilityValidationItems,
+  formatProjectAvailabilityMessage
+} from '../helpers/projectAvailability';
 import {
   buildVideoProjectDirtySignature,
   buildVideoProjectSnapshot
@@ -39,7 +45,13 @@ export type { VideoAuditAppController };
 
 export function useVideoAuditAppController(): VideoAuditAppController {
   const [workflowMessage, setWorkflowMessage] = useState<string | null>(null);
+  const [fileAvailabilityMessage, setFileAvailabilityMessage] = useState<string | null>(null);
+  const availabilityValidationIdRef = useRef(0);
   const [activeAction, setActiveAction] = useState<ActiveAction>(null);
+  const clearFileAvailabilityState = useCallback((): void => {
+    availabilityValidationIdRef.current += 1;
+    setFileAvailabilityMessage(null);
+  }, []);
   const setWorkflowActiveAction = useCallback((action: ActiveAction): void => {
     setActiveAction(action);
   }, []);
@@ -131,6 +143,7 @@ export function useVideoAuditAppController(): VideoAuditAppController {
     mergeMediaPreviewResult,
     mergeMediaPreviewItemsIntoRows,
     mergePreviewClipResult,
+    mergeFileAvailabilityIntoRows,
     resetResultStateForAuditStart,
     resetAuditResults,
     setStorageMessage,
@@ -688,6 +701,48 @@ export function useVideoAuditAppController(): VideoAuditAppController {
     [applyProjectAuditState, applySourceSelectionState, setAuditOptions]
   );
 
+  const validateProjectFileAvailability = useCallback(async (project: VideoProject): Promise<void> => {
+    const validationId = availabilityValidationIdRef.current + 1;
+    availabilityValidationIdRef.current = validationId;
+    setFileAvailabilityMessage('Checking saved file availability...');
+
+    const rows = useVideoResultsStore.getState().rows;
+    const { rowItems, sourceItems } = buildProjectAvailabilityValidationItems({
+      rows,
+      selectedFolders: project.sources.selectedFolders,
+      selectedFiles: project.sources.selectedFiles
+    });
+    const items = [...rowItems, ...sourceItems];
+
+    if (items.length === 0) {
+      setFileAvailabilityMessage(null);
+      return;
+    }
+
+    try {
+      const response = await fileOperationsClient.validateKnownPaths({ items });
+
+      if (availabilityValidationIdRef.current !== validationId) {
+        return;
+      }
+
+      if (response.status !== 'success') {
+        setFileAvailabilityMessage(response.message ?? 'Could not check saved file availability.');
+        return;
+      }
+
+      const checkedAt = new Date().toISOString();
+      const mergeResult = buildProjectAvailabilityMergeResult(rows, response.items, checkedAt);
+
+      mergeFileAvailabilityIntoRows(mergeResult.rowAvailability);
+      setFileAvailabilityMessage(formatProjectAvailabilityMessage(mergeResult.summary));
+    } catch {
+      if (availabilityValidationIdRef.current === validationId) {
+        setFileAvailabilityMessage('Could not check saved file availability.');
+      }
+    }
+  }, [mergeFileAvailabilityIntoRows]);
+
   const restoreProject = useCallback(
     async (project: VideoProject): Promise<boolean> => {
       if (isAnyBlockingWorkflowActive) {
@@ -696,17 +751,21 @@ export function useVideoAuditAppController(): VideoAuditAppController {
       }
 
       resetTransientWorkflowState();
+      clearFileAvailabilityState();
       await applyProjectWorkspaceState(project);
       await activateProject(project);
+      void validateProjectFileAvailability(project);
       setWorkflowMessage(`Restored "${project.name}".`);
       return true;
     },
     [
       activateProject,
       applyProjectWorkspaceState,
+      clearFileAvailabilityState,
       isAnyBlockingWorkflowActive,
       resetTransientWorkflowState,
-      setWorkflowMessage
+      setWorkflowMessage,
+      validateProjectFileAvailability
     ]
   );
 
@@ -725,6 +784,7 @@ export function useVideoAuditAppController(): VideoAuditAppController {
       }
 
       resetTransientWorkflowState();
+      clearFileAvailabilityState();
       await applyProjectWorkspaceState(project);
       await activateProject(project);
 
@@ -733,6 +793,7 @@ export function useVideoAuditAppController(): VideoAuditAppController {
     [
       activateProject,
       applyProjectWorkspaceState,
+      clearFileAvailabilityState,
       isAnyBlockingWorkflowActive,
       resetTransientWorkflowState,
       runAuditRequest,
@@ -740,10 +801,25 @@ export function useVideoAuditAppController(): VideoAuditAppController {
     ]
   );
 
+  const runAuditWithAvailabilityReset = useCallback(async (): Promise<AuditStartOutcome> => {
+    clearFileAvailabilityState();
+    return runAudit();
+  }, [clearFileAvailabilityState, runAudit]);
+
+  const refreshAuditWithAvailabilityReset = useCallback(async (): Promise<void> => {
+    clearFileAvailabilityState();
+    await refreshAudit();
+  }, [clearFileAvailabilityState, refreshAudit]);
+
+  const clearAuditDataWithAvailabilityReset = useCallback(async (): Promise<void> => {
+    clearFileAvailabilityState();
+    await clearAuditData();
+  }, [clearAuditData, clearFileAvailabilityState]);
+
   const { settingsOpenRequestCount } = useAppCommands({
     requestFolderTreeOpen,
     chooseFiles,
-    refreshAudit,
+    refreshAudit: refreshAuditWithAvailabilityReset,
     setSettingsMessage,
     cancelAudit,
     cancelAutoFix,
@@ -801,6 +877,7 @@ export function useVideoAuditAppController(): VideoAuditAppController {
     isToolDiagnosticsLoading,
     selectionMessage,
     workflowMessage,
+    fileAvailabilityMessage,
     activeAction,
     projectIndexItems,
     activeProjectId,
@@ -962,10 +1039,10 @@ export function useVideoAuditAppController(): VideoAuditAppController {
     activateProject,
     deleteProject,
     clearProjectStatus,
-    runAudit,
-    refreshAudit,
+    runAudit: runAuditWithAvailabilityReset,
+    refreshAudit: refreshAuditWithAvailabilityReset,
     cancelAudit,
-    clearAuditData,
+    clearAuditData: clearAuditDataWithAvailabilityReset,
     removeSelectedVideos,
     restoreRemovedVideos,
     setSelectedVideos,

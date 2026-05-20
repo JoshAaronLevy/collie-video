@@ -129,6 +129,18 @@ export interface VideoPreviewFrameResult {
   frames: VideoPreviewFrame[];
 }
 
+export type SavedFileAvailability = 'available' | 'missing' | 'changed' | 'unavailable';
+
+export interface VideoFileAvailability {
+  status: SavedFileAvailability;
+  checkedAt: string;
+  message: string | null;
+  sizeBytes: number | null;
+  modifiedAtMs: number | null;
+  warnings: string[];
+  errors: string[];
+}
+
 export interface VideoMetadata {
   durationSeconds: number | null;
   durationFormatted?: string;
@@ -188,6 +200,7 @@ export interface VideoRow extends VideoMetadata {
   previewFrames?: VideoPreviewFrame[];
   previewFrameBatchId?: string;
   maxPreviewFrameCount?: number;
+  fileAvailability?: VideoFileAvailability;
 }
 
 export interface SelectedVideoRow {

@@ -12,7 +12,12 @@ import type { AuditError, AuditOptions, AuditSummary } from '../../shared/types/
 import type { KnownPathValidationItem } from '../../shared/types/fileOperations';
 import type { PreviewClipJobSnapshot } from '../../shared/types/mediaPreview';
 import type { PremiereRequestResponse } from '../../shared/types/premiere';
-import type { VideoAdjustments, VideoPreviewFrame, VideoRow } from '../../shared/types/video';
+import type {
+  SavedFileAvailability,
+  VideoAdjustments,
+  VideoPreviewFrame,
+  VideoRow
+} from '../../shared/types/video';
 import type { ResultsViewFilter } from '../types/resultsView';
 import { VideoDetailsDialog } from './VideoDetailsDialog';
 
@@ -38,6 +43,7 @@ interface VideoResultsTableProps {
   isStorageLoading: boolean;
   storageMessage: string | null;
   storageSavedAt: string | null;
+  fileAvailabilityMessage: string | null;
   previewClipProgress: PreviewClipJobSnapshot | null;
   previewClipPercent: number | null;
   previewClipError: string | null;
@@ -150,6 +156,7 @@ export function VideoResultsTable({
   isStorageLoading,
   storageMessage,
   storageSavedAt,
+  fileAvailabilityMessage,
   previewClipProgress,
   previewClipPercent,
   previewClipError,
@@ -174,6 +181,7 @@ export function VideoResultsTable({
 
     return (allRows ?? rows).find((row) => row.path === detailPath) ?? null;
   }, [allRows, detailPath, rows]);
+  const availabilityCounts = useMemo(() => getFileAvailabilityCounts(allRows ?? rows), [allRows, rows]);
 
   useEffect(() => {
     if (detailPath) {
@@ -214,6 +222,11 @@ export function VideoResultsTable({
           <span>Errors: {auditSummary?.errorCount.toLocaleString() ?? '0'}</span>
           <span>Selected: {selectedVideos.length.toLocaleString()}</span>
           {removedVideoCount > 0 ? <span>Removed: {removedVideoCount.toLocaleString()}</span> : null}
+          {availabilityCounts.missing > 0 ? <span>Missing: {availabilityCounts.missing.toLocaleString()}</span> : null}
+          {availabilityCounts.changed > 0 ? <span>Changed: {availabilityCounts.changed.toLocaleString()}</span> : null}
+          {availabilityCounts.unavailable > 0 ? (
+            <span>Unavailable: {availabilityCounts.unavailable.toLocaleString()}</span>
+          ) : null}
           <span>{storageSavedAt ? `Saved ${formatDateTime(storageSavedAt)}` : 'Unsaved'}</span>
         </div>
       </div>
@@ -223,6 +236,12 @@ export function VideoResultsTable({
   return (
     <section className="results-panel" aria-label="Loaded videos">
       {storageMessage ? <Message severity="info" text={storageMessage} /> : null}
+      {fileAvailabilityMessage ? (
+        <Message
+          severity={hasFileAvailabilityIssues(allRows ?? rows) ? 'warn' : 'info'}
+          text={fileAvailabilityMessage}
+        />
+      ) : null}
       {isStorageLoading ? <Message severity="info" text="Loading saved audit data..." /> : null}
       {premiereImportError ? <Message severity="error" text={premiereImportError} /> : null}
       {premiereImportResult?.status === 'queued' ? (
@@ -252,7 +271,7 @@ export function VideoResultsTable({
         stripedRows
         size="small"
         scrollable
-        tableStyle={{ minWidth: '1320px' }}
+        tableStyle={{ minWidth: '1400px' }}
         emptyMessage={
           <EmptyState
             title={emptyState.title}
@@ -280,6 +299,12 @@ export function VideoResultsTable({
           showFilterMenu={false}
           body={(row: VideoRow) => fileTemplate(row, displayRootPath)}
           style={{ width: '27rem' }}
+        />
+        <Column
+          field="fileAvailability.status"
+          header="Availability"
+          body={availabilityTemplate}
+          style={{ width: '8rem' }}
         />
         <Column
           field="fileType"
@@ -749,6 +774,67 @@ function typeTemplate(row: VideoRow): ReactElement {
   return <span className="metadata-pill">{getFileTypeLabel(row) || 'Video'}</span>;
 }
 
+function availabilityTemplate(row: VideoRow): ReactElement {
+  const availability = getFileAvailabilityDisplay(row);
+
+  return (
+    <Tag
+      value={availability.label}
+      severity={availability.severity}
+      className="result-tag"
+      title={availability.detail}
+    />
+  );
+}
+
+function getFileAvailabilityDisplay(row: VideoRow): {
+  label: string;
+  severity: TagSeverity;
+  detail: string;
+} {
+  const availability = row.fileAvailability;
+
+  if (!availability) {
+    return {
+      label: 'Unchecked',
+      severity: 'secondary',
+      detail: 'File availability has not been checked for this row.'
+    };
+  }
+
+  return {
+    label: getFileAvailabilityLabel(availability.status),
+    severity: getFileAvailabilitySeverity(availability.status),
+    detail: availability.message ?? 'File availability was checked after project restore.'
+  };
+}
+
+function getFileAvailabilityLabel(status: SavedFileAvailability): string {
+  switch (status) {
+    case 'available':
+      return 'Available';
+    case 'missing':
+      return 'Missing';
+    case 'changed':
+      return 'Changed';
+    case 'unavailable':
+      return 'Unavailable';
+  }
+}
+
+function getFileAvailabilitySeverity(status: SavedFileAvailability): TagSeverity {
+  switch (status) {
+    case 'available':
+      return 'success';
+    case 'missing':
+      return 'danger';
+    case 'changed':
+      return 'warning';
+    case 'unavailable':
+      return 'danger';
+  }
+}
+
 function sizeTemplate(row: VideoRow): string {
   if (row.sizeGB !== null && row.sizeGB >= 1) {
     return `${row.sizeGB} GB`;
@@ -986,6 +1072,12 @@ function actionsTemplate(
   onOpenDetails: (path: string) => void,
   onRevealKnownFile: (item: KnownPathValidationItem) => void
 ): ReactElement {
+  const isRevealDisabled =
+    row.fileAvailability?.status === 'missing' || row.fileAvailability?.status === 'unavailable';
+  const revealTooltip = isRevealDisabled
+    ? row.fileAvailability?.message ?? 'File is not available.'
+    : 'Reveal in Finder';
+
   return (
     <div className="row-action-buttons">
       <Button
@@ -1004,11 +1096,48 @@ function actionsTemplate(
         severity="secondary"
         text
         rounded
-        tooltip="Reveal in Finder"
+        disabled={isRevealDisabled}
+        tooltip={revealTooltip}
         tooltipOptions={ROW_ACTION_TOOLTIP_OPTIONS}
         onClick={() => onRevealKnownFile(toKnownVideoFile(row))}
       />
     </div>
+  );
+}
+
+function hasFileAvailabilityIssues(rows: VideoRow[]): boolean {
+  return rows.some((row) => {
+    const status = row.fileAvailability?.status;
+    return status === 'missing' || status === 'changed' || status === 'unavailable';
+  });
+}
+
+function getFileAvailabilityCounts(rows: VideoRow[]): {
+  missing: number;
+  changed: number;
+  unavailable: number;
+} {
+  return rows.reduce(
+    (counts, row) => {
+      if (row.fileAvailability?.status === 'missing') {
+        counts.missing += 1;
+      }
+
+      if (row.fileAvailability?.status === 'changed') {
+        counts.changed += 1;
+      }
+
+      if (row.fileAvailability?.status === 'unavailable') {
+        counts.unavailable += 1;
+      }
+
+      return counts;
+    },
+    {
+      missing: 0,
+      changed: 0,
+      unavailable: 0
+    }
   );
 }
 
