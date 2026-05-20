@@ -7,6 +7,12 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.50.46] - 2026-05-20
+
+### Added
+
+- Added the project file availability implementation plan for missing saved video warnings, disabled missing-row selection, remove-from-project handling, and strategic recheck triggers.
+
 ## [0.50.45] - 2026-05-20
 
 ### Fixed
