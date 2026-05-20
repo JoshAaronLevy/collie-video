@@ -550,13 +550,15 @@ select {
 }
 
 .project-open-content,
-.project-open-paths {
+.project-open-paths,
+.project-delete-content {
   display: grid;
   gap: 0.75rem;
   min-width: 0;
 }
 
-.project-open-content {
+.project-open-content,
+.project-delete-content {
   width: min(100%, 38rem);
 }
 
@@ -652,6 +654,48 @@ select {
 .project-open-actions strong {
   color: var(--text);
   font-size: 0.9rem;
+}
+
+.project-delete-details {
+  display: grid;
+  gap: 0.6rem;
+  padding: 0.8rem;
+  background: var(--surface-muted);
+  border: 1px solid var(--border-muted);
+  border-radius: var(--radius-md);
+}
+
+.project-delete-details div {
+  display: grid;
+  grid-template-columns: 5rem minmax(0, 1fr);
+  gap: 0.65rem;
+  align-items: center;
+  min-width: 0;
+}
+
+.project-delete-details span {
+  color: var(--text-muted);
+  font-size: 0.78rem;
+  font-weight: 800;
+}
+
+.project-delete-details strong,
+.project-delete-details code {
+  min-width: 0;
+  overflow: hidden;
+  color: var(--text-secondary);
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.project-delete-details strong {
+  color: var(--text);
+  font-size: 0.9rem;
+}
+
+.project-delete-details code {
+  font-family: var(--font-mono);
+  font-size: 0.78rem;
 }
 
 .project-sidebar.p-sidebar {
@@ -3104,7 +3148,8 @@ select {
     grid-template-columns: 1fr;
   }
 
-  .project-open-paths div {
+  .project-open-paths div,
+  .project-delete-details div {
     grid-template-columns: 1fr;
     gap: 0.18rem;
   }

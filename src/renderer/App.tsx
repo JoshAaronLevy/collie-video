@@ -1,6 +1,6 @@
 import { useEffect, useState, type ComponentProps, type ReactElement } from 'react';
 import { Dialog } from 'primereact/dialog';
-import type { VideoProject } from '../shared/types/project';
+import type { ProjectIndexItem, VideoProject } from '../shared/types/project';
 import { AppHeader } from './components/AppHeader';
 import { AuditProgressPanel } from './components/AuditProgressPanel';
 import { AutoCropDialog } from './components/AutoCropDialog';
@@ -13,6 +13,7 @@ import { MigrationResultDialog } from './components/MigrationResultDialog';
 import { MigrationScanDialog } from './components/MigrationScanDialog';
 import { OperationHistoryDialog } from './components/OperationHistoryDialog';
 import { PostConversionDialog } from './components/PostConversionDialog';
+import { ProjectDeleteDialog } from './components/ProjectDeleteDialog';
 import { ProjectNameDialog } from './components/ProjectNameDialog';
 import { ProjectOpenDialog } from './components/ProjectOpenDialog';
 import { ProjectSidebar } from './components/ProjectSidebar';
@@ -41,6 +42,8 @@ export function App(): ReactElement {
   const [isProjectNameDialogVisible, setIsProjectNameDialogVisible] = useState(false);
   const [projectOpenDialogProject, setProjectOpenDialogProject] = useState<VideoProject | null>(null);
   const [isProjectOpenSubmitting, setIsProjectOpenSubmitting] = useState(false);
+  const [projectDeleteDialogProject, setProjectDeleteDialogProject] = useState<ProjectIndexItem | null>(null);
+  const [isProjectDeleteSubmitting, setIsProjectDeleteSubmitting] = useState(false);
   const hasSources = controller.selectedFolders.length > 0 || controller.selectedFiles.length > 0;
   const hasAuditData = Boolean(controller.videoRows) || Boolean(controller.storageSavedAt);
   const tableDisplayRootPath = controller.folderTreeRootPath ?? controller.auditedRootDirectory;
@@ -93,6 +96,7 @@ export function App(): ReactElement {
 
   const closeProjectOpenSurfaces = (): void => {
     setProjectOpenDialogProject(null);
+    setProjectDeleteDialogProject(null);
     setIsProjectSidebarVisible(false);
     setIsProjectNameDialogVisible(false);
     setIsSourceSetupVisible(false);
@@ -152,6 +156,39 @@ export function App(): ReactElement {
     }
   };
 
+  const requestProjectDelete = (projectId: string): void => {
+    const project = controller.projectIndexItems.find((item) => item.id === projectId);
+
+    if (project) {
+      controller.clearProjectStatus();
+      setProjectDeleteDialogProject(project);
+      return;
+    }
+
+    void controller.loadProjectIndex();
+  };
+
+  const confirmProjectDelete = async (): Promise<void> => {
+    if (!projectDeleteDialogProject) {
+      return;
+    }
+
+    setIsProjectDeleteSubmitting(true);
+
+    try {
+      const deleted = await controller.deleteProject(projectDeleteDialogProject.id);
+      const refreshedIndex = await controller.loadProjectIndex();
+      const stillExists =
+        refreshedIndex?.projects.some((project) => project.id === projectDeleteDialogProject.id) ?? true;
+
+      if (deleted || !stillExists) {
+        setProjectDeleteDialogProject(null);
+      }
+    } finally {
+      setIsProjectDeleteSubmitting(false);
+    }
+  };
+
   const appHeaderProps = {
     appInfo: controller.appInfo,
     auditSummary: controller.auditSummary,
@@ -184,7 +221,8 @@ export function App(): ReactElement {
     onSaveCurrentProject: requestProjectSave,
     onOpenProject: (projectId: string) => {
       void openSavedProject(projectId);
-    }
+    },
+    onRequestDeleteProject: requestProjectDelete
   } satisfies ComponentProps<typeof ProjectSidebar>;
 
   const sourceSummaryProps = {
@@ -614,6 +652,15 @@ export function App(): ReactElement {
         onRestore={restoreOpenProject}
         onScanAgain={scanOpenProjectAgain}
         onHide={() => setProjectOpenDialogProject(null)}
+      />
+
+      <ProjectDeleteDialog
+        visible={Boolean(projectDeleteDialogProject)}
+        project={projectDeleteDialogProject}
+        error={controller.projectError}
+        isSubmitting={isProjectDeleteSubmitting}
+        onConfirm={confirmProjectDelete}
+        onHide={() => setProjectDeleteDialogProject(null)}
       />
 
       <section className="app-workspace">

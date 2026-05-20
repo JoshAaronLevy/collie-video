@@ -7,6 +7,12 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.50.42] - 2026-05-20
+
+### Added
+
+- Added saved-project delete confirmation that removes only app-managed project metadata, refreshes the project index, and leaves source and output media untouched.
+
 ## [0.50.41] - 2026-05-20
 
 ### Added
