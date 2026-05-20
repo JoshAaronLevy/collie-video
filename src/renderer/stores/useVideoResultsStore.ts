@@ -5,8 +5,11 @@ import type {
   PreviewClipResultItem
 } from '../../shared/types/mediaPreview';
 import type { VideoRow } from '../../shared/types/video';
-import { mergeMediaPreviewItems, mergePreviewClipItems } from '../helpers/mediaPreviewRows';
-import { getVideoRowId } from '../helpers/resultFilters';
+import {
+  mergeMediaPreviewItems as mergeMediaPreviewItemsIntoRows,
+  mergePreviewClipItems as mergePreviewClipItemsIntoRows
+} from '../helpers/mediaPreviewRows';
+import { getActiveRows, getVideoRowId } from '../helpers/resultFilters';
 import type { ResultsViewFilter } from '../types/resultsView';
 
 export type VideoResultsWorkspaceSource = 'empty' | 'audit' | 'stored-audit';
@@ -22,6 +25,11 @@ export interface ApplyVideoResultsInput {
   source: VideoResultsWorkspaceSource;
   savedAt?: string | null;
   showThumbnails?: boolean;
+}
+
+export interface VideoRowPatch {
+  path: string;
+  patch: Partial<VideoRow> | ((row: VideoRow) => VideoRow);
 }
 
 export interface VideoResultsStoreState {
@@ -55,6 +63,7 @@ export interface VideoResultsStoreState {
   restoreRemovedRows: () => void;
   mergeMediaPreviewItems: (items: MediaPreviewResultItem[]) => void;
   mergePreviewClipItems: (items: PreviewClipResultItem[]) => void;
+  patchRowsByPath: (patches: VideoRowPatch[]) => number;
 }
 
 function getInitialVideoResultsState(): Pick<
@@ -109,6 +118,27 @@ function updateRowsInResult(result: AuditResult | null, rows: VideoRow[]): Audit
   return {
     ...result,
     videos: rows
+  };
+}
+
+function pruneSelectedRowIdsForActiveRows(selectedRowIds: string[], rows: VideoRow[]): string[] {
+  if (selectedRowIds.length === 0) {
+    return [];
+  }
+
+  const activeRowIds = new Set(getActiveRows(rows).map(getVideoRowId));
+
+  return selectedRowIds.filter((id) => activeRowIds.has(id));
+}
+
+function getRowsCommitState(
+  state: VideoResultsStoreState,
+  rows: VideoRow[]
+): Pick<VideoResultsStoreState, 'auditResult' | 'rows' | 'selectedRowIds'> {
+  return {
+    auditResult: updateRowsInResult(state.auditResult, rows),
+    rows,
+    selectedRowIds: pruneSelectedRowIdsForActiveRows(state.selectedRowIds, rows)
   };
 }
 
@@ -197,7 +227,6 @@ export const useVideoResultsStore = create<VideoResultsStoreState>()((set, get) 
     }
 
     const pathSet = new Set(paths);
-    const hiddenRowIds = new Set<string>();
     let hiddenCount = 0;
     const nextRows = state.rows.map((row) => {
       if (!pathSet.has(row.path) || row.visible === false) {
@@ -205,7 +234,6 @@ export const useVideoResultsStore = create<VideoResultsStoreState>()((set, get) 
       }
 
       hiddenCount += 1;
-      hiddenRowIds.add(getVideoRowId(row));
 
       return {
         ...row,
@@ -217,11 +245,7 @@ export const useVideoResultsStore = create<VideoResultsStoreState>()((set, get) 
       return 0;
     }
 
-    set({
-      auditResult: updateRowsInResult(state.auditResult, nextRows),
-      rows: nextRows,
-      selectedRowIds: state.selectedRowIds.filter((id) => !hiddenRowIds.has(id))
-    });
+    set(getRowsCommitState(state, nextRows));
 
     return hiddenCount;
   },
@@ -235,10 +259,7 @@ export const useVideoResultsStore = create<VideoResultsStoreState>()((set, get) 
 
     const nextRows = state.rows.map((row) => ({ ...row, visible: true }));
 
-    set({
-      auditResult: updateRowsInResult(state.auditResult, nextRows),
-      rows: nextRows
-    });
+    set(getRowsCommitState(state, nextRows));
   },
 
   mergeMediaPreviewItems: (items) => {
@@ -248,12 +269,9 @@ export const useVideoResultsStore = create<VideoResultsStoreState>()((set, get) 
       return;
     }
 
-    const nextRows = mergeMediaPreviewItems(state.rows, items);
+    const nextRows = mergeMediaPreviewItemsIntoRows(state.rows, items);
 
-    set({
-      auditResult: updateRowsInResult(state.auditResult, nextRows),
-      rows: nextRows
-    });
+    set(getRowsCommitState(state, nextRows));
   },
 
   mergePreviewClipItems: (items) => {
@@ -263,11 +281,50 @@ export const useVideoResultsStore = create<VideoResultsStoreState>()((set, get) 
       return;
     }
 
-    const nextRows = mergePreviewClipItems(state.rows, items);
+    const nextRows = mergePreviewClipItemsIntoRows(state.rows, items);
 
-    set({
-      auditResult: updateRowsInResult(state.auditResult, nextRows),
-      rows: nextRows
+    set(getRowsCommitState(state, nextRows));
+  },
+
+  patchRowsByPath: (patches) => {
+    const state = get();
+
+    if (!state.auditResult || patches.length === 0) {
+      return 0;
+    }
+
+    const patchesByPath = new Map<string, VideoRowPatch['patch']>();
+
+    for (const patch of patches) {
+      patchesByPath.set(patch.path, patch.patch);
+    }
+
+    let patchedCount = 0;
+    const nextRows = state.rows.map((row) => {
+      const patch = patchesByPath.get(row.path);
+
+      if (!patch) {
+        return row;
+      }
+
+      patchedCount += 1;
+
+      if (typeof patch === 'function') {
+        return patch(row);
+      }
+
+      return {
+        ...row,
+        ...patch
+      };
     });
+
+    if (patchedCount === 0) {
+      return 0;
+    }
+
+    set(getRowsCommitState(state, nextRows));
+
+    return patchedCount;
   }
 }));

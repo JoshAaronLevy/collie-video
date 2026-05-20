@@ -115,6 +115,17 @@ export function useAuditResults(): UseAuditResultsValue {
     [lastAuditRequest, setStorageSavedAtInStore, showThumbnails]
   );
 
+  const persistStoreAuditResult = useCallback(
+    async (thumbnailValue?: boolean): Promise<void> => {
+      const nextResult = useVideoResultsStore.getState().auditResult;
+
+      if (nextResult) {
+        await persistCurrentResult(nextResult, thumbnailValue);
+      }
+    },
+    [persistCurrentResult]
+  );
+
   const applyAuditResult = useCallback(
     async (
       result: AuditResult,
@@ -178,15 +189,11 @@ export function useAuditResults(): UseAuditResultsValue {
         return 0;
       }
 
-      const nextResult = useVideoResultsStore.getState().auditResult;
-
-      if (nextResult) {
-        await persistCurrentResult(nextResult);
-      }
+      await persistStoreAuditResult();
 
       return hiddenCount;
     },
-    [hideRowsByPathInStore, persistCurrentResult]
+    [hideRowsByPathInStore, persistStoreAuditResult]
   );
 
   const restoreRemovedVideos = useCallback(async (): Promise<void> => {
@@ -195,23 +202,15 @@ export function useAuditResults(): UseAuditResultsValue {
     }
 
     restoreRemovedRowsInStore();
-    const nextResult = useVideoResultsStore.getState().auditResult;
-
-    if (nextResult) {
-      await persistCurrentResult(nextResult);
-    }
-  }, [persistCurrentResult, restoreRemovedRowsInStore]);
+    await persistStoreAuditResult();
+  }, [persistStoreAuditResult, restoreRemovedRowsInStore]);
 
   const setShowThumbnails = useCallback(
     async (value: boolean): Promise<void> => {
       setShowThumbnailsInStore(value);
-      const currentResult = useVideoResultsStore.getState().auditResult;
-
-      if (currentResult) {
-        await persistCurrentResult(currentResult, value);
-      }
+      await persistStoreAuditResult(value);
     },
-    [persistCurrentResult, setShowThumbnailsInStore]
+    [persistStoreAuditResult, setShowThumbnailsInStore]
   );
 
   const mergeMediaPreviewItemsIntoRows = useCallback(
@@ -221,13 +220,9 @@ export function useAuditResults(): UseAuditResultsValue {
       }
 
       mergeMediaPreviewItemsInStore(items);
-      const nextResult = useVideoResultsStore.getState().auditResult;
-
-      if (nextResult) {
-        await persistCurrentResult(nextResult);
-      }
+      await persistStoreAuditResult();
     },
-    [mergeMediaPreviewItemsInStore, persistCurrentResult]
+    [mergeMediaPreviewItemsInStore, persistStoreAuditResult]
   );
 
   const mergeMediaPreviewResult = useCallback(
@@ -244,13 +239,9 @@ export function useAuditResults(): UseAuditResultsValue {
       }
 
       mergePreviewClipItemsInStore(result.items);
-      const nextResult = useVideoResultsStore.getState().auditResult;
-
-      if (nextResult) {
-        await persistCurrentResult(nextResult);
-      }
+      await persistStoreAuditResult();
     },
-    [mergePreviewClipItemsInStore, persistCurrentResult]
+    [mergePreviewClipItemsInStore, persistStoreAuditResult]
   );
 
   const resetResultStateForAuditStart = useCallback(

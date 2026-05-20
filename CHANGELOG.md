@@ -7,6 +7,12 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.50.29] - 2026-05-20
+
+### Changed
+
+- Centralized result-row metadata commits in the video results store so hidden rows, restored rows, thumbnail and preview-frame merges, preview-clip merges, and future row patches keep rows and selected IDs synchronized through one immutable path.
+
 ## [0.50.28] - 2026-05-20
 
 ### Changed
