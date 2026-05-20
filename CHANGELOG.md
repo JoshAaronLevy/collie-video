@@ -7,6 +7,12 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.50.34] - 2026-05-20
+
+### Added
+
+- Added Stage 12 Zustand migration verification notes covering required checks, cleanup review findings, state-boundary confirmation, and the manual result/table smoke checklist.
+
 ## [0.50.33] - 2026-05-20
 
 ### Added
