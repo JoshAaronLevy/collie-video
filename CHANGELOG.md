@@ -7,6 +7,12 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.50.50] - 2026-05-20
+
+### Added
+
+- Added the Stage 2 main-process duplicate scan service for recursive exact-filename candidate discovery, matched-candidate metadata extraction, progress reporting, cancellation, and in-memory scan result lookup.
+
 ## [0.50.49] - 2026-05-20
 
 ### Added

@@ -95,6 +95,8 @@ export interface DuplicateScanCandidate {
   fileType: string;
   extension: string;
   matchType: DuplicateMatchType;
+  metadataWarnings: string[];
+  metadataError?: string | null;
   trashStatus: DuplicateTrashStatus;
   trashError?: string | null;
 }
