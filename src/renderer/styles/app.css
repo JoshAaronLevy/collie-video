@@ -2386,6 +2386,10 @@ select {
   width: min(1120px, calc(100vw - 32px));
 }
 
+.duplicate-scan-dialog {
+  width: min(780px, calc(100vw - 32px));
+}
+
 .settings-dialog {
   width: min(860px, calc(100vw - 32px));
 }
@@ -2402,6 +2406,7 @@ select {
 .diagnostics-dialog .p-dialog-content,
 .utility-dialog .p-dialog-content,
 .migration-dialog .p-dialog-content,
+.duplicate-scan-dialog .p-dialog-content,
 .migration-result-dialog .p-dialog-content,
 .post-conversion-dialog .p-dialog-content,
 .file-operation-dialog .p-dialog-content,
@@ -2429,6 +2434,9 @@ select {
 .thumbnail-failed-items,
 .migration-dialog-content,
 .migration-progress,
+.duplicate-scan-dialog-content,
+.duplicate-scan-progress,
+.duplicate-scan-no-results,
 .migration-failed-items,
 .file-operation-content,
 .file-operation-path-panel,
@@ -2445,6 +2453,7 @@ select {
 .auto-crop-progress-counts,
 .thumbnail-progress-counts,
 .migration-progress-counts,
+.duplicate-scan-progress-counts,
 .replacement-progress-counts,
 .file-operation-summary-grid {
   display: flex;
@@ -2463,6 +2472,8 @@ select {
 .auto-crop-current-grid,
 .thumbnail-summary-grid,
 .migration-summary-grid,
+.duplicate-scan-summary-grid,
+.duplicate-review-summary-grid,
 .replacement-summary-grid,
 .file-operation-summary-grid {
   display: grid;
@@ -2482,6 +2493,9 @@ select {
 .migration-summary-grid > div,
 .migration-path-panel,
 .migration-result-path-row,
+.duplicate-scan-summary-grid > div,
+.duplicate-review-summary-grid > div,
+.duplicate-scan-path-panel,
 .file-operation-summary-grid > div,
 .file-operation-path-panel,
 .typed-confirmation-row,
@@ -2508,6 +2522,9 @@ select {
 .migration-summary-grid span,
 .migration-path-panel span,
 .migration-result-path-row span,
+.duplicate-scan-summary-grid span,
+.duplicate-review-summary-grid span,
+.duplicate-scan-path-panel span,
 .file-operation-path-panel span,
 .file-operation-summary-grid span,
 .typed-confirmation-row span,
@@ -2525,6 +2542,8 @@ select {
 .thumbnail-summary-grid strong,
 .thumbnail-current-file strong,
 .migration-summary-grid strong,
+.duplicate-scan-summary-grid strong,
+.duplicate-review-summary-grid strong,
 .file-operation-path-panel strong,
 .file-operation-summary-grid strong,
 .replacement-summary-grid strong,
@@ -2540,6 +2559,7 @@ select {
 .auto-crop-paths code,
 .migration-path-panel code,
 .migration-result-path-row code,
+.duplicate-scan-path-panel code,
 .file-operation-path-panel code,
 .replacement-review-list code {
   min-width: 0;
@@ -2555,6 +2575,7 @@ select {
 .auto-crop-progress p,
 .thumbnail-progress p,
 .migration-progress p,
+.duplicate-scan-progress p,
 .replacement-progress p {
   margin: 0;
   color: var(--text-muted-strong);
@@ -2901,6 +2922,7 @@ select {
 
 .thumbnail-summary-grid,
 .migration-summary-grid,
+.duplicate-scan-summary-grid,
 .replacement-summary-grid {
   grid-template-columns: repeat(4, minmax(0, 1fr));
 }
@@ -2938,19 +2960,101 @@ select {
 }
 
 .migration-folder-row,
-.migration-result-path-row {
+.migration-result-path-row,
+.duplicate-scan-folder-row {
   grid-template-columns: minmax(0, 1fr) auto;
   align-items: center;
 }
 
-.migration-folder-row {
+.migration-folder-row,
+.duplicate-scan-folder-row {
   display: grid;
   gap: 0.5rem;
 }
 
-.migration-folder-row .p-inputtext {
+.migration-folder-row .p-inputtext,
+.duplicate-scan-folder-row .p-inputtext {
   min-width: 0;
   width: 100%;
+}
+
+.workspace-switcher,
+.duplicate-review-workspace {
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-lg);
+  box-shadow: var(--shadow-soft);
+}
+
+.workspace-switcher {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.75rem;
+  align-items: center;
+  justify-content: space-between;
+  padding: 0.8rem 0.9rem;
+}
+
+.workspace-switcher > div:first-child {
+  display: grid;
+  gap: 0.2rem;
+  min-width: min(100%, 420px);
+}
+
+.workspace-switcher strong {
+  color: var(--text-heading);
+}
+
+.workspace-switcher span {
+  color: var(--text-muted-strong);
+  font-size: 0.85rem;
+  font-weight: 700;
+}
+
+.workspace-switcher > div:last-child {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.5rem;
+  justify-content: flex-end;
+}
+
+.duplicate-review-workspace {
+  display: grid;
+  gap: 0.85rem;
+  padding: 1rem;
+}
+
+.duplicate-review-header {
+  display: flex;
+  gap: 0.75rem;
+  align-items: flex-start;
+  justify-content: space-between;
+}
+
+.duplicate-review-header > div {
+  display: grid;
+  gap: 0.25rem;
+  min-width: 0;
+}
+
+.duplicate-review-header h2 {
+  margin: 0;
+  color: var(--text-heading);
+  font-size: clamp(1.15rem, 2vw, 1.45rem);
+}
+
+.duplicate-review-header span {
+  min-width: 0;
+  overflow: hidden;
+  color: var(--text-muted-strong);
+  font-size: 0.88rem;
+  font-weight: 700;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.duplicate-review-summary-grid {
+  grid-template-columns: repeat(6, minmax(0, 1fr));
 }
 
 .migration-notes {
@@ -3278,12 +3382,25 @@ select {
   .thumbnail-summary-grid,
   .thumbnail-scope-options,
   .migration-summary-grid,
+  .duplicate-scan-summary-grid,
+  .duplicate-review-summary-grid,
   .migration-path-grid,
   .migration-folder-row,
   .migration-result-path-row,
+  .duplicate-scan-folder-row,
   .file-operation-summary-grid,
   .replacement-summary-grid,
   .post-conversion-option-grid {
     grid-template-columns: 1fr;
+  }
+
+  .duplicate-review-header {
+    display: grid;
+  }
+
+  .workspace-switcher > div:last-child,
+  .workspace-switcher .p-button,
+  .duplicate-review-header .p-button {
+    width: 100%;
   }
 }

@@ -7,6 +7,12 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.50.53] - 2026-05-20
+
+### Added
+
+- Added the Stage 5 Duplicate Scan renderer entry flow with a selected-row `Dupe Scan` action, scan setup/progress/no-results dialog, and navigation into a dedicated Duplicate Review workspace when candidates are found.
+
 ## [0.50.52] - 2026-05-20
 
 ### Added

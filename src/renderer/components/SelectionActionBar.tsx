@@ -13,6 +13,7 @@ interface SelectionActionBarProps {
   isAutoFixActive: boolean;
   isAutoCropActive: boolean;
   isMigrationActive: boolean;
+  isDuplicateScanActive: boolean;
   isTrashPlanning: boolean;
   isTrashExecuting: boolean;
   isMovePlanning: boolean;
@@ -26,11 +27,13 @@ interface SelectionActionBarProps {
   canMoveSelectedToFolder: boolean;
   canArchiveSelectedOriginals: boolean;
   canStartMigration: boolean;
+  canStartDuplicateScan: boolean;
   canEditSelectedInPremiere: boolean;
   onRemoveSelectedVideos: () => void;
   onRestoreRemovedVideos: () => void;
   onOpenAutoFixDialog: () => void;
   onOpenAutoCropDialog: () => void;
+  onOpenDuplicateScanDialog: () => void;
   onOpenMigrationDialog: () => void;
   onOpenTrashDialog: () => void;
   onOpenMoveDialog: (conflictStrategy?: DestinationConflictStrategy) => void;
@@ -46,6 +49,7 @@ export function SelectionActionBar({
   isAutoFixActive,
   isAutoCropActive,
   isMigrationActive,
+  isDuplicateScanActive,
   isTrashPlanning,
   isTrashExecuting,
   isMovePlanning,
@@ -59,11 +63,13 @@ export function SelectionActionBar({
   canMoveSelectedToFolder,
   canArchiveSelectedOriginals,
   canStartMigration,
+  canStartDuplicateScan,
   canEditSelectedInPremiere,
   onRemoveSelectedVideos,
   onRestoreRemovedVideos,
   onOpenAutoFixDialog,
   onOpenAutoCropDialog,
+  onOpenDuplicateScanDialog,
   onOpenMigrationDialog,
   onOpenTrashDialog,
   onOpenMoveDialog,
@@ -190,6 +196,20 @@ export function SelectionActionBar({
       <div className="selection-action-buttons">
         {hasSelection ? (
           <>
+            <Button
+              label="Dupe Scan"
+              icon="pi pi-search"
+              severity="info"
+              outlined
+              loading={isDuplicateScanActive}
+              disabled={!canStartDuplicateScan}
+              title={
+                canStartDuplicateScan
+                  ? 'Find duplicate candidates for selected project videos.'
+                  : 'Select project videos and wait for active workflows to finish.'
+              }
+              onClick={onOpenDuplicateScanDialog}
+            />
             <Button
               label="Auto-Fix"
               icon="pi pi-wrench"

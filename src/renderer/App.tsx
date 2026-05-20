@@ -1,12 +1,16 @@
 import { useEffect, useState, type ComponentProps, type ReactElement } from 'react';
+import { Button } from 'primereact/button';
 import { Dialog } from 'primereact/dialog';
+import { Message } from 'primereact/message';
 import type { ProjectIndexItem, VideoProject } from '../shared/types/project';
+import type { DuplicateScanResult } from '../shared/types/duplicateScan';
 import { AppHeader } from './components/AppHeader';
 import { AuditProgressPanel } from './components/AuditProgressPanel';
 import { AutoCropDialog } from './components/AutoCropDialog';
 import { AutoFixDialog } from './components/AutoFixDialog';
 import { DiagnosticsDialog } from './components/DiagnosticsDialog';
 import { DialogHeader } from './components/DialogChrome';
+import { DuplicateScanDialog } from './components/DuplicateScanDialog';
 import { FileOperationConfirmDialog } from './components/FileOperationConfirmDialog';
 import { FileOperationResultDialog } from './components/FileOperationResultDialog';
 import { MigrationResultDialog } from './components/MigrationResultDialog';
@@ -27,8 +31,11 @@ import { ThumbnailGenerationDialog } from './components/ThumbnailGenerationDialo
 import { UtilityPanel } from './components/UtilityPanel';
 import { VideoResultsTable } from './components/VideoResultsTable';
 import { FolderTreeSelectorDialog } from './components/source/FolderTreeSelectorDialog';
+import { formatBytes } from './helpers/fileSize';
 import { useResultFilters } from './hooks/useResultFilters';
 import { useVideoAuditAppController } from './hooks/useVideoAuditAppController';
+
+type WorkspaceMode = 'results' | 'duplicate-review';
 
 export function App(): ReactElement {
   const controller = useVideoAuditAppController();
@@ -44,6 +51,7 @@ export function App(): ReactElement {
   const [isProjectOpenSubmitting, setIsProjectOpenSubmitting] = useState(false);
   const [projectDeleteDialogProject, setProjectDeleteDialogProject] = useState<ProjectIndexItem | null>(null);
   const [isProjectDeleteSubmitting, setIsProjectDeleteSubmitting] = useState(false);
+  const [workspaceMode, setWorkspaceMode] = useState<WorkspaceMode>('results');
   const hasSources = controller.selectedFolders.length > 0 || controller.selectedFiles.length > 0;
   const hasAuditData = Boolean(controller.videoRows) || Boolean(controller.storageSavedAt);
   const tableDisplayRootPath = controller.folderTreeRootPath ?? controller.auditedRootDirectory;
@@ -60,6 +68,18 @@ export function App(): ReactElement {
       setIsFolderTreeSelectorVisible(true);
     }
   }, [controller.folderTreeOpenRequestCount]);
+
+  useEffect(() => {
+    if (controller.hasDuplicateScanResults) {
+      setWorkspaceMode('duplicate-review');
+    }
+  }, [controller.hasDuplicateScanResults, controller.duplicateScanResult?.scanId]);
+
+  useEffect(() => {
+    if (!controller.duplicateScanResult && workspaceMode === 'duplicate-review') {
+      setWorkspaceMode('results');
+    }
+  }, [controller.duplicateScanResult, workspaceMode]);
 
   const runAuditFromSourceDialog = async (): Promise<void> => {
     const outcome = await controller.runAudit();
@@ -326,6 +346,7 @@ export function App(): ReactElement {
     isAutoFixActive: controller.isAutoFixActive,
     isAutoCropActive: controller.isAutoCropActive,
     isMigrationActive: controller.isMigrationActive,
+    isDuplicateScanActive: controller.isDuplicateScanActive,
     isTrashPlanning: controller.isTrashPlanning,
     isTrashExecuting: controller.isTrashExecuting,
     isMovePlanning: controller.isMovePlanning,
@@ -339,11 +360,13 @@ export function App(): ReactElement {
     canMoveSelectedToFolder: controller.canMoveSelectedToFolder,
     canArchiveSelectedOriginals: controller.canArchiveSelectedOriginals,
     canStartMigration: controller.canStartMigration,
+    canStartDuplicateScan: controller.canStartDuplicateScan,
     canEditSelectedInPremiere: controller.canEditSelectedInPremiere,
     onRemoveSelectedVideos: controller.removeSelectedVideos,
     onRestoreRemovedVideos: controller.restoreRemovedVideos,
     onOpenAutoFixDialog: controller.openAutoFixDialog,
     onOpenAutoCropDialog: controller.openAutoCropDialog,
+    onOpenDuplicateScanDialog: controller.openDuplicateScanDialog,
     onOpenMigrationDialog: controller.openMigrationDialog,
     onOpenTrashDialog: controller.openTrashDialog,
     onOpenMoveDialog: controller.openMoveDialog,
@@ -552,6 +575,22 @@ export function App(): ReactElement {
     onHide: controller.closeMigrationDialog
   } satisfies ComponentProps<typeof MigrationScanDialog>;
 
+  const duplicateScanDialogProps = {
+    visible: controller.isDuplicateScanDialogVisible,
+    selectedCount: controller.selectedVideos.length,
+    scanFolder: controller.duplicateScanFolder,
+    progress: controller.duplicateScanProgress,
+    percent: controller.duplicateScanPercent,
+    result: controller.hasDuplicateScanNoResults ? controller.duplicateScanResult : null,
+    error: controller.duplicateScanError,
+    isScanning: controller.isDuplicateScanActive,
+    onScanFolderChange: controller.setDuplicateScanFolder,
+    onSelectFolder: controller.selectDuplicateScanFolder,
+    onStartScan: controller.startDuplicateScan,
+    onCancelScan: controller.cancelDuplicateScan,
+    onHide: controller.closeDuplicateScanDialog
+  } satisfies ComponentProps<typeof DuplicateScanDialog>;
+
   const migrationResultDialogProps = {
     visible: controller.isMigrationResultDialogVisible,
     result: controller.migrationResult,
@@ -673,11 +712,29 @@ export function App(): ReactElement {
 
         <AuditProgressPanel {...auditProgressProps} />
 
-        <section className="results-workspace" aria-label="Results workspace">
-          <ResultsToolbar {...resultsToolbarProps} />
+        {controller.duplicateScanResult && controller.duplicateScanResult.groups.length > 0 ? (
+          <WorkspaceSwitcher
+            mode={workspaceMode}
+            result={controller.duplicateScanResult}
+            onModeChange={setWorkspaceMode}
+            onClearDuplicateScanResult={controller.clearDuplicateScanResult}
+          />
+        ) : null}
 
-          <VideoResultsTable {...videoResultsTableProps} />
-        </section>
+        {workspaceMode === 'duplicate-review' && controller.duplicateScanResult ? (
+          <DuplicateReviewWorkspace
+            result={controller.duplicateScanResult}
+            markedCount={controller.duplicateMarkedCandidateCount}
+            markedSizeBytes={controller.duplicateMarkedCandidateSizeBytes}
+            onBackToResults={() => setWorkspaceMode('results')}
+          />
+        ) : (
+          <section className="results-workspace" aria-label="Results workspace">
+            <ResultsToolbar {...resultsToolbarProps} />
+
+            <VideoResultsTable {...videoResultsTableProps} />
+          </section>
+        )}
 
         <SelectionActionBar {...selectionActionBarProps} />
       </section>
@@ -727,6 +784,8 @@ export function App(): ReactElement {
 
       <MigrationScanDialog {...migrationScanDialogProps} />
 
+      <DuplicateScanDialog {...duplicateScanDialogProps} />
+
       <MigrationResultDialog {...migrationResultDialogProps} />
 
       <FileOperationConfirmDialog {...trashConfirmDialogProps} />
@@ -743,5 +802,103 @@ export function App(): ReactElement {
 
       <FileOperationResultDialog {...replacementResultDialogProps} />
     </main>
+  );
+}
+
+function WorkspaceSwitcher({
+  mode,
+  result,
+  onModeChange,
+  onClearDuplicateScanResult
+}: {
+  mode: WorkspaceMode;
+  result: DuplicateScanResult;
+  onModeChange: (mode: WorkspaceMode) => void;
+  onClearDuplicateScanResult: () => void;
+}): ReactElement {
+  return (
+    <section className="workspace-switcher" aria-label="Workspace selector">
+      <div>
+        <strong>Duplicate Scan results available</strong>
+        <span>
+          {result.matchCount.toLocaleString()} duplicate candidate(s) found across{' '}
+          {result.groups.length.toLocaleString()} source video(s).
+        </span>
+      </div>
+      <div>
+        <Button
+          label="Results"
+          icon="pi pi-table"
+          severity="secondary"
+          outlined={mode !== 'results'}
+          onClick={() => onModeChange('results')}
+        />
+        <Button
+          label="Duplicate Review"
+          icon="pi pi-search"
+          severity="info"
+          outlined={mode !== 'duplicate-review'}
+          onClick={() => onModeChange('duplicate-review')}
+        />
+        <Button
+          label="Clear Scan"
+          icon="pi pi-times"
+          severity="secondary"
+          text
+          onClick={onClearDuplicateScanResult}
+        />
+      </div>
+    </section>
+  );
+}
+
+function DuplicateReviewWorkspace({
+  result,
+  markedCount,
+  markedSizeBytes,
+  onBackToResults
+}: {
+  result: DuplicateScanResult;
+  markedCount: number;
+  markedSizeBytes: number;
+  onBackToResults: () => void;
+}): ReactElement {
+  return (
+    <section className="duplicate-review-workspace" aria-label="Duplicate Review workspace">
+      <div className="duplicate-review-header">
+        <div>
+          <p className="eyebrow">Duplicate Review</p>
+          <h2>Dupe Scan Results</h2>
+          <span title={result.scannedFolder}>Scanned folder: {result.scannedFolder}</span>
+        </div>
+        <Button label="Back to Results" icon="pi pi-table" severity="secondary" outlined onClick={onBackToResults} />
+      </div>
+
+      <div className="duplicate-review-summary-grid">
+        <SummaryMetric label="Source videos" value={result.sourceCount.toLocaleString()} />
+        <SummaryMetric label="Groups with matches" value={result.groups.length.toLocaleString()} />
+        <SummaryMetric label="Duplicate candidates" value={result.matchCount.toLocaleString()} />
+        <SummaryMetric label="Videos checked" value={result.checkedVideoFileCount.toLocaleString()} />
+        <SummaryMetric label="Files scanned" value={result.scannedFileCount.toLocaleString()} />
+        <SummaryMetric
+          label="Marked for Trash"
+          value={`${markedCount.toLocaleString()} - ${formatBytes(markedSizeBytes)}`}
+        />
+      </div>
+
+      <Message
+        severity="info"
+        text="Duplicate candidates were found. The expandable candidate review table and Move Marked Files to Trash controls are planned for the next stage; no candidates are pre-marked."
+      />
+    </section>
+  );
+}
+
+function SummaryMetric({ label, value }: { label: string; value: string }): ReactElement {
+  return (
+    <div>
+      <span>{label}</span>
+      <strong title={value}>{value}</strong>
+    </div>
   );
 }
