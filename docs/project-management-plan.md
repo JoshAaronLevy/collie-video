@@ -1,428 +1,134 @@
-Yes — this is the right thing to think about now, because once the app is packaged and launched like a normal Mac app, **“open app → everything is gone” will feel broken**, even if technically the app is working.
+# Project Management And Save Cache Plan
 
-My recommendation:
+## Clarifying Questions
 
-> Use a combination: **Electron main-process file persistence for durable app/project state**, plus **React state/hooks for live UI state**, and maybe **localStorage only for disposable UI preferences**.
+1. Should saved projects live only inside the app support folder, or would you prefer user-visible project files later?
 
-I would **not** make Zustand the persistence backbone. Zustand is fine for in-memory renderer state, but the actual durable source of truth should be files managed by Electron main, not browser storage.
+   **Answer:** Let's go with internal app-managed projects under Electron `userData`, with export/import left for a later pass.
 
----
+2. After a project has been saved once, should Collie Video autosave meaningful changes, or should the prominent Save button be the only thing that updates the named project?
 
-# The short answer
+   **Answer:** Let's go with explicit Save for confidence, plus a conservative autosave only for already-named projects after important mutations like hiding rows, generating thumbnails, or changing source/output settings.
 
-For your app, I’d use this hierarchy:
+3. When opening a project and choosing `Scan Again`, should the app immediately run the saved request, or should it restore the source/output/options first and leave the user one click away from starting the scan?
 
-```txt
-Durable app/project state:
-  Main process writes JSON manifest files under app userData
+   **Answer:** Show a confirmation summary and then run the saved `AuditRequest` exactly, because that makes `Scan Again` meaningfully different from `Restore`.
 
-Live UI state:
-  React hooks / maybe Zustand later if state gets annoying
+4. Should `Restore` bring back selected table rows, search, and filters exactly, or should it restore the saved data while clearing active selection?
 
-Small renderer-only preferences:
-  localStorage is okay, but optional
+   **Answer:** Restore search/filter/show-thumbnails state, but clear selected rows so destructive actions never start with a stale selection.
 
-Large/important data:
-  JSON files first, SQLite later only if JSON becomes painful
-```
+## Goal
 
-For “restore latest state,” implement:
+Add project saving and project restore to Collie Video so a user can save the current workspace at any time, reopen saved projects from a prominent sidebar, delete projects with confirmation, and choose whether to restore the saved workspace or scan the saved sources again.
 
-```txt
-App startup:
-  load last active project/session manifest
-  restore video rows, filters, selected project, settings
-  quickly validate file existence in background
-  show missing/moved file warnings
-```
+The user is the only intended user for now, so there is no auth layer and no multi-user sync layer.
 
-For “projects,” implement project manifests:
+The key product behavior:
 
-```txt
-~/Library/Application Support/video-audit-electron/projects/<projectId>/project.json
-```
+- A prominent Save control is available in the main workspace.
+- First save prompts for a project name.
+- Later saves update the current project.
+- A project sidebar shows saved projects with source, output, scan, row, and saved-state details.
+- A project can be opened in either `Restore` or `Scan Again` mode.
+- `Restore` loads the saved state, including hidden/removed rows.
+- `Scan Again` reruns the saved scan request against the saved source/options.
+- Deleting a project prompts before removing it.
 
-That project manifest contains the audit state, video rows, source folders, output folder, settings snapshot, generated thumbnail/preview references, and UI state needed to reopen the project almost exactly where you left off.
+Example restore rule:
 
----
+If a scan found 100 flagged rows and the user removed 20 from the DataTable before saving, restoring the project should load the saved workspace with 80 visible rows. The saved project may still retain the hidden rows internally through `visible: false`, but the table should show the same active workspace the user saved.
 
-# Why not just localStorage?
+## Current Architecture Snapshot
 
-You *can* use localStorage for small stuff, but I would not trust it as the primary persistence layer for this app.
+This plan replaces the earlier pre-refactor guidance. The current app already has a much cleaner separation:
 
-## localStorage is okay for:
+- `src/renderer/App.tsx` composes the app shell and local dialog/sidebar visibility.
+- `src/renderer/hooks/useVideoAuditAppController.ts` composes focused workflow hooks.
+- `src/renderer/stores/useVideoResultsStore.ts` owns the focused Zustand result workspace.
+- `src/renderer/hooks/useAuditResults.ts` bridges workflows, the results store, storage messages, row hiding/restoring, and audit-result persistence.
+- `src/renderer/storage/auditResultStorage.ts` currently persists the latest audit result and audit-history metadata in IndexedDB database `collie-video`.
+- `src/renderer/hooks/useInitialVideoAuditState.ts` restores settings, source selection, audit options, and the current stored audit at startup.
+- `src/main/services/settingsService.ts` already persists app settings through the main process using atomic JSON writes.
+- `src/main/services/appPaths.ts` centralizes app support paths from `app.getPath('userData')`.
+- `src/shared/constants/ipcChannels.ts`, `src/preload/videoAuditApi.ts`, and `src/renderer/api/*Client.ts` are the typed cross-process boundary.
 
-```txt
-last selected tab
-table density
-column visibility
-sidebar collapsed
-theme preference
-last view filter
-```
+Zustand is now part of the architecture, but it should not become the durable project-file layer. Zustand should hold focused live renderer state. Durable named projects should be persisted through Electron main-process services and exposed to the renderer through typed preload APIs.
 
-## localStorage is not ideal for:
+## Storage Strategy
 
-```txt
-thousands of video rows
-absolute file paths
-project manifests
-operation history
-ffmpeg results
-thumbnail/preview manifests
-migration plans
-replacement plans
-large JSON blobs
-anything you’d be upset to lose
-```
+Use two related storage layers:
 
-The app is an Electron desktop utility, not a website. So use the filesystem like a desktop app.
+1. Current working cache
 
----
+   Keep the existing IndexedDB latest-audit cache in `src/renderer/storage/auditResultStorage.ts` for fast startup restore and compatibility with the current app behavior.
 
-# Why not Zustand?
+2. Named project persistence
 
-Zustand solves a different problem.
+   Add main-process JSON project files under Electron `userData`. This should become the durable source of truth for named projects.
 
-It is good for:
-
-* shared renderer state
-* avoiding prop drilling
-* keeping UI state organized
-* separating state slices
-
-But Zustand persistence usually still persists to localStorage by default, unless you customize storage. That does not magically make it a good project-file system.
-
-I’d only introduce Zustand if, after your refactor, React hooks/context still feel awkward.
-
-Given you’re already planning a refactor, I’d try focused hooks first:
+Recommended app support layout:
 
 ```txt
-useProjectState
-useResultRows
-useSourceSelection
-useAuditWorkflow
-useSettingsController
-```
-
-Then if cross-cutting state remains annoying, maybe use Zustand for renderer state. But durable project data should still live in main-process-managed JSON files.
-
----
-
-# The model I’d use
-
-Think of the app as having three layers:
-
-```txt
-┌────────────────────────────────────────────┐
-│ Renderer live state                         │
-│ React hooks / components / table state      │
-└────────────────────────────────────────────┘
-                    ↓ save/load through preload
-┌────────────────────────────────────────────┐
-│ Main process persistence services           │
-│ projectService, sessionService, settings    │
-└────────────────────────────────────────────┘
-                    ↓ files
-┌────────────────────────────────────────────┐
-│ Disk                                        │
-│ project.json, app-state.json, settings.json │
-└────────────────────────────────────────────┘
-```
-
-The renderer should not directly read/write these files. It should call typed preload APIs:
-
-```ts
-window.videoAudit.projects.createProject(...)
-window.videoAudit.projects.openProject(projectId)
-window.videoAudit.projects.saveProject(projectId, snapshot)
-window.videoAudit.projects.getLastActiveProject()
-```
-
----
-
-# Immediate need: restore latest state on launch
-
-Before full “projects,” you can implement a simpler **session restore** feature.
-
-## Version 1: Last Session Restore
-
-Persist:
-
-```ts
-type LastSessionState = {
-  schemaVersion: 1;
-  savedAt: string;
-
-  activeProjectId: string | null;
-
-  sources: {
-    selectedFolders: string[];
-    selectedFiles: string[];
-    outputFolder: string | null;
-    includeSubfolders: boolean;
-    includeLowResolutionAnalysis: boolean;
-    includeBlackBorderAnalysis: boolean;
-  };
-
-  results: {
-    auditedRootDirectory: string | null;
-    rows: VideoRow[];
-    removedRowIds: string[];
-    lastAuditSummary: AuditSummary | null;
-  };
-
-  table: {
-    search: string;
-    viewFilter: 'all' | 'flagged' | 'low-res' | 'aspect' | 'crop' | 'errors';
-    showThumbnails: boolean;
-    columnVisibility?: Record<string, boolean>;
-    sortField?: string | null;
-    sortOrder?: 1 | -1 | 0 | null;
-  };
-
-  ui: {
-    activeTab?: string;
-    selectedVideoIds?: string[];
-  };
-};
-```
-
-On app startup:
-
-1. main process loads `last-session.json`
-2. renderer receives it
-3. renderer hydrates rows and UI
-4. app shows the prior results immediately
-5. background validation checks whether files still exist
-6. missing files get badges or a banner
-
-This gives you 80% of the value quickly.
-
-## Where to store it
-
-Use Electron’s `app.getPath('userData')`.
-
-On macOS that usually resolves to something like:
-
-```txt
-~/Library/Application Support/video-audit-electron/
-```
-
-Suggested files:
-
-```txt
-~/Library/Application Support/video-audit-electron/
+~/Library/Application Support/Collie Video/
 ├─ settings.json
-├─ last-session.json
 ├─ projects/
-├─ media-preview-cache/
-└─ operation-history/
+│  ├─ project-index.json
+│  ├─ <projectId>.json
+│  └─ <projectId>.json
+├─ media-preview/
+└─ file-operations/
 ```
 
----
-
-# Autosave strategy
-
-You don’t want to write to disk on every keystroke or every row selection event.
-
-Use debounced saves.
-
-Example behavior:
+Use atomic writes for project JSON, matching the settings service pattern:
 
 ```txt
-Save immediately:
-- audit completes
-- project created
-- project opened
-- user changes source/output folder
-- user runs auto-fix/crop
-- user manually saves project
-
-Save debounced:
-- table search changes
-- filter changes
-- selected rows change
-- column visibility changes
-- active tab changes
-
-Do not save:
-- every tiny progress update
+write <file>.tmp
+rename <file>.tmp -> <file>
 ```
 
-I’d use something like:
+Do not store named projects only in renderer `localStorage`, and do not make Zustand persist middleware the primary storage mechanism.
+
+## Project Data Model
+
+Add shared project types in:
+
+```txt
+src/shared/types/project.ts
+```
+
+Suggested types:
 
 ```ts
-useEffect(() => {
-  const timeout = window.setTimeout(() => {
-    void saveLastSession(snapshot);
-  }, 750);
+import type { AuditRequest, AuditResult } from './audit';
+import type { SelectedFolderSummary } from './folderTree';
+import type { AppSettings } from './settings';
 
-  return () => window.clearTimeout(timeout);
-}, [snapshot]);
-```
+export type ProjectOpenMode = 'restore' | 'scan-again';
 
-But be careful: `snapshot` should be memoized or you’ll save constantly.
-
-Better is to save on meaningful state changes via an explicit `scheduleSave()` helper.
-
----
-
-# What should be restored?
-
-You said:
-
-> videos loaded and everything
-
-For the latest-state feature, restore:
-
-## Must restore
-
-```txt
-video rows
-audit summary
-selected source folders/files
-output folder
-audit options
-table search/filter
-show thumbnails setting
-removed/restored rows
-Premiere bridge status can refresh, not restore
-settings
-```
-
-## Nice to restore
-
-```txt
-selected rows
-sort column/order
-table column widths/visibility
-active details modal? probably no
-active tab
-last opened project
-last migration scan result
-last auto-fix/crop result summaries
-thumbnail/preview cache references
-```
-
-## Probably should not restore as “active”
-
-```txt
-running jobs
-in-progress ffmpeg operation
-open modal states
-temporary progress bars
-toasts
-```
-
-If app closes mid-job, on next startup show:
-
-```txt
-Previous job did not complete.
-```
-
-But don’t pretend it’s still running unless you implement true resumable jobs.
-
----
-
-# Project feature: yes, excellent idea
-
-The project idea is very good, and it maps naturally to your workflow.
-
-You could have:
-
-```txt
-Project: "Spring 2026 Tennis Highlights"
-Sources:
-  /Volumes/SanDisk SSD/Videos/Tennis/Raw
-Output:
-  /Users/joshlevy/Movies/Edited/Tennis
-Rows:
-  184 videos
-Generated:
-  thumbnails
-  preview clips
-  auto-fix outputs
-State:
-  filters
-  selected view
-  removed rows
-  notes maybe later
-```
-
-Then another project:
-
-```txt
-Project: "Family Videos Cleanup"
-```
-
-Different sources, different output, different table state.
-
-That makes total sense.
-
----
-
-# Simple project implementation
-
-You do **not** need SQLite to start.
-
-Use project folders with manifest JSON.
-
-```txt
-userData/
-└─ projects/
-   ├─ project-index.json
-   ├─ 01JABC123-project/
-   │  ├─ project.json
-   │  ├─ audit-results.json
-   │  ├─ ui-state.json
-   │  └─ media-preview-manifest.json
-   └─ 01JDEF456-project/
-      ├─ project.json
-      ├─ audit-results.json
-      ├─ ui-state.json
-      └─ media-preview-manifest.json
-```
-
-Or simpler at first:
-
-```txt
-userData/
-└─ projects/
-   ├─ project-index.json
-   ├─ <projectId>.json
-   └─ <projectId>.json
-```
-
-I’d start with **one JSON file per project** unless the files get huge.
-
-## Project index
-
-```ts
-type ProjectIndex = {
+export interface ProjectIndex {
   schemaVersion: 1;
-  projects: ProjectIndexItem[];
   lastActiveProjectId: string | null;
-};
+  projects: ProjectIndexItem[];
+}
 
-type ProjectIndexItem = {
+export interface ProjectIndexItem {
   id: string;
   name: string;
   createdAt: string;
   updatedAt: string;
   sourceSummary: string;
-  videoCount: number;
+  outputFolder: string | null;
+  rowCount: number;
+  visibleRowCount: number;
+  removedRowCount: number;
   flaggedCount: number;
-  missingCount?: number;
-};
-```
+  errorCount: number;
+  lastRunAt: string | null;
+}
 
-## Project manifest
-
-```ts
-type VideoAuditProject = {
+export interface VideoProject {
   schemaVersion: 1;
-
   id: string;
   name: string;
   createdAt: string;
@@ -430,552 +136,571 @@ type VideoAuditProject = {
 
   sources: {
     selectedFolders: string[];
+    selectedFolderSummary: SelectedFolderSummary | null;
+    folderTreeRootPath: string | null;
+    folderTreeLastScannedAt: string | null;
     selectedFiles: string[];
     outputFolder: string | null;
-    includeSubfolders: boolean;
-    includeLowResolutionAnalysis: boolean;
-    includeBlackBorderAnalysis: boolean;
   };
 
   audit: {
-    lastRunAt: string | null;
-    summary: AuditSummary | null;
-    rows: VideoRow[];
-    errors: AuditError[];
-    removedRowIds: string[];
+    request: AuditRequest | null;
+    result: AuditResult | null;
+    savedAt: string | null;
   };
 
-  mediaPreview: {
-    thumbnailManifestIds?: string[];
-    previewClipManifestIds?: string[];
-  };
-
-  workflows: {
-    lastAutoFixResult?: AutoFixResultSummary | null;
-    lastAutoCropResult?: AutoCropResultSummary | null;
-    lastMigrationResult?: MigrationResultSummary | null;
-  };
-
-  ui: {
-    search: string;
-    viewFilter: string;
+  workspace: {
+    searchQuery: string;
+    activeViewFilter: string;
     showThumbnails: boolean;
-    sortField?: string | null;
-    sortOrder?: 1 | -1 | 0 | null;
-    columnVisibility?: Record<string, boolean>;
-    selectedVideoIds?: string[];
+    selectedRowIds: string[];
   };
-};
+
+  settingsSnapshot: Pick<
+    AppSettings,
+    | 'defaultAutoFixDestinationRoot'
+    | 'previewClipDurationSecondsDefault'
+    | 'previewClipWidthDefault'
+    | 'defaultOriginalDisposition'
+    | 'fileManagementConflictStrategy'
+    | 'showPostConversionDialogAutomatically'
+    | 'defaultPostConversionAction'
+  > | null;
+
+  metadata: {
+    appVersion: string | null;
+    savedBy: 'collie-video';
+  };
+}
 ```
 
-That is enough to reopen a project and mostly restore the working state.
+Important row behavior:
 
----
+- Persist the normalized `AuditResult` from `useVideoResultsStore`.
+- Preserve `VideoRow.visible`.
+- Do not create a separate `removedRowIds` list unless it becomes necessary for migration. The current row model already represents hidden rows with `visible: false`.
+- Use selectors such as `getActiveRows` to derive `visibleRowCount`.
+- Clear stale row selection on restore unless the clarifying answer says to restore it.
 
-# Opening a project
+## Main Process Project Service
 
-When user opens a project:
-
-1. Load project JSON.
-2. Render immediately from saved rows.
-3. Start background validation:
-
-   * do source folders still exist?
-   * do video files still exist?
-   * do sizes/modified timestamps match?
-   * do thumbnail/preview cache files exist?
-4. Update rows with availability state:
-
-   * available
-   * missing
-   * changed
-   * unavailable
-5. Show banner:
+Add:
 
 ```txt
-Project restored. 184 videos loaded. 3 files missing.
-[Review Missing Files]
+src/main/services/projectService.ts
 ```
 
-This is exactly the Premiere-like behavior you’re describing.
+Responsibilities:
 
----
+- Resolve `projects/` and `project-index.json` paths from `getAppDataDir()`.
+- Create project IDs.
+- Load and normalize `project-index.json`.
+- List project index items.
+- Create a project from a renderer snapshot.
+- Save an existing project from a renderer snapshot.
+- Load a full project by ID.
+- Delete a project by ID.
+- Mark `lastActiveProjectId`.
+- Recover safely from missing/corrupt project files.
+- Keep project files private to the app support folder.
 
-# “Exactly where I left off”
-
-To restore “exactly,” save two categories:
-
-## Durable project state
+Also update:
 
 ```txt
-sources
-output folder
-rows
-audit results
-generated outputs
-thumbnail manifests
-preview manifests
-operation history references
+src/main/services/appPaths.ts
 ```
 
-## UI workspace state
-
-```txt
-search
-filters
-sort
-columns
-selected rows
-active tab
-table page/page size
-show thumbnails
-maybe selected details video
-```
-
-But I would not restore open modals by default. That usually feels weird.
-
-Example:
-
-> If the app closed with Settings open, don’t reopen Settings.
-> If it closed with a selected video details modal open, maybe restore selected row but not the modal.
-
----
-
-# Handling missing files
-
-This is important and easy to do reasonably.
-
-Each saved video row should include identity data:
+Add helpers:
 
 ```ts
-type SavedVideoIdentity = {
-  path: string;
-  fileName: string;
-  sizeBytes: number | null;
-  modifiedAtMs: number | null;
-  durationSeconds: number | null;
-};
+export function getProjectsDir(): string;
+export function getProjectIndexFilePath(): string;
+export function getProjectFilePath(projectId: string): string;
 ```
 
-On project open, do a quick file check:
+Use conservative filename handling. Project IDs should be generated by the app, not derived from raw names.
+
+## IPC And Preload Boundary
+
+Add project IPC channels in:
+
+```txt
+src/shared/constants/ipcChannels.ts
+```
+
+Suggested channels:
 
 ```ts
-type FileAvailability =
-  | 'available'
-  | 'missing'
-  | 'changed'
-  | 'unavailable';
+projectList: 'project:list'
+projectCreate: 'project:create'
+projectSave: 'project:save'
+projectLoad: 'project:load'
+projectDelete: 'project:delete'
+projectSetLastActive: 'project:set-last-active'
+```
+
+Add:
+
+```txt
+src/main/ipc/projectIpc.ts
+```
+
+Register it from:
+
+```txt
+src/main/ipc/registerIpcHandlers.ts
+```
+
+Extend:
+
+```txt
+src/preload/videoAuditApi.ts
+src/renderer/global.d.ts
+```
+
+Add renderer client:
+
+```txt
+src/renderer/api/projectClient.ts
+```
+
+The renderer should call `projectClient`, not `window.videoAudit.projects` directly.
+
+## Renderer Project State
+
+Add a focused project workflow hook first:
+
+```txt
+src/renderer/hooks/useProjectWorkspace.ts
+```
+
+This hook should own:
+
+- `projectIndexItems`
+- `activeProjectId`
+- `activeProjectName`
+- `projectSavedAt`
+- `projectMessage`
+- `projectError`
+- `isProjectSidebarVisible` if kept controller-owned, or expose open/close handlers if `App.tsx` owns sidebar visibility
+- save/create/open/delete actions
+
+Whether to add a second Zustand store is optional. Based on the current architecture docs, add a `useProjectStore` only if the state quickly has several distant readers/writers. A focused project store would be acceptable because project identity, dirty state, index items, and save status cross the header, sidebar, controller, and save actions. Do not create a generic `useAppStore`.
+
+Suggested store if needed:
+
+```txt
+src/renderer/stores/useProjectStore.ts
+src/renderer/stores/projectSelectors.ts
+```
+
+It should own project workspace metadata only, not filesystem persistence or scan execution.
+
+## Snapshot Creation
+
+Create a pure helper that builds a `VideoProject` snapshot from current renderer state:
+
+```txt
+src/renderer/helpers/projectSnapshot.ts
+```
+
+Inputs should come from:
+
+- source selection state from `useAuditSourceController`
+- `auditOptions`
+- `lastAuditRequest`
+- `auditResult`, `rows`, `searchQuery`, `activeViewFilter`, `showThumbnails`, and selected row IDs from `useVideoResultsStore`
+- useful settings fields from `useSettingsController`
+- app version from `appInfo`
+
+The helper should not call IPC and should not mutate state.
+
+## Save UX
+
+Update:
+
+```txt
+src/renderer/components/AppHeader.tsx
+```
+
+Add prominent project controls:
+
+- `Projects` button with `pi pi-folder-open`
+- `Save` button with `pi pi-save`
+- project name/status text near the app title or header center
+
+Suggested header status:
+
+```txt
+Untitled Project
+Saved 2 min ago
+Unsaved changes
+Saving...
+Save failed
+```
+
+First save:
+
+- If no `activeProjectId`, open a project-name dialog.
+- Save current snapshot through `projectClient.create`.
+- Set the returned project as active.
+- Refresh the project index.
+- Show a concise success message.
+
+Subsequent save:
+
+- Build a fresh snapshot.
+- Save through `projectClient.save`.
+- Refresh active metadata/index.
+- Show saved status.
+
+Do not block saving just because no audit has been run. A project with only selected sources/options/output folder is still useful.
+
+## Project Sidebar UX
+
+Use PrimeReact `Sidebar` in headless mode. PrimeReact 10 documents headless mode through the `content` prop, which receives helpers such as `hide` and `closeIconRef`; use that so the sidebar can have custom Collie Video styling while still using the PrimeReact overlay behavior.
+
+Add:
+
+```txt
+src/renderer/components/ProjectSidebar.tsx
+```
+
+Recommended structure:
+
+- Header: `Projects`, close icon button.
+- Save current project CTA when there is unsaved or unnamed work.
+- List of saved project cards/rows.
+- Each project shows:
+  - name
+  - updated date
+  - source summary
+  - output folder
+  - total row count
+  - visible row count
+  - removed row count
+  - flagged count
+  - error count
+  - last run date
+- Actions:
+  - `Open`
+  - `Delete`
+
+Use PrimeReact components where they fit:
+
+- `Sidebar`
+- `Button`
+- `Tag`
+- `Divider`
+- `ScrollPanel` if the list needs its own scrolling
+- `ConfirmDialog` or existing dialog styling for delete confirmation
+
+Keep the sidebar width stable:
+
+```txt
+desktop: 420-480px right sidebar
+small screens: full width
+```
+
+## Open Project Flow
+
+Clicking `Open` should present two choices:
+
+```txt
+Restore
+Scan Again
+```
+
+Add:
+
+```txt
+src/renderer/components/ProjectOpenDialog.tsx
+```
+
+Restore:
+
+1. Load the full project through `projectClient.load(projectId)`.
+2. Apply saved source selection state.
+3. Apply saved audit options from the saved request.
+4. Hydrate the saved `AuditResult` into `useVideoResultsStore`.
+5. Restore search/filter/show-thumbnails state.
+6. Clear selected rows by default.
+7. Set active project metadata.
+8. Close the sidebar/dialog.
+
+Scan Again:
+
+1. Load the full project.
+2. Apply saved source selection state.
+3. Apply the saved audit options/request.
+4. Start a new audit using the saved `AuditRequest` exactly.
+5. Do not reuse old rows once the scan starts.
+6. Save the new audit result back into the active project only after the scan completes and either autosave is enabled or the user presses Save.
+
+If a project has no saved `AuditRequest`, disable `Scan Again` and explain that the project can be restored but not rescanned yet.
+
+## Delete Project Flow
+
+Delete must be explicit:
+
+1. User clicks `Delete`.
+2. Show confirmation with project name.
+3. If confirmed, call `projectClient.delete(projectId)`.
+4. Refresh the project index.
+5. If the deleted project is currently active:
+   - Clear active project metadata.
+   - Do not automatically clear the current workspace unless the user explicitly chose to delete and close the active project.
+
+Recommended wording:
+
+```txt
+Delete "Tennis Cleanup"?
+This removes the saved project from Collie Video. It does not delete source videos or output files.
+```
+
+## Dirty State And Autosave
+
+Track dirty state after a project is active.
+
+Meaningful changes:
+
+- source folders/files changed
+- output folder changed
+- audit options changed
+- audit completed
+- rows hidden/restored
+- thumbnail/preview metadata merged
+- search/filter/show-thumbnails changed, if the clarifying answer says UI state should be part of restore
+
+Do not mark dirty for:
+
+- progress updates
+- transient workflow messages
+- toasts
+- open/closed dialog state
+- active hover/preview frame fetch state
+- Premiere status refresh
+
+Implementation options:
+
+1. Manual save only
+
+   Set dirty state on meaningful changes and let the Save button persist it.
+
+2. Manual save plus conservative autosave
+
+   Manual save remains prominent. For an already-named active project, debounce saves after durable state changes. Avoid saving during every progress tick.
+
+My recommendation is option 2, but only after the explicit Save path works.
+
+## File Availability Validation
+
+Do not make the renderer check the filesystem directly.
+
+Use the existing boundary direction documented in `docs/renderer-state-architecture.md`:
+
+1. Main process validates files with `fs.stat`.
+2. Renderer receives typed validation results through preload and a renderer API client.
+3. Results store merges availability fields into rows if needed.
+4. Table and action capabilities render from row data.
+
+This can be a follow-up stage, but the project model should leave room for it.
+
+Suggested shared row status:
+
+```ts
+export type SavedFileAvailability = 'available' | 'missing' | 'changed' | 'unavailable';
 ```
 
 Rules:
 
+- Missing path: `missing`
+- Path exists but is not a file: `unavailable`
+- Size and modified time match: `available`
+- Size or modified time differs: `changed`
+
+Do not rerun ffprobe automatically on project restore. Keep restore fast and offer a later refresh/scan action.
+
+## Staged Implementation Plan
+
+### Stage 1: Shared Types And Storage Paths
+
+- Add `src/shared/types/project.ts`.
+- Add project IPC channel constants.
+- Add project path helpers in `src/main/services/appPaths.ts`.
+- Define normalizers for project index/project manifests.
+
+Acceptance criteria:
+
+- TypeScript can import project types from shared code.
+- Project storage paths resolve from `app.getPath('userData')`.
+- No renderer filesystem access is introduced.
+
+### Stage 2: Main Project Service
+
+- Add `src/main/services/projectService.ts`.
+- Implement list/create/save/load/delete.
+- Implement project index maintenance.
+- Use atomic JSON writes.
+- Handle missing/corrupt files without crashing the app.
+
+Acceptance criteria:
+
+- Main service can create, update, read, list, and delete projects.
+- Project index summaries update after create/save/delete.
+- Deleting a project never touches source videos, output videos, media cache, or operation history.
+
+### Stage 3: IPC, Preload, And Renderer Client
+
+- Add `src/main/ipc/projectIpc.ts`.
+- Register project IPC handlers.
+- Extend `VideoAuditApi`.
+- Update `src/renderer/global.d.ts`.
+- Add `src/renderer/api/projectClient.ts`.
+
+Acceptance criteria:
+
+- Renderer can list/create/save/load/delete through typed APIs.
+- Components and hooks do not call `window.videoAudit.*` directly.
+
+### Stage 4: Snapshot Builder And Project Workspace Hook
+
+- Add `src/renderer/helpers/projectSnapshot.ts`.
+- Add `src/renderer/hooks/useProjectWorkspace.ts`.
+- Wire it into `useVideoAuditAppController`.
+- Expose project metadata and actions through `VideoAuditAppController`.
+- Decide whether a focused `useProjectStore` is justified.
+
+Acceptance criteria:
+
+- Current workspace can be converted into a project snapshot.
+- Active project ID/name/save status are available to the header/sidebar.
+- No workflow execution logic moves into the project hook/store.
+
+### Stage 5: Header Save Controls
+
+- Update `AppHeader`.
+- Add first-save name dialog.
+- Add save status.
+- Save unnamed and named projects.
+
+Acceptance criteria:
+
+- User can save before or after running a scan.
+- First save prompts for a name.
+- Later saves update the same project.
+- Save failure is visible and does not clear current work.
+
+### Stage 6: Project Sidebar
+
+- Add `ProjectSidebar` using PrimeReact `Sidebar` headless `content`.
+- Add project list loading.
+- Add project details and open/delete actions.
+- Add responsive sidebar styling in `src/renderer/styles/app.css`.
+
+Acceptance criteria:
+
+- Sidebar opens from a prominent header button.
+- Saved projects show useful details.
+- The list handles empty/loading/error states.
+- The sidebar uses PrimeReact overlay behavior with custom content.
+
+### Stage 7: Restore And Scan Again
+
+- Add `ProjectOpenDialog`.
+- Implement `Restore`.
+- Implement `Scan Again`.
+- Ensure restore preserves hidden rows and shows only active rows in the DataTable.
+- Ensure `Scan Again` uses the saved request rather than reconstructing it from current UI state.
+
+Acceptance criteria:
+
+- Restored project rows match the saved visible/hidden state.
+- Source selection, output folder, audit options, and useful UI state restore.
+- `Scan Again` starts from the saved project request.
+- Running jobs and transient modals are not restored.
+
+### Stage 8: Delete Confirmation
+
+- Add delete confirmation.
+- Wire delete through project client.
+- Refresh index after delete.
+- Handle active-project deletion intentionally.
+
+Acceptance criteria:
+
+- Delete requires confirmation.
+- Deleted projects disappear from the sidebar.
+- Source/output media files are not deleted.
+
+### Stage 9: Optional Autosave And Dirty State
+
+- Add dirty tracking.
+- Add conservative autosave for already-named projects if desired.
+- Debounce saves and skip progress-only updates.
+
+Acceptance criteria:
+
+- Header status accurately reflects saved/unsaved/saving/failed state.
+- Autosave, if enabled, never writes on every progress tick.
+- Explicit Save remains available.
+
+### Stage 10: Optional File Availability Validation
+
+- Add main-process validation service or reuse existing file-operation validation where appropriate.
+- Add typed API for validating project rows/sources.
+- Merge status into rows after restore.
+- Show missing/changed summary in the workspace.
+
+Acceptance criteria:
+
+- Restore remains fast.
+- Missing/changed files are detected by main-process stat checks.
+- No expensive ffprobe rerun happens automatically.
+
+## Implementation Notes
+
+- Keep named project persistence in main-process JSON, not IndexedDB.
+- Keep the existing IndexedDB current audit cache until project restore fully supersedes it.
+- Do not move settings persistence into projects. Store a useful project snapshot, but app-wide settings remain app-wide.
+- Keep media preview files in the existing media cache. Store row metadata/references in the project; do not duplicate generated media files into the project file for the first version.
+- Do not restore in-progress jobs. On restore, all progress state should be idle.
+- Do not restore open modals by default.
+- Do not add auth.
+- Do not introduce SQLite unless JSON project files become painful.
+
+## Verification Plan
+
+Run:
+
 ```txt
-path does not exist:
-  missing
-
-path exists but not file:
-  unavailable
-
-path exists, size and modified time match:
-  available
-
-path exists, size or modified time differs:
-  changed
+npm run typecheck
+npm run build
 ```
 
-Do **not** re-run ffprobe on every project open by default. That can be slow.
+Manual checks:
 
-Just stat files first. Offer:
+1. Save a project with sources/options but no scan.
+2. Save a project after a scan.
+3. Hide/remove rows, save, quit/relaunch, restore, and confirm only active rows show.
+4. Generate thumbnails/previews, save, restore, and confirm existing row metadata still renders where cache files exist.
+5. Open project sidebar with no projects, one project, and multiple projects.
+6. Delete a project and confirm source/output files remain untouched.
+7. Use `Scan Again` and confirm it runs the saved request.
+8. Confirm clear-cache/data behavior still does what it says and does not accidentally delete named projects unless explicitly designed to do so.
+
+## Documentation Updates
+
+After implementation, update:
 
 ```txt
-[Refresh metadata]
+README.md
+docs/renderer-architecture.md
+docs/renderer-state-architecture.md
+CHANGELOG.md
 ```
 
-for changed files.
+Versioning:
 
----
-
-# Project saving UX
-
-Add a small project menu:
-
-```txt
-File
-├─ New Project
-├─ Open Project...
-├─ Save Project
-├─ Save Project As...
-├─ Recent Projects
-└─ Close Project
-```
-
-In UI header:
-
-```txt
-Video Audit — Tennis Cleanup
-Unsaved changes
-```
-
-Or:
-
-```txt
-Project: Tennis Cleanup     Saved 2 min ago
-```
-
-## Autosave vs explicit save
-
-For a private utility, I’d do both:
-
-```txt
-Autosave project state frequently
-Manual Save button/menu for confidence
-```
-
-Similar to modern apps.
-
-You can show:
-
-```txt
-Saved
-Saving...
-Unsaved changes
-Save failed
-```
-
----
-
-# Should project files be user-visible?
-
-Two options.
-
-## Option A: Internal projects only
-
-Projects live in app support folder:
-
-```txt
-~/Library/Application Support/video-audit-electron/projects/
-```
-
-Pros:
-
-* simple
-* controlled
-* no weird file picker issues
-* easy recent projects
-* good for private app
-
-Cons:
-
-* less obvious backup/export
-
-## Option B: User-visible `.videoaudit` project files
-
-Example:
-
-```txt
-~/Documents/Video Audit Projects/Tennis.videoaudit
-```
-
-This could be a JSON file or package folder.
-
-Pros:
-
-* feels like Premiere projects
-* easy backup/move
-* user can double-click later if associated
-* nice mental model
-
-Cons:
-
-* more complexity
-* file association later
-* paths inside can break when moved
-
-## My recommendation
-
-Start with **internal projects**, then later add:
-
-```txt
-Export Project...
-Import Project...
-```
-
-No need to build file associations yet.
-
----
-
-# Best implementation order
-
-Do this in layers:
-
-## Phase 1: Latest state restore
-
-This solves your urgent need.
-
-* save last session
-* load it on launch
-* restore video rows
-* background validate missing files
-
-## Phase 2: Project foundation
-
-* project types
-* create/open/save project
-* project index
-* recent projects
-
-## Phase 3: Project UX
-
-* new/open/save UI
-* project menu
-* project switcher
-* unsaved/saved status
-* missing file review
-
-## Phase 4: Exact workspace restore
-
-* table columns
-* filters
-* selected rows
-* active tab
-* preview state
-* last selected video
-
----
-
-# Where this fits in your plans
-
-You currently have:
-
-```txt
-Electron conversion
-UI improvement
-Code refactor
-File management
-```
-
-I’d insert this **after UI improvement and before code refactor**, or **as part of the refactor plan**?
-
-Actually, given your immediate concern, I’d do:
-
-```txt
-1. Finish UI improvement
-2. Implement latest-state restore
-3. Run code refactor
-4. Implement full project system
-5. Implement file management
-```
-
-But if the 2,500-line controller is already painful, you might want:
-
-```txt
-1. Finish UI improvement
-2. Run code refactor enough to extract persistence/results state
-3. Implement latest-state restore + projects
-4. File management
-```
-
-My practical recommendation:
-
-> Add a small **state persistence/project plan** before file management. Do latest session restore first. Full projects second.
-
-Do not wait until after file management. File management operations should belong to a project/session history.
-
----
-
-# What I’d ask Codex for now
-
-For the immediate “restore latest state” need, use this prompt.
-
-````md
-# Context & Problem
-
-This is the standalone `video-audit-electron` app.
-
-I want the app to restore the latest working state when opened, so I do not lose loaded video rows/results every time I quit and relaunch the packaged app.
-
-This is not the full project system yet. This is latest-session persistence.
-
-Use:
-
-- `.codex-instructions.md`
-- `CONTRIBUTING.md`
-- `electron-conversion-plan.md`
-- `ui-improvement-plan.md` if present
-
-# Task
-
-Implement latest-session persistence and restore.
-
-# Requirements
-
-1. Persist the latest app/session state to disk using the Electron main process.
-2. Do not use renderer localStorage as the primary persistence mechanism.
-3. Store the session file under Electron `app.getPath('userData')`.
-4. Add typed preload APIs for loading/saving/clearing latest session state.
-5. Restore video rows/results on app startup.
-6. Restore selected sources and output folder where practical.
-7. Restore audit options.
-8. Restore table UI state where practical:
-   - search
-   - active view filter
-   - show thumbnails
-   - sort/page/column visibility if currently tracked
-9. Do not restore active running jobs.
-10. Do not restore transient toasts.
-11. Do not reopen modals by default.
-12. After restoring rows, validate file availability in the background:
-   - available
-   - missing
-   - changed
-   - unavailable
-13. Show a clear banner or status if restored rows include missing/changed files.
-14. Avoid expensive ffprobe re-analysis on startup.
-15. Use cheap filesystem stat validation first.
-16. Ensure corrupt/missing session files do not crash the app.
-17. Do not write tests unless explicitly requested.
-
-# Suggested Files
-
-Main process:
-
-```txt
-src/main/services/sessionService.ts
-src/main/ipc/sessionIpc.ts
-````
-
-Shared types:
-
-```txt
-src/shared/types/session.ts
-```
-
-Renderer:
-
-```txt
-src/renderer/hooks/useSessionRestore.ts
-```
-
-or integrate into the existing app controller if cleaner for the current architecture.
-
-# Suggested Session Shape
-
-```ts
-type LastSessionState = {
-  schemaVersion: 1;
-  savedAt: string;
-  sources: {
-    selectedFolders: string[];
-    selectedFiles: string[];
-    outputFolder: string | null;
-    includeSubfolders: boolean;
-    includeLowResolutionAnalysis: boolean;
-    includeBlackBorderAnalysis: boolean;
-  };
-  results: {
-    auditedRootDirectory: string | null;
-    rows: VideoRow[];
-    removedRowIds: string[];
-    lastAuditSummary: AuditSummary | null;
-  };
-  table: {
-    search: string;
-    viewFilter: string;
-    showThumbnails: boolean;
-    sortField?: string | null;
-    sortOrder?: 1 | -1 | 0 | null;
-    columnVisibility?: Record<string, boolean>;
-  };
-};
-```
-
-Adjust this shape to match existing project types and state.
-
-# Changelog, Versioning, and Commit
-
-After implementation:
-
-* Update `CHANGELOG.md`.
-* Bump `package.json` version according to SemVer.
-* Ensure `package.json` version matches the latest changelog entry.
-* Stage all changes.
-* Commit with a clear contextual commit message.
-
-# Output
-
-After making changes, summarize:
-
-1. Files created/changed
-2. Where session state is stored
-3. What state is restored
-4. What is intentionally not restored
-5. How missing/changed files are detected
-6. Commands run
-7. Manual verification steps
-
-````
-
----
-
-# Then a later project plan
-
-Once latest state works, create a separate:
-
-```txt
-project-system-implementation-plan.md
-````
-
-With stages like:
-
-```txt
-Stage PR-1  Project types and manifest format
-Stage PR-2  Project service and project index
-Stage PR-3  New/Open/Save project APIs
-Stage PR-4  Project UI and recent projects
-Stage PR-5  Project restore and missing file validation
-Stage PR-6  Project autosave and dirty state
-Stage PR-7  Project export/import
-Stage PR-8  Project polish and docs
-```
-
-I can generate that full plan for you too, but I’d keep your immediate Codex ask smaller: **latest session restore first**.
-
----
-
-# My bottom-line recommendation
-
-For right now:
-
-## Do not use only localStorage
-
-It’s too flimsy for your main app state.
-
-## Do not jump straight to Zustand
-
-It may help later, but it is not the persistence solution.
-
-## Do use Electron main-process JSON persistence
-
-This is the simplest robust solution.
-
-## Implement latest-session restore first
-
-That solves the actual pain today.
-
-## Then implement projects
-
-Projects are a great idea and not too complex if you start with JSON manifests.
-
-## Then file management
-
-Because file management should be aware of project/session context.
-
-The simplest good version is:
-
-```txt
-last-session.json now
-project.json manifests later
-background file availability scan on open
-```
-
-That will get you very close to the “Premiere project” feeling without making the app insanely complex.
+- Bump `package.json` and `package-lock.json` according to the repo's existing release pattern.
+- Ensure the changelog version matches `package.json`.
