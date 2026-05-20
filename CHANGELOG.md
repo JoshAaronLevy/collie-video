@@ -7,6 +7,12 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.50.36] - 2026-05-20
+
+### Added
+
+- Added the main-process named-project persistence service with atomic project/index JSON writes, generated file-safe project IDs, index recovery from project files, and project-file-only deletion.
+
 ## [0.50.35] - 2026-05-20
 
 ### Added
