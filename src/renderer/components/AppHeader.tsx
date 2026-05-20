@@ -16,6 +16,7 @@ interface AppHeaderProps {
   projectMessage: string | null;
   projectError: string | null;
   isProjectSaving: boolean;
+  onOpenProjects: () => void;
   onSaveProject: () => void;
   onOpenOperationHistory: () => void;
   onOpenUtilities: () => void;
@@ -33,6 +34,7 @@ export function AppHeader({
   projectMessage,
   projectError,
   isProjectSaving,
+  onOpenProjects,
   onSaveProject,
   onOpenOperationHistory,
   onOpenUtilities,
@@ -71,6 +73,13 @@ export function AppHeader({
       </div>
 
       <div className="header-meta">
+        <Button
+          label="Projects"
+          icon="pi pi-folder-open"
+          severity="info"
+          outlined
+          onClick={onOpenProjects}
+        />
         <Button
           label="Save"
           icon="pi pi-save"

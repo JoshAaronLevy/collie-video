@@ -13,6 +13,7 @@ import { MigrationScanDialog } from './components/MigrationScanDialog';
 import { OperationHistoryDialog } from './components/OperationHistoryDialog';
 import { PostConversionDialog } from './components/PostConversionDialog';
 import { ProjectNameDialog } from './components/ProjectNameDialog';
+import { ProjectSidebar } from './components/ProjectSidebar';
 import { ResultsToolbar } from './components/ResultsToolbar';
 import { SelectionActionBar } from './components/SelectionActionBar';
 import { SettingsDialog } from './components/SettingsDialog';
@@ -34,6 +35,7 @@ export function App(): ReactElement {
   const [isUtilitiesVisible, setIsUtilitiesVisible] = useState(false);
   const [isSettingsVisible, setIsSettingsVisible] = useState(false);
   const [isDiagnosticsVisible, setIsDiagnosticsVisible] = useState(false);
+  const [isProjectSidebarVisible, setIsProjectSidebarVisible] = useState(false);
   const [isProjectNameDialogVisible, setIsProjectNameDialogVisible] = useState(false);
   const hasSources = controller.selectedFolders.length > 0 || controller.selectedFiles.length > 0;
   const hasAuditData = Boolean(controller.videoRows) || Boolean(controller.storageSavedAt);
@@ -81,6 +83,10 @@ export function App(): ReactElement {
     return false;
   };
 
+  const openProjectSidebar = (): void => {
+    setIsProjectSidebarVisible(true);
+  };
+
   const appHeaderProps = {
     appInfo: controller.appInfo,
     auditSummary: controller.auditSummary,
@@ -92,11 +98,26 @@ export function App(): ReactElement {
     projectMessage: controller.projectMessage,
     projectError: controller.projectError,
     isProjectSaving: controller.isProjectSaving,
+    onOpenProjects: openProjectSidebar,
     onSaveProject: requestProjectSave,
     onOpenOperationHistory: controller.openOperationHistory,
     onOpenUtilities: () => setIsUtilitiesVisible(true),
     onOpenSettings: () => setIsSettingsVisible(true)
   } satisfies ComponentProps<typeof AppHeader>;
+
+  const projectSidebarProps = {
+    visible: isProjectSidebarVisible,
+    projects: controller.projectIndexItems,
+    activeProjectId: controller.activeProjectId,
+    isLoading: controller.isProjectIndexLoading,
+    isSaving: controller.isProjectSaving,
+    error: controller.projectError,
+    onHide: () => setIsProjectSidebarVisible(false),
+    onRefresh: () => {
+      void controller.loadProjectIndex();
+    },
+    onSaveCurrentProject: requestProjectSave
+  } satisfies ComponentProps<typeof ProjectSidebar>;
 
   const sourceSummaryProps = {
     selectedFolders: controller.selectedFolders,
@@ -514,6 +535,8 @@ export function App(): ReactElement {
   return (
     <main className="app-shell">
       <AppHeader {...appHeaderProps} />
+
+      <ProjectSidebar {...projectSidebarProps} />
 
       <section className="app-workspace">
         <SourceSummaryBar {...sourceSummaryProps} />
