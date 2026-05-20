@@ -7,6 +7,12 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.50.59] - 2026-05-20
+
+### Changed
+
+- Updated the audit progress metric grid to show processed totals, flagged percentage, elapsed duration, and estimated remaining scan time while removing skipped/error cards.
+
 ## [0.50.58] - 2026-05-20
 
 ### Added
