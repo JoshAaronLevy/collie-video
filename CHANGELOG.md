@@ -7,6 +7,12 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.50.39] - 2026-05-20
+
+### Added
+
+- Added header project save controls with first-save naming, active project status, and visible save failure messaging through the renderer project workspace boundary.
+
 ## [0.50.38] - 2026-05-20
 
 ### Added

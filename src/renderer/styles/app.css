@@ -127,6 +127,7 @@ select {
 
 .app-header {
   display: flex;
+  flex-wrap: wrap;
   align-items: center;
   justify-content: space-between;
   gap: 1rem;
@@ -148,8 +149,58 @@ select {
   line-height: 1.2;
 }
 
+.app-header-title {
+  display: grid;
+  flex: 1 1 260px;
+  gap: 0.14rem;
+  min-width: 0;
+}
+
+.project-status-line {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.45rem;
+  align-items: center;
+  min-width: 0;
+}
+
+.project-status-name,
+.project-save-status {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.project-status-name {
+  max-width: 20rem;
+  color: var(--text);
+  font-size: 0.82rem;
+  font-weight: 850;
+}
+
+.project-save-status {
+  max-width: 30rem;
+  color: var(--text-muted);
+  font-size: 0.76rem;
+  font-weight: 800;
+}
+
+.project-save-status.is-saving {
+  color: var(--accent-strong);
+}
+
+.project-save-status.is-error {
+  color: var(--danger-text);
+}
+
+.project-save-status.is-saved {
+  color: var(--success-text);
+}
+
 .header-center {
   display: grid;
+  flex: 1 1 260px;
   gap: 0.12rem;
   min-width: 0;
   text-align: center;
@@ -192,6 +243,11 @@ select {
   flex-wrap: wrap;
   align-items: center;
   gap: 0.6rem;
+}
+
+.header-meta {
+  flex: 2 1 520px;
+  justify-content: flex-end;
 }
 
 .app-workspace {
@@ -469,6 +525,28 @@ select {
 .diagnostics-content {
   display: grid;
   gap: 0.85rem;
+}
+
+.project-name-dialog-content {
+  display: grid;
+  gap: 0.75rem;
+  min-width: min(100%, 28rem);
+}
+
+.project-name-field {
+  display: grid;
+  gap: 0.35rem;
+  min-width: 0;
+}
+
+.project-name-field span {
+  color: var(--text-muted-strong);
+  font-size: 0.8rem;
+  font-weight: 850;
+}
+
+.project-name-field .p-inputtext {
+  width: 100%;
 }
 
 .diagnostics-card {
@@ -2661,6 +2739,15 @@ select {
 
   .header-center {
     text-align: left;
+  }
+
+  .header-meta {
+    justify-content: flex-start;
+  }
+
+  .project-status-name,
+  .project-save-status {
+    max-width: 100%;
   }
 
   .audit-options,

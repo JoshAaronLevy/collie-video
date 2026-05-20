@@ -12,6 +12,7 @@ import { MigrationResultDialog } from './components/MigrationResultDialog';
 import { MigrationScanDialog } from './components/MigrationScanDialog';
 import { OperationHistoryDialog } from './components/OperationHistoryDialog';
 import { PostConversionDialog } from './components/PostConversionDialog';
+import { ProjectNameDialog } from './components/ProjectNameDialog';
 import { ResultsToolbar } from './components/ResultsToolbar';
 import { SelectionActionBar } from './components/SelectionActionBar';
 import { SettingsDialog } from './components/SettingsDialog';
@@ -33,6 +34,7 @@ export function App(): ReactElement {
   const [isUtilitiesVisible, setIsUtilitiesVisible] = useState(false);
   const [isSettingsVisible, setIsSettingsVisible] = useState(false);
   const [isDiagnosticsVisible, setIsDiagnosticsVisible] = useState(false);
+  const [isProjectNameDialogVisible, setIsProjectNameDialogVisible] = useState(false);
   const hasSources = controller.selectedFolders.length > 0 || controller.selectedFiles.length > 0;
   const hasAuditData = Boolean(controller.videoRows) || Boolean(controller.storageSavedAt);
   const tableDisplayRootPath = controller.folderTreeRootPath ?? controller.auditedRootDirectory;
@@ -58,12 +60,39 @@ export function App(): ReactElement {
     }
   };
 
+  const requestProjectSave = (): void => {
+    if (controller.activeProjectId) {
+      void controller.saveProject();
+      return;
+    }
+
+    controller.clearProjectStatus();
+    setIsProjectNameDialogVisible(true);
+  };
+
+  const saveNamedProject = async (name: string): Promise<boolean> => {
+    const project = await controller.createProject(name);
+
+    if (project) {
+      setIsProjectNameDialogVisible(false);
+      return true;
+    }
+
+    return false;
+  };
+
   const appHeaderProps = {
     appInfo: controller.appInfo,
     auditSummary: controller.auditSummary,
     visibleVideoCount: controller.visibleVideoRows.length,
     selectedVideoCount: controller.selectedVideos.length,
     premiereStatus: controller.premiereStatus,
+    activeProjectName: controller.activeProjectName,
+    projectSavedAt: controller.projectSavedAt,
+    projectMessage: controller.projectMessage,
+    projectError: controller.projectError,
+    isProjectSaving: controller.isProjectSaving,
+    onSaveProject: requestProjectSave,
     onOpenOperationHistory: controller.openOperationHistory,
     onOpenUtilities: () => setIsUtilitiesVisible(true),
     onOpenSettings: () => setIsSettingsVisible(true)
@@ -528,6 +557,14 @@ export function App(): ReactElement {
       <OperationHistoryDialog {...operationHistoryDialogProps} />
 
       <SettingsDialog {...settingsDialogProps} />
+
+      <ProjectNameDialog
+        visible={isProjectNameDialogVisible}
+        error={controller.projectError}
+        isSaving={controller.isProjectSaving}
+        onSave={saveNamedProject}
+        onHide={() => setIsProjectNameDialogVisible(false)}
+      />
 
       <AutoFixDialog {...autoFixDialogProps} />
 

@@ -11,6 +11,12 @@ interface AppHeaderProps {
   visibleVideoCount: number;
   selectedVideoCount: number;
   premiereStatus: PremiereStatusResponse | null;
+  activeProjectName: string | null;
+  projectSavedAt: string | null;
+  projectMessage: string | null;
+  projectError: string | null;
+  isProjectSaving: boolean;
+  onSaveProject: () => void;
   onOpenOperationHistory: () => void;
   onOpenUtilities: () => void;
   onOpenSettings: () => void;
@@ -22,15 +28,37 @@ export function AppHeader({
   visibleVideoCount,
   selectedVideoCount,
   premiereStatus,
+  activeProjectName,
+  projectSavedAt,
+  projectMessage,
+  projectError,
+  isProjectSaving,
+  onSaveProject,
   onOpenOperationHistory,
   onOpenUtilities,
   onOpenSettings
 }: AppHeaderProps): ReactElement {
+  const projectName = activeProjectName ?? 'Untitled Project';
+  const projectStatus = getProjectStatus({
+    isProjectSaving,
+    projectError,
+    projectMessage,
+    projectSavedAt
+  });
+
   return (
     <header className="app-header">
-      <div>
+      <div className="app-header-title">
         <p className="eyebrow">Collie Video</p>
         <h1>Results Workspace</h1>
+        <div className="project-status-line" aria-label="Project save status">
+          <strong className="project-status-name" title={projectName}>
+            {projectName}
+          </strong>
+          <span className={`project-save-status ${projectStatus.className}`} title={projectStatus.text}>
+            {projectStatus.text}
+          </span>
+        </div>
       </div>
 
       <div className="header-center" aria-label="Audit summary">
@@ -43,6 +71,13 @@ export function AppHeader({
       </div>
 
       <div className="header-meta">
+        <Button
+          label="Save"
+          icon="pi pi-save"
+          severity="success"
+          loading={isProjectSaving}
+          onClick={onSaveProject}
+        />
         <Tag value={getPremiereLabel(premiereStatus)} severity={getPremiereSeverity(premiereStatus)} />
         <Tag value={`v${appInfo?.version ?? '...'}`} severity="info" />
         <Button label="History" icon="pi pi-history" severity="secondary" onClick={onOpenOperationHistory} />
@@ -51,6 +86,68 @@ export function AppHeader({
       </div>
     </header>
   );
+}
+
+interface ProjectStatusInput {
+  isProjectSaving: boolean;
+  projectError: string | null;
+  projectMessage: string | null;
+  projectSavedAt: string | null;
+}
+
+function getProjectStatus({
+  isProjectSaving,
+  projectError,
+  projectMessage,
+  projectSavedAt
+}: ProjectStatusInput): { text: string; className: string } {
+  if (isProjectSaving) {
+    return {
+      text: 'Saving...',
+      className: 'is-saving'
+    };
+  }
+
+  if (projectError) {
+    return {
+      text: `Save failed: ${projectError}`,
+      className: 'is-error'
+    };
+  }
+
+  if (projectMessage) {
+    return {
+      text: projectMessage,
+      className: 'is-saved'
+    };
+  }
+
+  if (projectSavedAt) {
+    return {
+      text: formatSavedAt(projectSavedAt),
+      className: 'is-saved'
+    };
+  }
+
+  return {
+    text: 'Not saved yet',
+    className: 'is-unsaved'
+  };
+}
+
+function formatSavedAt(value: string): string {
+  const savedAt = new Date(value);
+
+  if (Number.isNaN(savedAt.getTime())) {
+    return 'Saved';
+  }
+
+  return `Saved ${savedAt.toLocaleString(undefined, {
+    month: 'short',
+    day: 'numeric',
+    hour: 'numeric',
+    minute: '2-digit'
+  })}`;
 }
 
 function getResultSummary(auditSummary: AuditSummary | null, visibleVideoCount: number): string {
