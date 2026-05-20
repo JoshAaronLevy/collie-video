@@ -7,6 +7,12 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.50.48] - 2026-05-20
+
+### Added
+
+- Added the duplicate video scan implementation plan for exact-filename duplicate candidate review, row-expansion comparison UI, protected source files, and Move to Trash safety.
+
 ## [0.50.47] - 2026-05-20
 
 ### Added
