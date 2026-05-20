@@ -49,11 +49,11 @@ export function DuplicateReviewWorkspace({
   }, [result.scanId]);
 
   return (
-    <section className="duplicate-review-workspace" aria-label="Duplicate Review workspace">
+    <section className="duplicate-review-workspace" aria-label="Duplicate candidate review workspace">
       <div className="duplicate-review-header">
         <div>
           <p className="eyebrow">Duplicate Review</p>
-          <h2>Dupe Scan Results</h2>
+          <h2>Duplicate Candidate Review</h2>
           <span title={result.scannedFolder}>Scanned folder: {result.scannedFolder}</span>
         </div>
         <Button label="Back to Results" icon="pi pi-table" severity="secondary" outlined onClick={onBackToResults} />
@@ -77,72 +77,76 @@ export function DuplicateReviewWorkspace({
       />
       {trashPlanError ? <Message severity="error" text={trashPlanError} /> : null}
 
-      <DataTable
-        value={result.groups}
-        dataKey="id"
-        expandedRows={expandedRows}
-        onRowToggle={(event) => setExpandedRows((event.data ?? {}) as Record<string, boolean>)}
-        rowExpansionTemplate={(group: DuplicateScanGroup) =>
-          groupExpansionTemplate(group, markedIdSet, onMarkCandidate)
-        }
-        rows={10}
-        paginator={result.groups.length > 10}
-        rowsPerPageOptions={[10, 25, 50, 100]}
-        sortMode="multiple"
-        removableSort
-        stripedRows
-        size="small"
-        scrollable
-        className="duplicate-groups-table"
-        tableStyle={{ minWidth: '1280px' }}
-        emptyMessage="No duplicate candidate groups found."
-      >
-        <Column expander style={{ width: '3rem' }} />
-        <Column
-          field="source.fileName"
-          header="Source Filename"
-          sortable
-          body={(group: DuplicateScanGroup) => sourceFileTemplate(group.source)}
-          style={{ width: '22rem' }}
-        />
-        <Column
-          field="source.directory"
-          header="Source Folder"
-          sortable
-          body={(group: DuplicateScanGroup) => pathTemplate(group.source.directory || group.source.path)}
-          style={{ width: '28rem' }}
-        />
-        <Column
-          header="Matches"
-          body={(group: DuplicateScanGroup) => group.candidates.length.toLocaleString()}
-          style={{ width: '7rem' }}
-        />
-        <Column
-          header="Marked for Trash"
-          body={(group: DuplicateScanGroup) => getGroupMarkedCount(group, markedIdSet).toLocaleString()}
-          style={{ width: '10rem' }}
-        />
-        <Column
-          header="Duration"
-          body={(group: DuplicateScanGroup) => formatDuration(group.source.durationSeconds, group.source.durationFormatted)}
-          style={{ width: '8rem' }}
-        />
-        <Column
-          header="Size"
-          body={(group: DuplicateScanGroup) => formatBytes(group.source.sizeBytes)}
-          style={{ width: '8rem' }}
-        />
-        <Column
-          header="Resolution"
-          body={(group: DuplicateScanGroup) => metadataText(group.source.resolution)}
-          style={{ width: '8rem' }}
-        />
-        <Column
-          header="Modified"
-          body={(group: DuplicateScanGroup) => formatDate(group.source.modifiedAt, group.source.modifiedAtMs)}
-          style={{ width: '9rem' }}
-        />
-      </DataTable>
+      <div className="duplicate-table-shell" role="region" aria-label="Duplicate candidate groups">
+        <DataTable
+          value={result.groups}
+          dataKey="id"
+          expandedRows={expandedRows}
+          onRowToggle={(event) => setExpandedRows((event.data ?? {}) as Record<string, boolean>)}
+          rowExpansionTemplate={(group: DuplicateScanGroup) =>
+            groupExpansionTemplate(group, markedIdSet, onMarkCandidate)
+          }
+          rows={10}
+          paginator={result.groups.length > 10}
+          rowsPerPageOptions={[10, 25, 50, 100]}
+          sortMode="multiple"
+          removableSort
+          stripedRows
+          size="small"
+          scrollable
+          className="duplicate-groups-table"
+          tableStyle={{ minWidth: '1280px' }}
+          emptyMessage="No duplicate candidate groups found."
+        >
+          <Column expander style={{ width: '3rem' }} />
+          <Column
+            field="source.fileName"
+            header="Source Filename"
+            sortable
+            body={(group: DuplicateScanGroup) => sourceFileTemplate(group.source)}
+            style={{ width: '22rem' }}
+          />
+          <Column
+            field="source.directory"
+            header="Source Folder"
+            sortable
+            body={(group: DuplicateScanGroup) => pathTemplate(group.source.directory || group.source.path)}
+            style={{ width: '28rem' }}
+          />
+          <Column
+            header="Matches"
+            body={(group: DuplicateScanGroup) => group.candidates.length.toLocaleString()}
+            style={{ width: '7rem' }}
+          />
+          <Column
+            header="Marked for Trash"
+            body={(group: DuplicateScanGroup) => getGroupMarkedCount(group, markedIdSet).toLocaleString()}
+            style={{ width: '10rem' }}
+          />
+          <Column
+            header="Duration"
+            body={(group: DuplicateScanGroup) =>
+              formatDuration(group.source.durationSeconds, group.source.durationFormatted)
+            }
+            style={{ width: '8rem' }}
+          />
+          <Column
+            header="Size"
+            body={(group: DuplicateScanGroup) => formatBytes(group.source.sizeBytes)}
+            style={{ width: '8rem' }}
+          />
+          <Column
+            header="Resolution"
+            body={(group: DuplicateScanGroup) => metadataText(group.source.resolution)}
+            style={{ width: '8rem' }}
+          />
+          <Column
+            header="Modified"
+            body={(group: DuplicateScanGroup) => formatDate(group.source.modifiedAt, group.source.modifiedAtMs)}
+            style={{ width: '9rem' }}
+          />
+        </DataTable>
+      </div>
 
       <div className="duplicate-review-footer" aria-label="Duplicate candidate Trash review summary">
         <div>
@@ -204,90 +208,96 @@ function groupExpansionTemplate(
         </div>
       </section>
 
-      <DataTable
-        value={group.candidates}
-        dataKey="id"
-        rows={8}
-        paginator={group.candidates.length > 8}
-        rowsPerPageOptions={[8, 15, 25, 50]}
-        sortMode="multiple"
-        removableSort
-        stripedRows
-        size="small"
-        scrollable
-        className="duplicate-candidates-table"
-        tableStyle={{ minWidth: '1500px' }}
-        emptyMessage="No duplicate candidates for this source."
+      <div
+        className="duplicate-table-shell"
+        role="region"
+        aria-label={`Duplicate candidates for ${group.source.fileName}`}
       >
-        <Column
-          header="Marked for Trash"
-          body={(candidate: DuplicateScanCandidate) => markTemplate(candidate, markedIdSet, onMarkCandidate)}
-          style={{ width: '9rem' }}
-        />
-        <Column
-          field="fileName"
-          header="Filename"
-          sortable
-          body={(candidate: DuplicateScanCandidate) => candidateFileTemplate(candidate)}
-          style={{ width: '20rem' }}
-        />
-        <Column
-          field="directory"
-          header="Folder"
-          sortable
-          body={(candidate: DuplicateScanCandidate) => pathTemplate(candidate.directory || candidate.path)}
-          style={{ width: '25rem' }}
-        />
-        <Column
-          header="Duration"
-          body={(candidate: DuplicateScanCandidate) =>
-            formatDuration(candidate.durationSeconds, candidate.durationFormatted)
-          }
-          style={{ width: '8rem' }}
-        />
-        <Column
-          header="Duration Delta"
-          body={(candidate: DuplicateScanCandidate) => formatSignedDuration(candidate.durationDeltaSeconds)}
-          style={{ width: '9rem' }}
-        />
-        <Column
-          header="Size"
-          body={(candidate: DuplicateScanCandidate) => formatBytes(candidate.sizeBytes)}
-          style={{ width: '8rem' }}
-        />
-        <Column
-          header="Size Delta"
-          body={(candidate: DuplicateScanCandidate) => formatSignedBytes(candidate.sizeDeltaBytes)}
-          style={{ width: '8rem' }}
-        />
-        <Column
-          header="Resolution"
-          body={(candidate: DuplicateScanCandidate) => metadataText(candidate.resolution)}
-          style={{ width: '8rem' }}
-        />
-        <Column
-          header="Bitrate"
-          body={(candidate: DuplicateScanCandidate) => formatBitrate(candidate.bitRateMbps, candidate.bitRate)}
-          style={{ width: '8rem' }}
-        />
-        <Column
-          header="Modified"
-          body={(candidate: DuplicateScanCandidate) => formatDate(candidate.modifiedAt, candidate.modifiedAtMs)}
-          style={{ width: '9rem' }}
-        />
-        <Column
-          header="Match"
-          body={() => <Tag value="Exact filename match" severity="info" />}
-          style={{ width: '11rem' }}
-        />
-        <Column
-          field="trashStatus"
-          header="Trash Status"
-          sortable
-          body={(candidate: DuplicateScanCandidate) => trashStatusTemplate(candidate)}
-          style={{ width: '11rem' }}
-        />
-      </DataTable>
+        <DataTable
+          value={group.candidates}
+          dataKey="id"
+          rows={8}
+          paginator={group.candidates.length > 8}
+          rowsPerPageOptions={[8, 15, 25, 50]}
+          sortMode="multiple"
+          removableSort
+          stripedRows
+          size="small"
+          scrollable
+          className="duplicate-candidates-table"
+          tableStyle={{ minWidth: '1500px' }}
+          emptyMessage="No duplicate candidates for this source."
+        >
+          <Column
+            header="Marked for Trash"
+            body={(candidate: DuplicateScanCandidate) => markTemplate(candidate, markedIdSet, onMarkCandidate)}
+            style={{ width: '6.5rem' }}
+          />
+          <Column
+            field="fileName"
+            header="Filename"
+            sortable
+            body={(candidate: DuplicateScanCandidate) => candidateFileTemplate(candidate)}
+            style={{ width: '20rem' }}
+          />
+          <Column
+            field="directory"
+            header="Folder"
+            sortable
+            body={(candidate: DuplicateScanCandidate) => pathTemplate(candidate.directory || candidate.path)}
+            style={{ width: '25rem' }}
+          />
+          <Column
+            header="Duration"
+            body={(candidate: DuplicateScanCandidate) =>
+              formatDuration(candidate.durationSeconds, candidate.durationFormatted)
+            }
+            style={{ width: '8rem' }}
+          />
+          <Column
+            header="Duration Delta"
+            body={(candidate: DuplicateScanCandidate) => formatSignedDuration(candidate.durationDeltaSeconds)}
+            style={{ width: '9rem' }}
+          />
+          <Column
+            header="Size"
+            body={(candidate: DuplicateScanCandidate) => formatBytes(candidate.sizeBytes)}
+            style={{ width: '8rem' }}
+          />
+          <Column
+            header="Size Delta"
+            body={(candidate: DuplicateScanCandidate) => formatSignedBytes(candidate.sizeDeltaBytes)}
+            style={{ width: '8rem' }}
+          />
+          <Column
+            header="Resolution"
+            body={(candidate: DuplicateScanCandidate) => metadataText(candidate.resolution)}
+            style={{ width: '8rem' }}
+          />
+          <Column
+            header="Bitrate"
+            body={(candidate: DuplicateScanCandidate) => formatBitrate(candidate.bitRateMbps, candidate.bitRate)}
+            style={{ width: '8rem' }}
+          />
+          <Column
+            header="Modified"
+            body={(candidate: DuplicateScanCandidate) => formatDate(candidate.modifiedAt, candidate.modifiedAtMs)}
+            style={{ width: '9rem' }}
+          />
+          <Column
+            header="Match"
+            body={() => <Tag value="Exact filename match" severity="info" />}
+            style={{ width: '11rem' }}
+          />
+          <Column
+            field="trashStatus"
+            header="Trash Status"
+            sortable
+            body={(candidate: DuplicateScanCandidate) => trashStatusTemplate(candidate)}
+            style={{ width: '11rem' }}
+          />
+        </DataTable>
+      </div>
     </div>
   );
 }
@@ -352,6 +362,7 @@ function markTemplate(
   const checked = isCandidateMarked(candidate, markedIdSet);
   const disabled = candidate.trashStatus === 'moved_to_trash';
   const inputId = getCandidateInputId(candidate);
+  const label = checked ? `Unmark ${candidate.fileName} for Trash.` : `Mark ${candidate.fileName} for Trash.`;
 
   return (
     <div className="duplicate-mark-cell">
@@ -359,10 +370,12 @@ function markTemplate(
         inputId={inputId}
         checked={checked}
         disabled={disabled}
-        title={disabled ? 'This candidate was already moved to Trash.' : 'Mark duplicate candidate for Trash.'}
+        title={disabled ? 'This candidate was already moved to Trash.' : label}
         onChange={(event) => onMarkCandidate(candidate.id, Boolean(event.checked))}
       />
-      <label htmlFor={inputId}>Marked for Trash</label>
+      <label className="sr-only" htmlFor={inputId}>
+        {label}
+      </label>
     </div>
   );
 }

@@ -848,9 +848,9 @@ function WorkspaceSwitcher({
   return (
     <section className="workspace-switcher" aria-label="Workspace selector">
       <div>
-        <strong>Duplicate Scan results available</strong>
+        <strong>Duplicate candidate results available</strong>
         <span>
-          {result.matchCount.toLocaleString()} duplicate candidate(s) found across{' '}
+          {result.matchCount.toLocaleString()} filename match(es) found across{' '}
           {result.groups.length.toLocaleString()} source video(s).
         </span>
       </div>
@@ -874,6 +874,7 @@ function WorkspaceSwitcher({
           icon="pi pi-times"
           severity="secondary"
           text
+          title="Clear Duplicate Scan results"
           onClick={onClearDuplicateScanResult}
         />
       </div>

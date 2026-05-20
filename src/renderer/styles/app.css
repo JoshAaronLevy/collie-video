@@ -78,6 +78,19 @@ body {
   background: var(--app-bg);
 }
 
+.sr-only {
+  position: absolute !important;
+  width: 1px !important;
+  height: 1px !important;
+  padding: 0 !important;
+  margin: -1px !important;
+  overflow: hidden !important;
+  white-space: nowrap !important;
+  border: 0 !important;
+  clip: rect(0, 0, 0, 0) !important;
+  clip-path: inset(50%) !important;
+}
+
 button,
 input,
 textarea,
@@ -3088,10 +3101,28 @@ select {
   grid-template-columns: repeat(5, minmax(0, 1fr));
 }
 
+.duplicate-table-shell {
+  min-width: 0;
+}
+
 .duplicate-groups-table .p-datatable-wrapper,
 .duplicate-candidates-table .p-datatable-wrapper {
+  max-width: 100%;
   border: 1px solid var(--border);
   border-radius: var(--radius-md);
+  overflow: auto;
+}
+
+.duplicate-groups-table .p-datatable-thead > tr > th,
+.duplicate-groups-table .p-datatable-tbody > tr > td,
+.duplicate-candidates-table .p-datatable-thead > tr > th,
+.duplicate-candidates-table .p-datatable-tbody > tr > td {
+  vertical-align: top;
+}
+
+.duplicate-groups-table .p-datatable-thead > tr > th,
+.duplicate-candidates-table .p-datatable-thead > tr > th {
+  white-space: nowrap;
 }
 
 .duplicate-review-expanded {
@@ -3179,7 +3210,12 @@ select {
   display: flex;
   gap: 0.45rem;
   align-items: center;
+  justify-content: center;
   min-width: 0;
+}
+
+.duplicate-mark-cell .p-checkbox {
+  flex: 0 0 auto;
 }
 
 .duplicate-mark-cell label {
@@ -3297,16 +3333,21 @@ select {
 .duplicate-trash-candidate-list li > div,
 .duplicate-trash-attention-list li > div {
   display: flex;
+  flex-wrap: wrap;
   gap: 0.5rem;
   align-items: center;
+  justify-content: space-between;
   min-width: 0;
 }
 
 .duplicate-trash-candidate-list small,
 .duplicate-trash-attention-list small {
+  min-width: 0;
+  overflow: hidden;
   color: var(--text-muted-strong);
   font-size: 0.78rem;
   font-weight: 750;
+  text-overflow: ellipsis;
 }
 
 .duplicate-trash-attention-list h3 {
@@ -3656,6 +3697,10 @@ select {
 
   .duplicate-review-header {
     display: grid;
+  }
+
+  .duplicate-review-footer {
+    position: static;
   }
 
   .workspace-switcher > div:last-child,

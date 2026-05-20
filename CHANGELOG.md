@@ -7,6 +7,12 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.50.57] - 2026-05-20
+
+### Changed
+
+- Polished Stage 9 duplicate scan/review styling, copy, and accessibility with clearer duplicate candidate terminology, scoped table/layout CSS, long-path truncation safeguards, and accessible scan/review/Trash controls.
+
 ## [0.50.56] - 2026-05-20
 
 ### Changed

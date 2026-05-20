@@ -105,7 +105,7 @@ export function DuplicateTrashConfirmDialog({
         }
       }}
     >
-      <div className="duplicate-trash-content">
+      <div className="duplicate-trash-content" aria-busy={isSubmitting}>
         {error ? <Message severity="error" text={error} /> : null}
 
         {plan && result ? (
@@ -140,6 +140,7 @@ export function DuplicateTrashConfirmDialog({
                 <span>Type {confirmation.phrase} to confirm</span>
                 <InputText
                   value={typedConfirmation}
+                  aria-label="Move to Trash confirmation phrase"
                   placeholder={confirmation.phrase}
                   disabled={isSubmitting}
                   onChange={(event) => setTypedConfirmation(event.target.value)}

@@ -91,7 +91,7 @@ export function DuplicateScanDialog({
         }
       }}
     >
-      <div className="duplicate-scan-dialog-content">
+      <div className="duplicate-scan-dialog-content" aria-busy={isScanning}>
         <Message
           severity="info"
           text="Find possible duplicates by exact filename, including extension. Duration, size, and metadata are only shown later for comparison."
@@ -108,6 +108,7 @@ export function DuplicateScanDialog({
           <div className="duplicate-scan-folder-row">
             <InputText
               value={scanFolder}
+              aria-label="Duplicate Scan folder path"
               placeholder="/Users/joshlevy/Movies/Exports"
               disabled={isScanning}
               onChange={(event) => onScanFolderChange(event.target.value)}
@@ -127,8 +128,8 @@ export function DuplicateScanDialog({
         </div>
 
         {isScanning || (progress && !hasNoResults) ? (
-          <div className="duplicate-scan-progress">
-            <ProgressBar value={percent ?? 0} showValue={percent !== null} />
+          <div className="duplicate-scan-progress" role="status" aria-live="polite">
+            <ProgressBar value={percent ?? 0} showValue={percent !== null} aria-label="Duplicate Scan progress" />
             <p>{progress?.message ?? 'Preparing Duplicate Scan...'}</p>
             <div className="duplicate-scan-progress-counts">
               <Tag value={`${(progress?.scannedFileCount ?? 0).toLocaleString()} files scanned`} />
