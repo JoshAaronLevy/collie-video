@@ -1,7 +1,9 @@
 import { useCallback, useMemo, useState } from 'react';
+import { buildVideoProjectSnapshot } from '../helpers/projectSnapshot';
 import { getAuditedRootDirectory } from '../helpers/resultFilters';
 import { getWorkflowCapabilities } from '../helpers/workflowCapabilities';
 import { useAppCommands } from '../app/useAppCommands';
+import { useVideoResultsStore } from '../stores/useVideoResultsStore';
 import type { ActiveAction, VideoAuditAppController } from '../types/videoAuditAppController';
 import { useAuditResults } from './useAuditResults';
 import { useAuditSourceController } from './useAuditSourceController';
@@ -21,6 +23,7 @@ import { useOperationHistory } from './useOperationHistory';
 import { usePathReveal } from './usePathReveal';
 import { usePremiereBridge } from './usePremiereBridge';
 import { usePostConversionWorkflow } from './usePostConversionWorkflow';
+import { useProjectWorkspace } from './useProjectWorkspace';
 import { useSelectedVideoActions } from './useSelectedVideoActions';
 import { useSelectionState } from './useSelectionState';
 import { useSettingsController } from './useSettingsController';
@@ -127,6 +130,57 @@ export function useVideoAuditAppController(): VideoAuditAppController {
     archiveCurrentResultToHistory,
     clearStoredAuditResultState
   } = useAuditResults();
+  const buildProjectSnapshot = useCallback(() => {
+    const resultsState = useVideoResultsStore.getState();
+
+    return buildVideoProjectSnapshot({
+      selectedFolders,
+      selectedFolderSummary,
+      folderTreeRootPath,
+      folderTreeLastScannedAt,
+      selectedFiles,
+      outputFolder,
+      auditOptions,
+      auditRequest: resultsState.lastAuditRequest,
+      auditResult: resultsState.auditResult,
+      auditRows: resultsState.rows,
+      auditSavedAt: resultsState.storageSavedAt,
+      searchQuery: resultsState.searchQuery,
+      activeViewFilter: resultsState.activeViewFilter,
+      showThumbnails: resultsState.showThumbnails,
+      settings,
+      appVersion: appInfo?.version ?? null
+    });
+  }, [
+    appInfo?.version,
+    auditOptions,
+    folderTreeLastScannedAt,
+    folderTreeRootPath,
+    outputFolder,
+    selectedFiles,
+    selectedFolderSummary,
+    selectedFolders,
+    settings
+  ]);
+  const {
+    projectIndexItems,
+    activeProjectId,
+    activeProjectName,
+    projectSavedAt,
+    projectMessage,
+    projectError,
+    isProjectIndexLoading,
+    isProjectSaving,
+    loadProjectIndex,
+    createProject,
+    saveProject,
+    loadProject,
+    activateProject,
+    deleteProject,
+    clearProjectStatus
+  } = useProjectWorkspace({
+    buildSnapshot: buildProjectSnapshot
+  });
   const applyRefreshAuditSources = useCallback((selection: {
     selectedFolders: string[];
     selectedFiles: string[];
@@ -575,6 +629,14 @@ export function useVideoAuditAppController(): VideoAuditAppController {
     selectionMessage,
     workflowMessage,
     activeAction,
+    projectIndexItems,
+    activeProjectId,
+    activeProjectName,
+    projectSavedAt,
+    projectMessage,
+    projectError,
+    isProjectIndexLoading,
+    isProjectSaving,
     selectedFolders,
     selectedFolderSummary,
     folderTreeRootPath,
@@ -716,6 +778,13 @@ export function useVideoAuditAppController(): VideoAuditAppController {
     updateSettingsField,
     resetSettings,
     runToolDiagnostics,
+    loadProjectIndex,
+    createProject,
+    saveProject,
+    loadProject,
+    activateProject,
+    deleteProject,
+    clearProjectStatus,
     runAudit,
     refreshAudit,
     cancelAudit,

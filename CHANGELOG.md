@@ -7,6 +7,12 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.50.38] - 2026-05-20
+
+### Added
+
+- Added the named-project snapshot builder and project workspace hook, wiring project index, active-project metadata, save/load/delete wrappers, and project status into the renderer controller without adding a second Zustand store.
+
 ## [0.50.37] - 2026-05-20
 
 ### Added

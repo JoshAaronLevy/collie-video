@@ -32,6 +32,7 @@ The renderer API clients are thin wrappers over the typed preload API:
 - `migrationClient`: migration scan/execute/result and progress subscription.
 - `operationHistoryClient`: recent operation history and operation details.
 - `premiereClient`: Premiere status, bridge app launch, and import request creation.
+- `projectClient`: named-project list/create/save/load/delete and last-active metadata.
 - `replacementClient`: replacement-plan creation/update/execution/cancel/result and progress subscription.
 - `settingsClient`: settings load/update/reset.
 
@@ -45,6 +46,7 @@ These clients should stay small. They should not own workflow decisions, UI mess
 - `useAuditSourceController` owns audit options plus source-selection reset coordination.
 - `useSourceSelection` owns selected folders, selected files, output folder, folder-tree source metadata, picker calls, and source messages.
 - `useInitialVideoAuditState` restores settings, source state, saved audit rows, saved request options, and folder-tree source metadata during startup.
+- `useProjectWorkspace` owns named-project index loading, active project metadata, save status, project messages/errors, and project client action wrappers.
 - `useAuditResults` adapts workflow hooks to the results store, IndexedDB persistence, storage messages, row hiding/restoring, media-preview row merges, and audit-history archiving.
 - `useResultFilters` reads top-level result search, view filter, visible counts, and filtered rows from results store selectors.
 - `useSelectionState` adapts selected row objects and selected paths from store-owned selected row IDs.
@@ -111,6 +113,12 @@ The focused Zustand results workspace store owns the canonical audit result and 
 `useAuditResults` is the adapter around that store. It exposes compatibility callbacks to workflow hooks, handles IndexedDB persistence and storage messages, and archives audit-history metadata. Other workflows do not mutate row arrays directly. They call callbacks supplied by the controller, such as `applyAuditResult`, `hideVideoPathsFromTable`, `mergeMediaPreviewResult`, `mergeMediaPreviewItemsIntoRows`, and `mergePreviewClipResult`.
 
 Derived rows and counts come from `src/renderer/stores/videoResultsSelectors.ts`; dynamic counts are not stored as mutable state.
+
+## Named Project Snapshots
+
+Named project persistence is reached through `projectClient` and owned by `useProjectWorkspace`. Snapshot creation lives in the pure `src/renderer/helpers/projectSnapshot.ts` helper, which receives explicit source, result, workspace, settings, and app-version inputs and does not call IPC, read browser globals, mutate Zustand, or execute workflows.
+
+The project workspace hook tracks project metadata and delegates durable writes to the main-process project service through the typed preload boundary. It does not own audit execution, ffmpeg work, source scanning, table results, running jobs, active row selection, or open modal state.
 
 ## Selected Row State
 

@@ -32,6 +32,7 @@ import type {
   PremiereRequestResponse,
   PremiereStatusResponse
 } from '../../shared/types/premiere';
+import type { ProjectIndex, ProjectIndexItem, VideoProject } from '../../shared/types/project';
 import type {
   ReplacementAction,
   ReplacementExecutionJobSnapshot,
@@ -86,6 +87,14 @@ export interface VideoAuditAppController {
   selectionMessage: string | null;
   workflowMessage: string | null;
   activeAction: ActiveAction;
+  projectIndexItems: ProjectIndexItem[];
+  activeProjectId: string | null;
+  activeProjectName: string | null;
+  projectSavedAt: string | null;
+  projectMessage: string | null;
+  projectError: string | null;
+  isProjectIndexLoading: boolean;
+  isProjectSaving: boolean;
   selectedFolders: string[];
   selectedFolderSummary: SelectedFolderSummary | null;
   folderTreeRootPath: string | null;
@@ -232,6 +241,13 @@ export interface VideoAuditAppController {
   updateSettingsField: <Key extends keyof AppSettings>(key: Key, value: AppSettings[Key]) => Promise<void>;
   resetSettings: () => Promise<void>;
   runToolDiagnostics: () => Promise<void>;
+  loadProjectIndex: () => Promise<ProjectIndex | null>;
+  createProject: (name: string) => Promise<VideoProject | null>;
+  saveProject: () => Promise<VideoProject | null>;
+  loadProject: (projectId: string) => Promise<VideoProject | null>;
+  activateProject: (project: VideoProject | null) => Promise<void>;
+  deleteProject: (projectId: string) => Promise<boolean>;
+  clearProjectStatus: () => void;
   runAudit: () => Promise<AuditStartOutcome>;
   refreshAudit: () => Promise<void>;
   cancelAudit: () => Promise<void>;

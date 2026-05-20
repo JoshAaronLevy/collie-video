@@ -66,10 +66,13 @@ Keep state local or hook-owned when it is tied to one workflow, one dialog, or o
 - app-shell visibility flags in `App.tsx`
 - settings loading/messages/update calls in `useSettingsController`
 - source selection state in `useAuditSourceController` and `useSourceSelection`
+- named-project index, active-project metadata, save status, and project messages/errors in `useProjectWorkspace`
 - operation-history dialog/loading/detail state in `useOperationHistory`
 - busy and capability derivation in `useWorkflowBusyState` and `getWorkflowCapabilities`
 
 The Stage 10 review in `docs/zustand-next-store-evaluation.md` records why no second store is currently warranted.
+
+Named project persistence is intentionally not a Zustand concern. Durable project JSON files live in the Electron main process under `userData`, while the renderer project hook coordinates metadata and calls the typed `projectClient` boundary.
 
 ## Result Row Pipeline
 
