@@ -185,7 +185,7 @@ export function DuplicateReviewWorkspace({
         }
       />
       {isImprovedDuplicateScanResult(result) && result.warnings.length > 0 ? (
-        <Message severity="warn" text={`${result.warnings.length.toLocaleString()} scan warning(s) were recorded.`} />
+        <ScanWarningPanel warnings={result.warnings} />
       ) : null}
       {trashPlanError ? <Message severity="error" text={trashPlanError} /> : null}
 
@@ -568,6 +568,26 @@ function getReviewSummary(result: DuplicateReviewScanResult, groups: ReviewGroup
     visualGroupCount: groups.filter((group) => group.matchType === 'near-duplicate').length,
     containedClipGroupCount: groups.filter((group) => group.matchType === 'contained-clip').length
   };
+}
+
+function ScanWarningPanel({ warnings }: { warnings: string[] }): ReactElement {
+  const visibleWarnings = warnings.slice(0, 5);
+  const hiddenCount = warnings.length - visibleWarnings.length;
+
+  return (
+    <section className="duplicate-warning-panel" aria-label="Duplicate scan warnings">
+      <div>
+        <i className="pi pi-exclamation-triangle" aria-hidden="true" />
+        <strong>{warnings.length.toLocaleString()} scan warning(s)</strong>
+      </div>
+      <ul>
+        {visibleWarnings.map((warning) => (
+          <li key={warning}>{warning}</li>
+        ))}
+      </ul>
+      {hiddenCount > 0 ? <small>{hiddenCount.toLocaleString()} more warning(s) hidden.</small> : null}
+    </section>
+  );
 }
 
 function SummaryMetric({ label, value }: { label: string; value: string }): ReactElement {

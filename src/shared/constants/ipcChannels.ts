@@ -40,6 +40,8 @@ export const IPC_CHANNELS = {
   improvedDuplicateScanCancel: 'improved-duplicate-scan:cancel',
   improvedDuplicateScanGetResult: 'improved-duplicate-scan:get-result',
   improvedDuplicateScanProgress: 'improved-duplicate-scan:progress',
+  improvedDuplicateScanFingerprintCacheStats: 'improved-duplicate-scan:fingerprint-cache:stats',
+  improvedDuplicateScanFingerprintCacheClear: 'improved-duplicate-scan:fingerprint-cache:clear',
   autoFixStart: 'auto-fix:start',
   autoFixCancel: 'auto-fix:cancel',
   autoFixGetResult: 'auto-fix:get-result',

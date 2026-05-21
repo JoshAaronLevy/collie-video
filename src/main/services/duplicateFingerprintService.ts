@@ -1,5 +1,5 @@
 import { access, stat } from 'node:fs/promises';
-import { basename, dirname, join } from 'node:path';
+import { basename, dirname } from 'node:path';
 import type {
   DuplicateScanProfile,
   VisualFingerprint,
@@ -10,9 +10,12 @@ import type {
 import {
   IMPROVED_DUPLICATE_SCAN_DEFAULT_PROFILE,
   IMPROVED_DUPLICATE_SCAN_DEEP_PROFILE,
-  IMPROVED_DUPLICATE_SCAN_FAST_PROFILE
+  IMPROVED_DUPLICATE_SCAN_FAST_PROFILE,
+  getImprovedDuplicateScanProfileDefaults,
+  normalizeImprovedDuplicateScanProfile
 } from '../../shared/types/duplicateScan';
 import { runChildProcess } from '../utils/childProcess';
+import { getOpenCvFingerprintScriptPath, getProjectPythonPath } from './opencvToolService';
 import {
   createVisualFingerprintCacheKey,
   readCachedVisualFingerprint,
@@ -22,10 +25,6 @@ import type { VisualFingerprintCacheStatus } from './duplicateFingerprintCacheSe
 
 const DEFAULT_ALGORITHM: VisualFingerprintAlgorithm = 'dhash-v1';
 const ALGORITHM_VERSION = '1';
-const FAST_SAMPLE_INTERVAL_SECONDS = 10;
-const FAST_MAX_SAMPLES = 120;
-const DEEP_SAMPLE_INTERVAL_SECONDS = 2;
-const DEEP_MAX_SAMPLES = 600;
 
 export interface GenerateVisualFingerprintOptions {
   filePath: string;
@@ -274,10 +273,11 @@ export async function generateVisualFingerprint({
 }: GenerateVisualFingerprintOptions): Promise<GenerateVisualFingerprintResult> {
   const resolvedPythonPath = pythonPath?.trim() || getProjectPythonPath();
   const resolvedHelperScriptPath = helperScriptPath?.trim() || getOpenCvFingerprintScriptPath();
-  const resolvedProfile = normalizeProfile(profile);
+  const resolvedProfile = normalizeImprovedDuplicateScanProfile(profile);
+  const profileDefaults = getImprovedDuplicateScanProfileDefaults(resolvedProfile);
   const resolvedSampleIntervalSeconds =
-    sampleIntervalSeconds ?? getDefaultSampleIntervalSeconds(resolvedProfile);
-  const resolvedMaxSamples = maxSamplesPerVideo ?? getDefaultMaxSamples(resolvedProfile);
+    sampleIntervalSeconds ?? profileDefaults.sampleIntervalSeconds;
+  const resolvedMaxSamples = maxSamplesPerVideo ?? profileDefaults.maxSamplesPerVideo;
   const resolvedDurationSeconds = Number.isFinite(durationSeconds) ? durationSeconds : null;
 
   if (signal?.aborted) {
@@ -510,30 +510,6 @@ export async function generateVisualFingerprint({
     cacheMessage,
     cacheWriteError: cacheWriteResult && !cacheWriteResult.ok ? cacheWriteResult.error : undefined
   };
-}
-
-export function getProjectPythonPath(): string {
-  return join(process.cwd(), '.venv', 'bin', 'python');
-}
-
-export function getOpenCvFingerprintScriptPath(): string {
-  return join(process.cwd(), 'scripts', 'opencv', 'fingerprint_video.py');
-}
-
-function getDefaultSampleIntervalSeconds(profile: DuplicateScanProfile): number {
-  return profile === IMPROVED_DUPLICATE_SCAN_DEEP_PROFILE
-    ? DEEP_SAMPLE_INTERVAL_SECONDS
-    : FAST_SAMPLE_INTERVAL_SECONDS;
-}
-
-function getDefaultMaxSamples(profile: DuplicateScanProfile): number {
-  return profile === IMPROVED_DUPLICATE_SCAN_DEEP_PROFILE ? DEEP_MAX_SAMPLES : FAST_MAX_SAMPLES;
-}
-
-function normalizeProfile(profile: DuplicateScanProfile): DuplicateScanProfile {
-  return profile === IMPROVED_DUPLICATE_SCAN_DEEP_PROFILE
-    ? IMPROVED_DUPLICATE_SCAN_DEEP_PROFILE
-    : IMPROVED_DUPLICATE_SCAN_FAST_PROFILE;
 }
 
 function validateFingerprintOptions({

@@ -2532,6 +2532,7 @@ select {
 .duplicate-evidence-grid > div,
 .duplicate-scan-path-panel,
 .duplicate-scan-profile-row,
+.duplicate-scan-cache-row,
 .duplicate-trash-path-panel,
 .file-operation-summary-grid > div,
 .file-operation-path-panel,
@@ -3035,6 +3036,7 @@ select {
 
 .duplicate-scan-mode-heading,
 .duplicate-scan-profile-row,
+.duplicate-scan-cache-row,
 .duplicate-review-toolbar,
 .duplicate-evidence-heading {
   display: flex;
@@ -3050,14 +3052,16 @@ select {
 }
 
 .duplicate-scan-mode-heading span,
-.duplicate-scan-profile-row span {
+.duplicate-scan-profile-row span,
+.duplicate-scan-cache-row span {
   color: var(--text-muted);
   font-size: 0.78rem;
   font-weight: 800;
 }
 
 .duplicate-scan-mode-heading small,
-.duplicate-scan-profile-row small {
+.duplicate-scan-profile-row small,
+.duplicate-scan-cache-row small {
   color: var(--text-muted-strong);
   font-size: 0.78rem;
   font-weight: 700;
@@ -3110,10 +3114,23 @@ select {
   grid-template-columns: none;
 }
 
-.duplicate-scan-profile-row > div {
+.duplicate-scan-profile-row > div,
+.duplicate-scan-cache-row > div:first-child {
   display: grid;
   gap: 0.2rem;
   min-width: 0;
+}
+
+.duplicate-scan-cache-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.45rem;
+  justify-content: flex-end;
+}
+
+.duplicate-scan-cache-error {
+  flex-basis: 100%;
+  color: var(--danger-text);
 }
 
 .workspace-switcher,
@@ -3205,6 +3222,43 @@ select {
 .duplicate-review-toolbar > span {
   color: var(--text-muted-strong);
   font-size: 0.82rem;
+  font-weight: 800;
+}
+
+.duplicate-warning-panel {
+  display: grid;
+  gap: 0.55rem;
+  padding: 0.75rem;
+  color: var(--warning-text);
+  background: var(--surface-warning);
+  border: 1px solid var(--border-warning);
+  border-radius: var(--radius-md);
+}
+
+.duplicate-warning-panel div {
+  display: flex;
+  gap: 0.5rem;
+  align-items: center;
+}
+
+.duplicate-warning-panel ul {
+  display: grid;
+  gap: 0.4rem;
+  padding: 0;
+  margin: 0;
+  list-style: none;
+}
+
+.duplicate-warning-panel li {
+  min-width: 0;
+  overflow: hidden;
+  font-size: 0.82rem;
+  font-weight: 700;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.duplicate-warning-panel small {
   font-weight: 800;
 }
 

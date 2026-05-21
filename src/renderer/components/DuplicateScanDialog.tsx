@@ -8,6 +8,7 @@ import { ProgressBar } from 'primereact/progressbar';
 import { SelectButton } from 'primereact/selectbutton';
 import { Tag } from 'primereact/tag';
 import type {
+  DuplicateFingerprintCacheStats,
   DuplicateReviewScanJobSnapshot,
   DuplicateReviewScanResult,
   DuplicateScanMode,
@@ -27,11 +28,17 @@ interface DuplicateScanDialogProps {
   percent: number | null;
   result: DuplicateReviewScanResult | null;
   error: string | null;
+  fingerprintCacheStats: DuplicateFingerprintCacheStats | null;
+  fingerprintCacheError: string | null;
+  isFingerprintCacheLoading: boolean;
+  isFingerprintCacheClearing: boolean;
   isScanning: boolean;
   onScanFolderChange: (value: string) => void;
   onModesChange: (modes: DuplicateScanMode[]) => void;
   onProfileChange: (profile: DuplicateScanProfile) => void;
   onSelectFolder: () => void | Promise<void>;
+  onRefreshFingerprintCache: () => void | Promise<void>;
+  onClearFingerprintCache: () => void | Promise<void>;
   onStartScan: () => void | Promise<void>;
   onCancelScan: () => void | Promise<void>;
   onHide: () => void;
@@ -74,11 +81,17 @@ export function DuplicateScanDialog({
   percent,
   result,
   error,
+  fingerprintCacheStats,
+  fingerprintCacheError,
+  isFingerprintCacheLoading,
+  isFingerprintCacheClearing,
   isScanning,
   onScanFolderChange,
   onModesChange,
   onProfileChange,
   onSelectFolder,
+  onRefreshFingerprintCache,
+  onClearFingerprintCache,
   onStartScan,
   onCancelScan,
   onHide
@@ -202,6 +215,42 @@ export function DuplicateScanDialog({
           />
         </section>
 
+        {hasVisualMode ? (
+          <section className="duplicate-scan-cache-row" aria-label="Duplicate fingerprint cache">
+            <div>
+              <span>Fingerprint cache</span>
+              <small title={fingerprintCacheStats?.cacheDir ?? undefined}>
+                {formatFingerprintCacheStats(fingerprintCacheStats)}
+              </small>
+            </div>
+            <div className="duplicate-scan-cache-actions">
+              <Button
+                label="Refresh"
+                icon="pi pi-refresh"
+                severity="secondary"
+                outlined
+                loading={isFingerprintCacheLoading}
+                disabled={isScanning || isFingerprintCacheClearing}
+                onClick={() => {
+                  void onRefreshFingerprintCache();
+                }}
+              />
+              <Button
+                label="Clear"
+                icon="pi pi-trash"
+                severity="warning"
+                outlined
+                loading={isFingerprintCacheClearing}
+                disabled={isScanning || isFingerprintCacheLoading}
+                onClick={() => {
+                  void onClearFingerprintCache();
+                }}
+              />
+            </div>
+            {fingerprintCacheError ? <small className="duplicate-scan-cache-error">{fingerprintCacheError}</small> : null}
+          </section>
+        ) : null}
+
         <div className="duplicate-scan-path-panel">
           <span>Folder to scan recursively</span>
           <div className="duplicate-scan-folder-row">
@@ -245,6 +294,7 @@ export function DuplicateScanDialog({
               <SummaryMetric label="Video files checked" value={checkedVideoFileCount.toLocaleString()} />
               {resultSummaryMetrics(result)}
             </div>
+            {result && result.warnings.length > 0 ? <ScanWarningPanel warnings={result.warnings} /> : null}
           </div>
         ) : null}
 
@@ -260,6 +310,26 @@ function SummaryMetric({ label, value }: { label: string; value: string }): Reac
       <span>{label}</span>
       <strong title={value}>{value}</strong>
     </div>
+  );
+}
+
+function ScanWarningPanel({ warnings }: { warnings: string[] }): ReactElement {
+  const visibleWarnings = warnings.slice(0, 5);
+  const hiddenCount = warnings.length - visibleWarnings.length;
+
+  return (
+    <section className="duplicate-warning-panel" aria-label="Duplicate scan warnings">
+      <div>
+        <i className="pi pi-exclamation-triangle" aria-hidden="true" />
+        <strong>{warnings.length.toLocaleString()} scan warning(s)</strong>
+      </div>
+      <ul>
+        {visibleWarnings.map((warning) => (
+          <li key={warning}>{warning}</li>
+        ))}
+      </ul>
+      {hiddenCount > 0 ? <small>{hiddenCount.toLocaleString()} more warning(s) hidden.</small> : null}
+    </section>
   );
 }
 
@@ -371,12 +441,51 @@ function formatProfile(profile: DuplicateScanProfile): string {
   return profile === 'deep' ? 'Deep' : 'Fast';
 }
 
+function formatFingerprintCacheStats(stats: DuplicateFingerprintCacheStats | null): string {
+  if (!stats) {
+    return 'Stats not loaded yet';
+  }
+
+  const updatedText = stats.lastModifiedAt ? `, updated ${formatDateTime(stats.lastModifiedAt)}` : '';
+
+  return `${stats.entryCount.toLocaleString()} entr${stats.entryCount === 1 ? 'y' : 'ies'}, ${formatBytes(stats.totalBytes)}${updatedText}`;
+}
+
 function formatProcessedFiles(progress: ImprovedDuplicateScanJobSnapshot): string {
   if (progress.totalFiles === null || progress.totalFiles === undefined) {
     return `${progress.processedFiles.toLocaleString()} files processed`;
   }
 
   return `${progress.processedFiles.toLocaleString()} / ${progress.totalFiles.toLocaleString()} files`;
+}
+
+function formatBytes(bytes: number): string {
+  if (!Number.isFinite(bytes) || bytes <= 0) {
+    return '0 B';
+  }
+
+  const units = ['B', 'KB', 'MB', 'GB', 'TB'];
+  let size = bytes;
+  let unitIndex = 0;
+
+  while (size >= 1024 && unitIndex < units.length - 1) {
+    size /= 1024;
+    unitIndex += 1;
+  }
+
+  return `${size >= 10 || unitIndex === 0 ? size.toFixed(0) : size.toFixed(1)} ${units[unitIndex]}`;
+}
+
+function formatDateTime(value: string): string {
+  const date = new Date(value);
+  return Number.isNaN(date.getTime())
+    ? value
+    : date.toLocaleString([], {
+        month: 'short',
+        day: 'numeric',
+        hour: 'numeric',
+        minute: '2-digit'
+      });
 }
 
 function formatMetadataProgress(progress: DuplicateReviewScanJobSnapshot | null): string {

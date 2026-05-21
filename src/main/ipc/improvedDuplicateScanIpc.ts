@@ -1,6 +1,9 @@
 import { BrowserWindow, ipcMain } from 'electron';
 import { IPC_CHANNELS } from '../../shared/constants/ipcChannels';
 import type {
+  DuplicateFingerprintCacheClearResponse,
+  DuplicateFingerprintCacheStatsResponse,
+  DuplicateScanMode,
   ImprovedDuplicateScanCancelResponse,
   ImprovedDuplicateScanJobSnapshot,
   ImprovedDuplicateScanRequest,
@@ -9,9 +12,17 @@ import type {
   ImprovedDuplicateScanStartResponse
 } from '../../shared/types/duplicateScan';
 import type { JobRecord } from '../services/jobRegistry';
+import {
+  clearVisualFingerprintCache,
+  getVisualFingerprintCacheStats
+} from '../services/duplicateFingerprintCacheService';
 import { JobRegistry } from '../services/jobRegistry';
 import { runImprovedDuplicateScan } from '../services/improvedDuplicateScanService';
 import { notifyLongJobComplete } from '../services/notificationService';
+import {
+  checkOpenCvAvailability,
+  getOpenCvVisualModeUnavailableMessage
+} from '../services/opencvToolService';
 
 const improvedDuplicateScanJobs = new JobRegistry<
   ImprovedDuplicateScanRequest,
@@ -22,13 +33,22 @@ const improvedDuplicateScanJobs = new JobRegistry<
 export function registerImprovedDuplicateScanIpcHandlers(): void {
   ipcMain.handle(
     IPC_CHANNELS.improvedDuplicateScanStart,
-    (event, request: ImprovedDuplicateScanRequest): ImprovedDuplicateScanStartResponse => {
+    async (event, request: ImprovedDuplicateScanRequest): Promise<ImprovedDuplicateScanStartResponse> => {
       const validation = validateImprovedDuplicateScanStartRequest(request);
 
       if (!validation.ok) {
         return {
           status: 'invalid_request',
           message: validation.error
+        };
+      }
+
+      const runtimeReadiness = await validateImprovedDuplicateScanRuntimeReadiness(validation.request);
+
+      if (!runtimeReadiness.ok) {
+        return {
+          status: 'invalid_request',
+          message: runtimeReadiness.error
         };
       }
 
@@ -125,6 +145,20 @@ export function registerImprovedDuplicateScanIpcHandlers(): void {
         status: job.result.status,
         result: job.result
       };
+    }
+  );
+
+  ipcMain.handle(
+    IPC_CHANNELS.improvedDuplicateScanFingerprintCacheStats,
+    async (): Promise<DuplicateFingerprintCacheStatsResponse> => {
+      return getVisualFingerprintCacheStats();
+    }
+  );
+
+  ipcMain.handle(
+    IPC_CHANNELS.improvedDuplicateScanFingerprintCacheClear,
+    async (): Promise<DuplicateFingerprintCacheClearResponse> => {
+      return clearVisualFingerprintCache();
     }
   );
 }
@@ -235,6 +269,29 @@ function validateImprovedDuplicateScanStartRequest(
       sources: request.sources
     }
   };
+}
+
+async function validateImprovedDuplicateScanRuntimeReadiness(
+  request: ImprovedDuplicateScanRequest
+): Promise<{ ok: true } | { ok: false; error: string }> {
+  if (!requiresVisualFingerprints(request.options.modes)) {
+    return { ok: true };
+  }
+
+  const openCvAvailability = await checkOpenCvAvailability();
+
+  if (!openCvAvailability.ok) {
+    return {
+      ok: false,
+      error: getOpenCvVisualModeUnavailableMessage(openCvAvailability)
+    };
+  }
+
+  return { ok: true };
+}
+
+function requiresVisualFingerprints(modes: DuplicateScanMode[]): boolean {
+  return modes.includes('visual-fingerprint') || modes.includes('contained-clip');
 }
 
 function updateImprovedDuplicateScanProgress(

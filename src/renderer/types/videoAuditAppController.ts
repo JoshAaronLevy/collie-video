@@ -11,6 +11,7 @@ import type { AutoCropJobSnapshot, AutoCropResult } from '../../shared/types/aut
 import type { AutoFixJobSnapshot, AutoFixResult } from '../../shared/types/autoFix';
 import type { ToolDiagnosticsResult } from '../../shared/types/diagnostics';
 import type {
+  DuplicateFingerprintCacheStats,
   DuplicateReviewScanJobSnapshot,
   DuplicateReviewScanResult,
   DuplicateScanMode,
@@ -193,10 +194,14 @@ export interface VideoAuditAppController {
   duplicateTrashPlanError: string | null;
   duplicateTrashResult: FileOperationResult | null;
   duplicateTrashResultError: string | null;
+  duplicateFingerprintCacheStats: DuplicateFingerprintCacheStats | null;
+  duplicateFingerprintCacheError: string | null;
   isDuplicateScanDialogVisible: boolean;
   isDuplicateTrashConfirmDialogVisible: boolean;
   isDuplicateTrashResultDialogVisible: boolean;
   isDuplicateScanActive: boolean;
+  isDuplicateFingerprintCacheLoading: boolean;
+  isDuplicateFingerprintCacheClearing: boolean;
   isDuplicateTrashPlanning: boolean;
   isDuplicateTrashExecuting: boolean;
   canStartDuplicateScan: boolean;
@@ -335,6 +340,8 @@ export interface VideoAuditAppController {
   markDuplicateCandidate: (candidateId: string, marked: boolean) => void;
   toggleDuplicateCandidateMark: (candidateId: string) => void;
   clearDuplicateCandidateMarks: () => void;
+  refreshDuplicateFingerprintCacheStats: () => Promise<void>;
+  clearDuplicateFingerprintCache: () => Promise<void>;
   createDuplicateTrashPlan: () => Promise<void>;
   closeDuplicateTrashDialog: () => void;
   executeDuplicateTrashPlan: (typedConfirmation: string | null) => Promise<void>;

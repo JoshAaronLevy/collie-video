@@ -1,8 +1,12 @@
 import { createHash } from 'node:crypto';
-import { mkdir, readFile, rename, rm, writeFile } from 'node:fs/promises';
+import type { Dirent } from 'node:fs';
+import { mkdir, readFile, readdir, rename, rm, stat, writeFile } from 'node:fs/promises';
 import { join } from 'node:path';
 import type {
   VisualFingerprint,
+  DuplicateFingerprintCacheClearResponse,
+  DuplicateFingerprintCacheStats,
+  DuplicateFingerprintCacheStatsResponse,
   VisualFingerprintCacheKey,
   VisualFingerprintSample
 } from '../../shared/types/duplicateScan';
@@ -150,6 +154,54 @@ export async function writeCachedVisualFingerprint(
   }
 }
 
+export async function getVisualFingerprintCacheStats(
+  options: VisualFingerprintCacheOptions = {}
+): Promise<DuplicateFingerprintCacheStatsResponse> {
+  try {
+    const stats = await collectVisualFingerprintCacheStats(options);
+
+    return {
+      status: 'ok',
+      stats,
+      message: `${stats.entryCount.toLocaleString()} duplicate fingerprint cache entr${stats.entryCount === 1 ? 'y' : 'ies'} found.`
+    };
+  } catch (error) {
+    return {
+      status: 'error',
+      message:
+        error instanceof Error
+          ? `Unable to read duplicate fingerprint cache stats: ${error.message}`
+          : 'Unable to read duplicate fingerprint cache stats.'
+    };
+  }
+}
+
+export async function clearVisualFingerprintCache(
+  options: VisualFingerprintCacheOptions = {}
+): Promise<DuplicateFingerprintCacheClearResponse> {
+  try {
+    const beforeStats = await collectVisualFingerprintCacheStats(options);
+    await rm(await getVisualFingerprintCacheDir(options), { force: true, recursive: true });
+    const afterStats = await collectVisualFingerprintCacheStats(options);
+
+    return {
+      status: 'cleared',
+      stats: afterStats,
+      clearedEntryCount: beforeStats.entryCount,
+      clearedBytes: beforeStats.totalBytes,
+      message: `Cleared ${beforeStats.entryCount.toLocaleString()} duplicate fingerprint cache entr${beforeStats.entryCount === 1 ? 'y' : 'ies'}.`
+    };
+  } catch (error) {
+    return {
+      status: 'error',
+      message:
+        error instanceof Error
+          ? `Unable to clear duplicate fingerprint cache: ${error.message}`
+          : 'Unable to clear duplicate fingerprint cache.'
+    };
+  }
+}
+
 async function getVisualFingerprintCachePath(
   cacheKey: string,
   options: VisualFingerprintCacheOptions
@@ -157,7 +209,7 @@ async function getVisualFingerprintCachePath(
   return join(await getVisualFingerprintCacheDir(options), `${cacheKey}.json`);
 }
 
-async function getVisualFingerprintCacheDir(
+export async function getVisualFingerprintCacheDir(
   options: VisualFingerprintCacheOptions
 ): Promise<string> {
   const override = options.cacheDir?.trim();
@@ -167,6 +219,50 @@ async function getVisualFingerprintCacheDir(
 
   const { getDuplicateFingerprintCacheDir } = await import('./appPaths');
   return join(getDuplicateFingerprintCacheDir(), FINGERPRINT_CACHE_SUBDIR);
+}
+
+async function collectVisualFingerprintCacheStats(
+  options: VisualFingerprintCacheOptions
+): Promise<DuplicateFingerprintCacheStats> {
+  const cacheDir = await getVisualFingerprintCacheDir(options);
+  let entries: Dirent[];
+
+  try {
+    entries = await readdir(cacheDir, { withFileTypes: true });
+  } catch (error) {
+    if (isNodeError(error) && error.code === 'ENOENT') {
+      return {
+        cacheDir,
+        entryCount: 0,
+        totalBytes: 0,
+        lastModifiedAt: null
+      };
+    }
+
+    throw error;
+  }
+
+  let entryCount = 0;
+  let totalBytes = 0;
+  let lastModifiedTimeMs = 0;
+
+  for (const entry of entries) {
+    if (!entry.isFile() || !entry.name.endsWith('.json')) {
+      continue;
+    }
+
+    const fileStats = await stat(join(cacheDir, entry.name));
+    entryCount += 1;
+    totalBytes += fileStats.size;
+    lastModifiedTimeMs = Math.max(lastModifiedTimeMs, fileStats.mtimeMs);
+  }
+
+  return {
+    cacheDir,
+    entryCount,
+    totalBytes,
+    lastModifiedAt: lastModifiedTimeMs > 0 ? new Date(lastModifiedTimeMs).toISOString() : null
+  };
 }
 
 function normalizeCacheIdentity(cacheIdentity: VisualFingerprintCacheKey): VisualFingerprintCacheKey {

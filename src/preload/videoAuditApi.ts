@@ -36,6 +36,8 @@ import type {
   DuplicateScanStartResponse,
   DuplicateScanTrashPlanRequest,
   DuplicateScanTrashPlanResponse,
+  DuplicateFingerprintCacheClearResponse,
+  DuplicateFingerprintCacheStatsResponse,
   ImprovedDuplicateScanCancelResponse,
   ImprovedDuplicateScanJobSnapshot,
   ImprovedDuplicateScanRequest,
@@ -183,6 +185,8 @@ export interface VideoAuditApi {
     start: (request: ImprovedDuplicateScanRequest) => Promise<ImprovedDuplicateScanStartResponse>;
     cancel: (jobId: string) => Promise<ImprovedDuplicateScanCancelResponse>;
     getResult: (jobId: string) => Promise<ImprovedDuplicateScanResultResponse>;
+    getFingerprintCacheStats: () => Promise<DuplicateFingerprintCacheStatsResponse>;
+    clearFingerprintCache: () => Promise<DuplicateFingerprintCacheClearResponse>;
     onProgress: (callback: (progress: ImprovedDuplicateScanJobSnapshot) => void) => () => void;
   };
   autoFix: {
@@ -384,6 +388,10 @@ export const videoAuditApi: VideoAuditApi = {
       ipcRenderer.invoke(IPC_CHANNELS.improvedDuplicateScanCancel, jobId),
     getResult: (jobId: string) =>
       ipcRenderer.invoke(IPC_CHANNELS.improvedDuplicateScanGetResult, jobId),
+    getFingerprintCacheStats: () =>
+      ipcRenderer.invoke(IPC_CHANNELS.improvedDuplicateScanFingerprintCacheStats),
+    clearFingerprintCache: () =>
+      ipcRenderer.invoke(IPC_CHANNELS.improvedDuplicateScanFingerprintCacheClear),
     onProgress: (callback: (progress: ImprovedDuplicateScanJobSnapshot) => void) => {
       const listener = (
         _event: Electron.IpcRendererEvent,

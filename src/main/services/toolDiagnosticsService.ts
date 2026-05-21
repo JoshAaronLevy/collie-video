@@ -1,13 +1,17 @@
 import type { ToolDiagnosticItem, ToolDiagnosticsResult } from '../../shared/types/diagnostics';
 import { runChildProcess } from '../utils/childProcess';
+import { checkOpenCvAvailability, getProjectPythonPath } from './opencvToolService';
 import { getSettings } from './settingsService';
 
 export async function checkMediaToolAvailability(): Promise<ToolDiagnosticsResult> {
   const settings = await getSettings();
-  const tools = await Promise.all([
+  const [ffmpeg, ffprobe, python, openCv] = await Promise.all([
     checkTool('ffmpeg', settings.ffmpegPathOverride?.trim() || 'ffmpeg'),
-    checkTool('ffprobe', settings.ffprobePathOverride?.trim() || 'ffprobe')
+    checkTool('ffprobe', settings.ffprobePathOverride?.trim() || 'ffprobe'),
+    checkTool('python', getProjectPythonPath(), ['--version']),
+    checkOpenCvTool()
   ]);
+  const tools = [ffmpeg, ffprobe, python, openCv];
 
   const failedCount = tools.filter((tool) => !tool.ok).length;
 
@@ -17,16 +21,17 @@ export async function checkMediaToolAvailability(): Promise<ToolDiagnosticsResul
     tools,
     message:
       failedCount === 0
-        ? 'ffmpeg and ffprobe are available.'
+        ? 'ffmpeg, ffprobe, and local OpenCV are available.'
         : `${failedCount.toLocaleString()} media tool(s) could not be reached.`
   };
 }
 
 async function checkTool(
   name: ToolDiagnosticItem['name'],
-  command: string
+  command: string,
+  args: string[] = ['-version']
 ): Promise<ToolDiagnosticItem> {
-  const result = await runChildProcess(command, ['-version']);
+  const result = await runChildProcess(command, args);
   const versionLine = getFirstLine(result.stdout || result.stderr);
 
   if (!result.ok) {
@@ -45,6 +50,18 @@ async function checkTool(
     ok: true,
     versionLine,
     message: `${name} is available.`
+  };
+}
+
+async function checkOpenCvTool(): Promise<ToolDiagnosticItem> {
+  const result = await checkOpenCvAvailability();
+
+  return {
+    name: 'opencv',
+    command: result.command,
+    ok: result.ok,
+    versionLine: result.versionLine,
+    message: result.message
   };
 }
 

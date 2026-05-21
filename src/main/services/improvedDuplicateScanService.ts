@@ -7,7 +7,6 @@ import type {
   DuplicateCandidateGroup,
   DuplicateScanTrashPlanRequest,
   DuplicateScanMode,
-  DuplicateScanProfile,
   DuplicateScanSource,
   DuplicateScanSourceInput,
   ImprovedDuplicateScanOptions,
@@ -17,25 +16,25 @@ import type {
   VisualFingerprint
 } from '../../shared/types/duplicateScan';
 import {
+  IMPROVED_DUPLICATE_SCAN_CONTAINED_MIN_SEQUENTIAL_MATCHES,
   IMPROVED_DUPLICATE_SCAN_DEEP_PROFILE,
   IMPROVED_DUPLICATE_SCAN_FAST_PROFILE,
-  IMPROVED_DUPLICATE_SCAN_SOURCE_SCOPE
+  IMPROVED_DUPLICATE_SCAN_SOURCE_SCOPE,
+  IMPROVED_DUPLICATE_SCAN_VISUAL_MIN_SEQUENTIAL_MATCHES,
+  getImprovedDuplicateScanProfileDefaults
 } from '../../shared/types/duplicateScan';
 import { discoverVideoFiles } from './fileDiscoveryService';
 import { buildContainedClipCandidateGroups } from './duplicateContainedClipMatcher';
 import { generateVisualFingerprints } from './duplicateFingerprintService';
 import { getDuplicateFilenameKey } from './duplicateScanService';
 import {
+  checkOpenCvAvailability,
+  getOpenCvVisualModeUnavailableMessage
+} from './opencvToolService';
+import {
   buildVisualDuplicateCandidateGroups,
   createDuplicatePairKey
 } from './duplicateVisualMatcher';
-
-const FAST_SAMPLE_INTERVAL_SECONDS = 10;
-const FAST_MAX_SAMPLES = 120;
-const DEEP_SAMPLE_INTERVAL_SECONDS = 2;
-const DEEP_MAX_SAMPLES = 600;
-const DEFAULT_MIN_SEQUENTIAL_MATCHES = 8;
-const DEFAULT_HASH_DISTANCE_THRESHOLD = 8;
 
 export type ImprovedDuplicateScanServiceProgress = Omit<
   ImprovedDuplicateScanProgress,
@@ -107,6 +106,7 @@ export async function runImprovedDuplicateScan({
   }
 
   const { scanFolder, sources, options } = validation.request;
+  await assertVisualModesAreAvailable(options.modes);
 
   emitProgress(onProgress, {
     scanId: effectiveScanId,
@@ -280,15 +280,20 @@ export async function runImprovedDuplicateScan({
         message: 'Matching visual fingerprints.'
       });
 
-      visualGroups = buildVisualDuplicateCandidateGroups({
-        sources,
-        scannedFiles: discoveryResult.files,
-        fingerprintsByPath,
-        exactMatchPairKeys: exactPairKeysForVisual,
-        profile: options.profile,
-        hashDistanceThreshold: options.hashDistanceThreshold,
-        minSequentialMatches: options.minSequentialMatches,
-        signal
+      visualGroups = limitCandidateGroups({
+        groups: buildVisualDuplicateCandidateGroups({
+          sources,
+          scannedFiles: discoveryResult.files,
+          fingerprintsByPath,
+          exactMatchPairKeys: exactPairKeysForVisual,
+          profile: options.profile,
+          hashDistanceThreshold: options.hashDistanceThreshold,
+          minSequentialMatches: options.minSequentialMatches,
+          signal
+        }),
+        limit: getImprovedDuplicateScanProfileDefaults(options.profile).visualCandidateGroupLimit,
+        label: 'visual near-duplicate',
+        warnings
       });
     }
 
@@ -312,15 +317,20 @@ export async function runImprovedDuplicateScan({
         message: 'Matching contained clips by offset.'
       });
 
-      containedClipGroups = buildContainedClipCandidateGroups({
-        sources,
-        scannedFiles: discoveryResult.files,
-        fingerprintsByPath,
-        exactMatchPairKeys: exactPairKeysForVisual,
-        profile: options.profile,
-        hashDistanceThreshold: options.hashDistanceThreshold,
-        minSequentialMatches: options.minSequentialMatches,
-        signal
+      containedClipGroups = limitCandidateGroups({
+        groups: buildContainedClipCandidateGroups({
+          sources,
+          scannedFiles: discoveryResult.files,
+          fingerprintsByPath,
+          exactMatchPairKeys: exactPairKeysForVisual,
+          profile: options.profile,
+          hashDistanceThreshold: options.hashDistanceThreshold,
+          minSequentialMatches: options.minSequentialMatches,
+          signal
+        }),
+        limit: getImprovedDuplicateScanProfileDefaults(options.profile).containedClipCandidateGroupLimit,
+        label: 'contained-clip',
+        warnings
       });
     }
   }
@@ -526,6 +536,10 @@ function normalizeImprovedDuplicateScanOptions(
         : modes.includes('contained-clip')
           ? IMPROVED_DUPLICATE_SCAN_DEEP_PROFILE
           : IMPROVED_DUPLICATE_SCAN_FAST_PROFILE;
+  const profileDefaults = getImprovedDuplicateScanProfileDefaults(profile);
+  const defaultMinSequentialMatches = modes.includes('contained-clip')
+    ? IMPROVED_DUPLICATE_SCAN_CONTAINED_MIN_SEQUENTIAL_MATCHES
+    : IMPROVED_DUPLICATE_SCAN_VISUAL_MIN_SEQUENTIAL_MATCHES;
 
   return {
     ok: true,
@@ -535,17 +549,17 @@ function normalizeImprovedDuplicateScanOptions(
       profile,
       sampleIntervalSeconds: normalizePositiveNumber(
         candidate.sampleIntervalSeconds,
-        getDefaultSampleIntervalSeconds(profile)
+        profileDefaults.sampleIntervalSeconds
       ),
       maxSamplesPerVideo: Math.floor(
-        normalizePositiveNumber(candidate.maxSamplesPerVideo, getDefaultMaxSamples(profile))
+        normalizePositiveNumber(candidate.maxSamplesPerVideo, profileDefaults.maxSamplesPerVideo)
       ),
       minSequentialMatches: Math.floor(
-        normalizePositiveNumber(candidate.minSequentialMatches, DEFAULT_MIN_SEQUENTIAL_MATCHES)
+        normalizePositiveNumber(candidate.minSequentialMatches, defaultMinSequentialMatches)
       ),
       hashDistanceThreshold: normalizePositiveNumber(
         candidate.hashDistanceThreshold,
-        DEFAULT_HASH_DISTANCE_THRESHOLD
+        profileDefaults.hashDistanceThreshold
       ),
       includeExistingExactFilenameMatches:
         candidate.includeExistingExactFilenameMatches !== false,
@@ -793,20 +807,50 @@ function buildImprovedDuplicateScanResult({
   };
 }
 
+async function assertVisualModesAreAvailable(modes: DuplicateScanMode[]): Promise<void> {
+  if (!requiresVisualFingerprints(modes)) {
+    return;
+  }
+
+  const openCvAvailability = await checkOpenCvAvailability();
+
+  if (!openCvAvailability.ok) {
+    throw new Error(getOpenCvVisualModeUnavailableMessage(openCvAvailability));
+  }
+}
+
+function requiresVisualFingerprints(modes: DuplicateScanMode[]): boolean {
+  return modes.includes('visual-fingerprint') || modes.includes('contained-clip');
+}
+
+function limitCandidateGroups({
+  groups,
+  limit,
+  label,
+  warnings
+}: {
+  groups: DuplicateCandidateGroup[];
+  limit: number;
+  label: string;
+  warnings: string[];
+}): DuplicateCandidateGroup[] {
+  const normalizedLimit = Math.max(1, Math.floor(limit));
+
+  if (groups.length <= normalizedLimit) {
+    return groups;
+  }
+
+  warnings.push(
+    `${label} matching produced ${groups.length.toLocaleString()} group(s); showing the top ${normalizedLimit.toLocaleString()} by confidence for this scan profile.`
+  );
+
+  return groups.slice(0, normalizedLimit);
+}
+
 function getDiscoveryWarnings(skippedFiles: number): string[] {
   return skippedFiles > 0
     ? [`${skippedFiles.toLocaleString()} file(s) or folder(s) were skipped during improved duplicate scan discovery.`]
     : [];
-}
-
-function getDefaultSampleIntervalSeconds(profile: DuplicateScanProfile): number {
-  return profile === IMPROVED_DUPLICATE_SCAN_DEEP_PROFILE
-    ? DEEP_SAMPLE_INTERVAL_SECONDS
-    : FAST_SAMPLE_INTERVAL_SECONDS;
-}
-
-function getDefaultMaxSamples(profile: DuplicateScanProfile): number {
-  return profile === IMPROVED_DUPLICATE_SCAN_DEEP_PROFILE ? DEEP_MAX_SAMPLES : FAST_MAX_SAMPLES;
 }
 
 function emitProgress(

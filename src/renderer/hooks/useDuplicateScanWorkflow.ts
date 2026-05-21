@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useMemo, useState } from 'react';
 import type {
   DuplicateCandidateFile,
+  DuplicateFingerprintCacheStats,
   DuplicateReviewScanJobSnapshot,
   DuplicateReviewScanResult,
   DuplicateScanCandidate,
@@ -16,6 +17,7 @@ import {
   IMPROVED_DUPLICATE_SCAN_DEFAULT_PROFILE,
   IMPROVED_DUPLICATE_SCAN_FAST_PROFILE,
   IMPROVED_DUPLICATE_SCAN_SOURCE_SCOPE,
+  getImprovedDuplicateScanProfileDefaults,
   isImprovedDuplicateScanResult
 } from '../../shared/types/duplicateScan';
 import type { FileOperationResult, TrashOperationPlan } from '../../shared/types/fileOperations';
@@ -60,6 +62,10 @@ interface UseDuplicateScanWorkflowValue {
   duplicateTrashPlanError: string | null;
   duplicateTrashResult: FileOperationResult | null;
   duplicateTrashResultError: string | null;
+  duplicateFingerprintCacheStats: DuplicateFingerprintCacheStats | null;
+  duplicateFingerprintCacheError: string | null;
+  isDuplicateFingerprintCacheLoading: boolean;
+  isDuplicateFingerprintCacheClearing: boolean;
   isDuplicateScanDialogVisible: boolean;
   isDuplicateTrashConfirmDialogVisible: boolean;
   isDuplicateTrashResultDialogVisible: boolean;
@@ -79,6 +85,8 @@ interface UseDuplicateScanWorkflowValue {
   markDuplicateCandidate: (candidateId: string, marked: boolean) => void;
   toggleDuplicateCandidateMark: (candidateId: string) => void;
   clearDuplicateCandidateMarks: () => void;
+  refreshDuplicateFingerprintCacheStats: () => Promise<void>;
+  clearDuplicateFingerprintCache: () => Promise<void>;
   createDuplicateTrashPlan: () => Promise<void>;
   closeDuplicateTrashDialog: () => void;
   executeDuplicateTrashPlan: (typedConfirmation: string | null) => Promise<void>;
@@ -87,13 +95,6 @@ interface UseDuplicateScanWorkflowValue {
 }
 
 const DEFAULT_DUPLICATE_SCAN_MODES: DuplicateScanMode[] = ['filename-exact'];
-const FAST_SAMPLE_INTERVAL_SECONDS = 10;
-const FAST_MAX_SAMPLES_PER_VIDEO = 120;
-const DEEP_SAMPLE_INTERVAL_SECONDS = 2;
-const DEEP_MAX_SAMPLES_PER_VIDEO = 600;
-const DEFAULT_HASH_DISTANCE_THRESHOLD = 8;
-const DEFAULT_VISUAL_MIN_SEQUENTIAL_MATCHES = 8;
-const DEFAULT_CONTAINED_MIN_SEQUENTIAL_MATCHES = 5;
 
 export function useDuplicateScanWorkflow({
   selectedVideos,
@@ -122,6 +123,11 @@ export function useDuplicateScanWorkflow({
   const [duplicateTrashPlanError, setDuplicateTrashPlanError] = useState<string | null>(null);
   const [duplicateTrashResult, setDuplicateTrashResult] = useState<FileOperationResult | null>(null);
   const [duplicateTrashResultError, setDuplicateTrashResultError] = useState<string | null>(null);
+  const [duplicateFingerprintCacheStats, setDuplicateFingerprintCacheStats] =
+    useState<DuplicateFingerprintCacheStats | null>(null);
+  const [duplicateFingerprintCacheError, setDuplicateFingerprintCacheError] = useState<string | null>(null);
+  const [isDuplicateFingerprintCacheLoading, setIsDuplicateFingerprintCacheLoading] = useState(false);
+  const [isDuplicateFingerprintCacheClearing, setIsDuplicateFingerprintCacheClearing] = useState(false);
   const [isDuplicateScanDialogVisible, setIsDuplicateScanDialogVisible] = useState(false);
   const [isDuplicateTrashConfirmDialogVisible, setIsDuplicateTrashConfirmDialogVisible] = useState(false);
   const [isDuplicateTrashResultDialogVisible, setIsDuplicateTrashResultDialogVisible] = useState(false);
@@ -152,6 +158,10 @@ export function useDuplicateScanWorkflow({
     setDuplicateTrashPlanError(null);
     setDuplicateTrashResult(null);
     setDuplicateTrashResultError(null);
+    setDuplicateFingerprintCacheStats(null);
+    setDuplicateFingerprintCacheError(null);
+    setIsDuplicateFingerprintCacheLoading(false);
+    setIsDuplicateFingerprintCacheClearing(false);
     setIsDuplicateScanDialogVisible(false);
     setIsDuplicateTrashConfirmDialogVisible(false);
     setIsDuplicateTrashResultDialogVisible(false);
@@ -279,6 +289,53 @@ export function useDuplicateScanWorkflow({
     setDuplicateScanError(null);
   }, []);
 
+  const refreshDuplicateFingerprintCacheStats = useCallback(async (): Promise<void> => {
+    setIsDuplicateFingerprintCacheLoading(true);
+    setDuplicateFingerprintCacheError(null);
+
+    try {
+      const response = await duplicateScanClient.getImprovedDuplicateFingerprintCacheStats();
+
+      if (response.status !== 'ok' || !response.stats) {
+        setDuplicateFingerprintCacheError(response.message ?? 'Could not read duplicate fingerprint cache stats.');
+        return;
+      }
+
+      setDuplicateFingerprintCacheStats(response.stats);
+    } catch (error: unknown) {
+      setDuplicateFingerprintCacheError(
+        getErrorMessage(error, 'Could not read duplicate fingerprint cache stats.')
+      );
+    } finally {
+      setIsDuplicateFingerprintCacheLoading(false);
+    }
+  }, []);
+
+  const clearDuplicateFingerprintCache = useCallback(async (): Promise<void> => {
+    setIsDuplicateFingerprintCacheClearing(true);
+    setDuplicateFingerprintCacheError(null);
+
+    try {
+      const response = await duplicateScanClient.clearImprovedDuplicateFingerprintCache();
+
+      if (response.status !== 'cleared') {
+        const message = response.message ?? 'Could not clear duplicate fingerprint cache.';
+        setDuplicateFingerprintCacheError(message);
+        setWorkflowMessage(message);
+        return;
+      }
+
+      setDuplicateFingerprintCacheStats(response.stats ?? null);
+      setWorkflowMessage(response.message ?? 'Duplicate fingerprint cache cleared.');
+    } catch (error: unknown) {
+      const message = getErrorMessage(error, 'Could not clear duplicate fingerprint cache.');
+      setDuplicateFingerprintCacheError(message);
+      setWorkflowMessage(message);
+    } finally {
+      setIsDuplicateFingerprintCacheClearing(false);
+    }
+  }, [setWorkflowMessage]);
+
   const openDuplicateScanDialog = useCallback((): void => {
     if (selectedVideos.length === 0) {
       setWorkflowMessage('Select at least one project video before starting a Duplicate Scan.');
@@ -294,7 +351,8 @@ export function useDuplicateScanWorkflow({
     setIsDuplicateTrashConfirmDialogVisible(false);
     setIsDuplicateTrashResultDialogVisible(false);
     setIsDuplicateScanDialogVisible(true);
-  }, [selectedVideos.length, setWorkflowMessage]);
+    void refreshDuplicateFingerprintCacheStats();
+  }, [refreshDuplicateFingerprintCacheStats, selectedVideos.length, setWorkflowMessage]);
 
   const closeDuplicateScanDialog = useCallback((): void => {
     if (isDuplicateScanActive(busyState.activeAction, duplicateScanProgress)) {
@@ -376,6 +434,9 @@ export function useDuplicateScanWorkflow({
 
       if (response.status !== 'started' || !response.jobId) {
         setActiveAction(null);
+        setDuplicateScanProgress(null);
+        setDuplicateScanJobId(null);
+        setDuplicateScanJobKind(null);
         setDuplicateScanError(response.message ?? 'Could not start Duplicate Scan.');
         return;
       }
@@ -384,6 +445,9 @@ export function useDuplicateScanWorkflow({
       setWorkflowMessage(response.message ?? 'Duplicate Scan started.');
     } catch (error: unknown) {
       setActiveAction(null);
+      setDuplicateScanProgress(null);
+      setDuplicateScanJobId(null);
+      setDuplicateScanJobKind(null);
       setDuplicateScanError(getErrorMessage(error, 'Could not start Duplicate Scan.'));
     }
   }, [
@@ -592,6 +656,10 @@ export function useDuplicateScanWorkflow({
     duplicateTrashPlanError,
     duplicateTrashResult,
     duplicateTrashResultError,
+    duplicateFingerprintCacheStats,
+    duplicateFingerprintCacheError,
+    isDuplicateFingerprintCacheLoading,
+    isDuplicateFingerprintCacheClearing,
     isDuplicateScanDialogVisible,
     isDuplicateTrashConfirmDialogVisible,
     isDuplicateTrashResultDialogVisible,
@@ -611,6 +679,8 @@ export function useDuplicateScanWorkflow({
     markDuplicateCandidate,
     toggleDuplicateCandidateMark,
     clearDuplicateCandidateMarks,
+    refreshDuplicateFingerprintCacheStats,
+    clearDuplicateFingerprintCache,
     createDuplicateTrashPlan,
     closeDuplicateTrashDialog,
     executeDuplicateTrashPlan,
@@ -685,7 +755,7 @@ function createImprovedDuplicateScanRequest(
   modes: DuplicateScanMode[],
   profile: DuplicateScanProfile
 ): ImprovedDuplicateScanRequest {
-  const isDeepProfile = profile === IMPROVED_DUPLICATE_SCAN_DEEP_PROFILE;
+  const profileDefaults = getImprovedDuplicateScanProfileDefaults(profile);
 
   return {
     scanFolder,
@@ -694,16 +764,12 @@ function createImprovedDuplicateScanRequest(
       sourceScope: IMPROVED_DUPLICATE_SCAN_SOURCE_SCOPE,
       modes,
       profile,
-      sampleIntervalSeconds: isDeepProfile
-        ? DEEP_SAMPLE_INTERVAL_SECONDS
-        : FAST_SAMPLE_INTERVAL_SECONDS,
-      maxSamplesPerVideo: isDeepProfile
-        ? DEEP_MAX_SAMPLES_PER_VIDEO
-        : FAST_MAX_SAMPLES_PER_VIDEO,
+      sampleIntervalSeconds: profileDefaults.sampleIntervalSeconds,
+      maxSamplesPerVideo: profileDefaults.maxSamplesPerVideo,
       minSequentialMatches: modes.includes('contained-clip')
-        ? DEFAULT_CONTAINED_MIN_SEQUENTIAL_MATCHES
-        : DEFAULT_VISUAL_MIN_SEQUENTIAL_MATCHES,
-      hashDistanceThreshold: DEFAULT_HASH_DISTANCE_THRESHOLD,
+        ? profileDefaults.containedClipMinSequentialMatches
+        : profileDefaults.visualMinSequentialMatches,
+      hashDistanceThreshold: profileDefaults.hashDistanceThreshold,
       includeExistingExactFilenameMatches: modes.includes('filename-exact'),
       useCachedFingerprints: true
     }

@@ -7,6 +7,12 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.50.71] - 2026-05-21
+
+### Added
+
+- Added Stage 8 improved duplicate detection tuning and hardening with centralized scan thresholds, OpenCV/Python diagnostics, visual-mode preflight checks, fingerprint cache stats/clear controls, candidate result caps, and more visible scan warnings.
+
 ## [0.50.70] - 2026-05-21
 
 ### Added

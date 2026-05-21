@@ -57,6 +57,8 @@ export function DiagnosticsDialog({
 }: DiagnosticsDialogProps): ReactElement {
   const ffmpeg = toolDiagnostics?.tools.find((tool) => tool.name === 'ffmpeg') ?? null;
   const ffprobe = toolDiagnostics?.tools.find((tool) => tool.name === 'ffprobe') ?? null;
+  const python = toolDiagnostics?.tools.find((tool) => tool.name === 'python') ?? null;
+  const openCv = toolDiagnostics?.tools.find((tool) => tool.name === 'opencv') ?? null;
   const lastError = premiereStatusError ?? toolDiagnosticsError ?? null;
 
   return (
@@ -160,11 +162,14 @@ export function DiagnosticsDialog({
           <div className="diagnostics-tool-grid">
             <ToolCard tool={ffmpeg} fallbackName="ffmpeg" />
             <ToolCard tool={ffprobe} fallbackName="ffprobe" />
+            <ToolCard tool={python} fallbackName=".venv Python" />
+            <ToolCard tool={openCv} fallbackName="OpenCV" />
           </div>
           <dl className="diagnostics-list">
             <InfoRow label="Checked" value={toolDiagnostics?.checkedAt ? formatDateTime(toolDiagnostics.checkedAt) : 'Not checked'} />
             <InfoRow label="ffmpeg override" value={settings?.ffmpegPathOverride ?? 'None'} />
             <InfoRow label="ffprobe override" value={settings?.ffprobePathOverride ?? 'None'} />
+            <InfoRow label="Visual duplicate helper" value={openCv?.message ?? 'Run diagnostics to confirm OpenCV availability'} />
           </dl>
         </section>
 

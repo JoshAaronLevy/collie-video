@@ -38,6 +38,14 @@ export function getImprovedDuplicateScanResult(jobId: string) {
   return window.videoAudit.improvedDuplicateScan.getResult(jobId);
 }
 
+export function getImprovedDuplicateFingerprintCacheStats() {
+  return window.videoAudit.improvedDuplicateScan.getFingerprintCacheStats();
+}
+
+export function clearImprovedDuplicateFingerprintCache() {
+  return window.videoAudit.improvedDuplicateScan.clearFingerprintCache();
+}
+
 export function subscribeToImprovedDuplicateScanProgress(
   callback: Parameters<typeof window.videoAudit.improvedDuplicateScan.onProgress>[0]
 ) {

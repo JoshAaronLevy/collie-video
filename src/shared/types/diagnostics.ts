@@ -1,5 +1,5 @@
 export interface ToolDiagnosticItem {
-  name: 'ffmpeg' | 'ffprobe';
+  name: 'ffmpeg' | 'ffprobe' | 'python' | 'opencv';
   command: string;
   ok: boolean;
   versionLine: string | null;

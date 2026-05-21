@@ -97,6 +97,75 @@ export const IMPROVED_DUPLICATE_SCAN_FAST_PROFILE: DuplicateScanProfile = 'fast'
 export const IMPROVED_DUPLICATE_SCAN_DEEP_PROFILE: DuplicateScanProfile = 'deep';
 export const IMPROVED_DUPLICATE_SCAN_DEFAULT_PROFILE: DuplicateScanProfile =
   IMPROVED_DUPLICATE_SCAN_FAST_PROFILE;
+export const IMPROVED_DUPLICATE_SCAN_DEFAULT_HASH_DISTANCE_THRESHOLD = 8;
+export const IMPROVED_DUPLICATE_SCAN_VISUAL_MIN_SEQUENTIAL_MATCHES = 8;
+export const IMPROVED_DUPLICATE_SCAN_CONTAINED_MIN_SEQUENTIAL_MATCHES = 5;
+
+export interface ImprovedDuplicateScanProfileDefaults {
+  sampleIntervalSeconds: number;
+  maxSamplesPerVideo: number;
+  hashDistanceThreshold: number;
+  visualMinSequentialMatches: number;
+  containedClipMinSequentialMatches: number;
+  visualCandidateGroupLimit: number;
+  containedClipCandidateGroupLimit: number;
+}
+
+export const IMPROVED_DUPLICATE_SCAN_PROFILE_DEFAULTS: Record<
+  DuplicateScanProfile,
+  ImprovedDuplicateScanProfileDefaults
+> = {
+  fast: {
+    sampleIntervalSeconds: 10,
+    maxSamplesPerVideo: 120,
+    hashDistanceThreshold: IMPROVED_DUPLICATE_SCAN_DEFAULT_HASH_DISTANCE_THRESHOLD,
+    visualMinSequentialMatches: IMPROVED_DUPLICATE_SCAN_VISUAL_MIN_SEQUENTIAL_MATCHES,
+    containedClipMinSequentialMatches: IMPROVED_DUPLICATE_SCAN_CONTAINED_MIN_SEQUENTIAL_MATCHES,
+    visualCandidateGroupLimit: 250,
+    containedClipCandidateGroupLimit: 250
+  },
+  deep: {
+    sampleIntervalSeconds: 2,
+    maxSamplesPerVideo: 600,
+    hashDistanceThreshold: IMPROVED_DUPLICATE_SCAN_DEFAULT_HASH_DISTANCE_THRESHOLD,
+    visualMinSequentialMatches: IMPROVED_DUPLICATE_SCAN_VISUAL_MIN_SEQUENTIAL_MATCHES,
+    containedClipMinSequentialMatches: IMPROVED_DUPLICATE_SCAN_CONTAINED_MIN_SEQUENTIAL_MATCHES,
+    visualCandidateGroupLimit: 500,
+    containedClipCandidateGroupLimit: 500
+  }
+};
+
+export const IMPROVED_DUPLICATE_SCAN_VISUAL_MATCH_THRESHOLDS = {
+  minUsableSampleCount: 3,
+  minConfidence: 0.62,
+  minDurationRatio: 0.7,
+  commonHashFileRatio: 0.25,
+  commonHashMinFileCount: 3
+} as const;
+
+export const IMPROVED_DUPLICATE_SCAN_CONTAINED_CLIP_THRESHOLDS = {
+  minUsableSampleCount: 3,
+  minConfidence: 0.58,
+  minDurationRatio: 0.9,
+  commonHashFileRatio: 0.25,
+  commonHashMinFileCount: 3
+} as const;
+
+export function normalizeImprovedDuplicateScanProfile(
+  profile: DuplicateScanProfile | null | undefined
+): DuplicateScanProfile {
+  return profile === IMPROVED_DUPLICATE_SCAN_DEEP_PROFILE
+    ? IMPROVED_DUPLICATE_SCAN_DEEP_PROFILE
+    : IMPROVED_DUPLICATE_SCAN_FAST_PROFILE;
+}
+
+export function getImprovedDuplicateScanProfileDefaults(
+  profile: DuplicateScanProfile | null | undefined
+): ImprovedDuplicateScanProfileDefaults {
+  return IMPROVED_DUPLICATE_SCAN_PROFILE_DEFAULTS[
+    normalizeImprovedDuplicateScanProfile(profile)
+  ];
+}
 
 export interface DuplicateScanSourceInput {
   id: string;
@@ -383,6 +452,27 @@ export interface ImprovedDuplicateScanResultResponse {
   status: ImprovedDuplicateScanResult['status'] | 'not_found' | 'not_ready' | 'error' | string;
   message?: string;
   result?: ImprovedDuplicateScanResult;
+}
+
+export interface DuplicateFingerprintCacheStats {
+  cacheDir: string;
+  entryCount: number;
+  totalBytes: number;
+  lastModifiedAt: string | null;
+}
+
+export interface DuplicateFingerprintCacheStatsResponse {
+  status: 'ok' | 'error' | string;
+  stats?: DuplicateFingerprintCacheStats;
+  message?: string;
+}
+
+export interface DuplicateFingerprintCacheClearResponse {
+  status: 'cleared' | 'error' | string;
+  stats?: DuplicateFingerprintCacheStats;
+  clearedEntryCount?: number;
+  clearedBytes?: number;
+  message?: string;
 }
 
 export type DuplicateReviewScanResult = DuplicateScanResult | ImprovedDuplicateScanResult;

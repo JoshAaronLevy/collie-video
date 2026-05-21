@@ -309,7 +309,7 @@ export function SettingsPanel({
                 ))}
               </ul>
             ) : (
-              <p className="empty-copy">Check ffmpeg and ffprobe availability before running media workflows.</p>
+              <p className="empty-copy">Check ffmpeg, ffprobe, and local OpenCV availability before running media workflows.</p>
             )}
           </div>
           <dl className="settings-info-list">
