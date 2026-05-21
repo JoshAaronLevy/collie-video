@@ -2,7 +2,8 @@ import { useEffect, useState, type ComponentProps, type ReactElement } from 'rea
 import { Button } from 'primereact/button';
 import { Dialog } from 'primereact/dialog';
 import type { ProjectIndexItem, VideoProject } from '../shared/types/project';
-import type { DuplicateScanResult } from '../shared/types/duplicateScan';
+import type { DuplicateReviewScanResult } from '../shared/types/duplicateScan';
+import { isImprovedDuplicateScanResult } from '../shared/types/duplicateScan';
 import { AppHeader } from './components/AppHeader';
 import { AuditProgressPanel } from './components/AuditProgressPanel';
 import { AutoCropDialog } from './components/AutoCropDialog';
@@ -56,6 +57,10 @@ export function App(): ReactElement {
   const hasSources = controller.selectedFolders.length > 0 || controller.selectedFiles.length > 0;
   const hasAuditData = Boolean(controller.videoRows) || Boolean(controller.storageSavedAt);
   const tableDisplayRootPath = controller.folderTreeRootPath ?? controller.auditedRootDirectory;
+  const legacyDuplicateScanResult =
+    controller.duplicateScanResult && !isImprovedDuplicateScanResult(controller.duplicateScanResult)
+      ? controller.duplicateScanResult
+      : null;
 
   useEffect(() => {
     if (controller.settingsOpenRequestCount > 0) {
@@ -581,12 +586,16 @@ export function App(): ReactElement {
     visible: controller.isDuplicateScanDialogVisible,
     selectedCount: controller.selectedVideos.length,
     scanFolder: controller.duplicateScanFolder,
+    modes: controller.duplicateScanModes,
+    profile: controller.duplicateScanProfile,
     progress: controller.duplicateScanProgress,
     percent: controller.duplicateScanPercent,
     result: controller.hasDuplicateScanNoResults ? controller.duplicateScanResult : null,
     error: controller.duplicateScanError,
     isScanning: controller.isDuplicateScanActive,
     onScanFolderChange: controller.setDuplicateScanFolder,
+    onModesChange: controller.setDuplicateScanModes,
+    onProfileChange: controller.setDuplicateScanProfile,
     onSelectFolder: controller.selectDuplicateScanFolder,
     onStartScan: controller.startDuplicateScan,
     onCancelScan: controller.cancelDuplicateScan,
@@ -595,7 +604,7 @@ export function App(): ReactElement {
 
   const duplicateTrashConfirmDialogProps = {
     visible: controller.isDuplicateTrashConfirmDialogVisible,
-    result: controller.duplicateScanResult,
+    result: legacyDuplicateScanResult,
     markedCandidateIds: controller.duplicateMarkedCandidateIds,
     plan: controller.duplicateTrashPlan,
     error: controller.duplicateTrashPlanError,
@@ -755,6 +764,7 @@ export function App(): ReactElement {
             markedSizeBytes={controller.duplicateMarkedCandidateSizeBytes}
             trashPlanError={controller.duplicateTrashPlanError}
             isPreparingTrashPlan={controller.isDuplicateTrashPlanning}
+            canReviewMarkedCandidates={controller.canReviewMarkedDuplicateCandidates}
             onMarkCandidate={controller.markDuplicateCandidate}
             onClearMarks={controller.clearDuplicateCandidateMarks}
             onBackToResults={() => setWorkspaceMode('results')}
@@ -848,7 +858,7 @@ function WorkspaceSwitcher({
   onClearDuplicateScanResult
 }: {
   mode: WorkspaceMode;
-  result: DuplicateScanResult;
+  result: DuplicateReviewScanResult;
   onModeChange: (mode: WorkspaceMode) => void;
   onClearDuplicateScanResult: () => void;
 }): ReactElement {
@@ -856,10 +866,7 @@ function WorkspaceSwitcher({
     <section className="workspace-switcher" aria-label="Workspace selector">
       <div>
         <strong>Duplicate candidate results available</strong>
-        <span>
-          {result.matchCount.toLocaleString()} filename match(es) found across{' '}
-          {result.groups.length.toLocaleString()} source video(s).
-        </span>
+        <span>{getDuplicateWorkspaceSummary(result)}</span>
       </div>
       <div>
         <Button
@@ -887,4 +894,12 @@ function WorkspaceSwitcher({
       </div>
     </section>
   );
+}
+
+function getDuplicateWorkspaceSummary(result: DuplicateReviewScanResult): string {
+  if (isImprovedDuplicateScanResult(result)) {
+    return `${result.summary.candidateFileCount.toLocaleString()} candidate file(s) across ${result.groups.length.toLocaleString()} group(s).`;
+  }
+
+  return `${result.matchCount.toLocaleString()} filename match(es) found across ${result.groups.length.toLocaleString()} source video(s).`;
 }

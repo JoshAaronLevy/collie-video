@@ -2460,6 +2460,8 @@ select {
 .duplicate-scan-dialog-content,
 .duplicate-scan-progress,
 .duplicate-scan-no-results,
+.duplicate-scan-mode-panel,
+.duplicate-evidence-panel,
 .duplicate-trash-content,
 .duplicate-trash-result-content,
 .duplicate-trash-group-list,
@@ -2503,6 +2505,7 @@ select {
 .duplicate-review-summary-grid,
 .duplicate-trash-summary-grid,
 .duplicate-source-metadata-grid,
+.duplicate-evidence-grid,
 .replacement-summary-grid,
 .file-operation-summary-grid {
   display: grid;
@@ -2526,7 +2529,9 @@ select {
 .duplicate-review-summary-grid > div,
 .duplicate-trash-summary-grid > div,
 .duplicate-source-metadata-grid > div,
+.duplicate-evidence-grid > div,
 .duplicate-scan-path-panel,
+.duplicate-scan-profile-row,
 .duplicate-trash-path-panel,
 .file-operation-summary-grid > div,
 .file-operation-path-panel,
@@ -2558,7 +2563,9 @@ select {
 .duplicate-review-summary-grid span,
 .duplicate-trash-summary-grid span,
 .duplicate-source-metadata-grid span,
+.duplicate-evidence-grid span,
 .duplicate-scan-path-panel span,
+.duplicate-scan-profile-row span,
 .duplicate-trash-path-panel span,
 .file-operation-path-panel span,
 .file-operation-summary-grid span,
@@ -2581,6 +2588,7 @@ select {
 .duplicate-review-summary-grid strong,
 .duplicate-trash-summary-grid strong,
 .duplicate-source-metadata-grid strong,
+.duplicate-evidence-grid strong,
 .duplicate-trash-path-panel strong,
 .file-operation-path-panel strong,
 .file-operation-summary-grid strong,
@@ -3018,6 +3026,96 @@ select {
   width: 100%;
 }
 
+.duplicate-scan-mode-panel {
+  padding: 0.8rem;
+  background: var(--surface-muted);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-md);
+}
+
+.duplicate-scan-mode-heading,
+.duplicate-scan-profile-row,
+.duplicate-review-toolbar,
+.duplicate-evidence-heading {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.65rem;
+  align-items: center;
+  justify-content: space-between;
+  min-width: 0;
+}
+
+.duplicate-scan-mode-heading {
+  margin-bottom: 0.65rem;
+}
+
+.duplicate-scan-mode-heading span,
+.duplicate-scan-profile-row span {
+  color: var(--text-muted);
+  font-size: 0.78rem;
+  font-weight: 800;
+}
+
+.duplicate-scan-mode-heading small,
+.duplicate-scan-profile-row small {
+  color: var(--text-muted-strong);
+  font-size: 0.78rem;
+  font-weight: 700;
+}
+
+.duplicate-scan-mode-grid {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 0.65rem;
+}
+
+.duplicate-scan-mode-option {
+  display: grid;
+  grid-template-columns: auto minmax(0, 1fr);
+  gap: 0.55rem;
+  align-items: center;
+  min-width: 0;
+  padding: 0.7rem;
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-md);
+  cursor: pointer;
+}
+
+.duplicate-scan-mode-option span {
+  display: grid;
+  gap: 0.2rem;
+  min-width: 0;
+}
+
+.duplicate-scan-mode-option strong,
+.duplicate-scan-mode-option small {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.duplicate-scan-mode-option strong {
+  color: var(--text);
+}
+
+.duplicate-scan-mode-option small {
+  color: var(--text-muted-strong);
+  font-size: 0.76rem;
+  font-weight: 700;
+}
+
+.duplicate-scan-profile-row {
+  grid-template-columns: none;
+}
+
+.duplicate-scan-profile-row > div {
+  display: grid;
+  gap: 0.2rem;
+  min-width: 0;
+}
+
 .workspace-switcher,
 .duplicate-review-workspace {
   background: var(--surface);
@@ -3097,6 +3195,26 @@ select {
   grid-template-columns: repeat(6, minmax(0, 1fr));
 }
 
+.duplicate-review-toolbar {
+  padding: 0.65rem;
+  background: var(--surface-muted);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-md);
+}
+
+.duplicate-review-toolbar > span {
+  color: var(--text-muted-strong);
+  font-size: 0.82rem;
+  font-weight: 800;
+}
+
+.duplicate-mode-filter-bar {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.45rem;
+  min-width: 0;
+}
+
 .duplicate-trash-summary-grid {
   grid-template-columns: repeat(5, minmax(0, 1fr));
 }
@@ -3134,6 +3252,51 @@ select {
   border-radius: var(--radius-md);
 }
 
+.duplicate-evidence-panel {
+  padding: 0.8rem;
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-md);
+}
+
+.duplicate-evidence-heading > div {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.4rem;
+  min-width: 0;
+}
+
+.duplicate-evidence-heading strong {
+  min-width: 0;
+  overflow: hidden;
+  color: var(--text-heading);
+  font-size: 0.9rem;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.duplicate-evidence-grid {
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+}
+
+.duplicate-evidence-notes {
+  display: grid;
+  gap: 0.35rem;
+  padding: 0;
+  margin: 0;
+  list-style: none;
+}
+
+.duplicate-evidence-notes li {
+  min-width: 0;
+  overflow: hidden;
+  color: var(--text-muted-strong);
+  font-size: 0.8rem;
+  font-weight: 700;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
 .duplicate-source-summary {
   display: grid;
   gap: 0.75rem;
@@ -3169,13 +3332,15 @@ select {
 }
 
 .duplicate-file-cell,
-.duplicate-status-cell {
+.duplicate-status-cell,
+.duplicate-evidence-summary-cell {
   display: grid;
   gap: 0.2rem;
   min-width: 0;
 }
 
-.duplicate-file-cell strong {
+.duplicate-file-cell strong,
+.duplicate-evidence-summary-cell strong {
   min-width: 0;
   overflow: hidden;
   color: var(--text);
@@ -3185,7 +3350,8 @@ select {
 }
 
 .duplicate-file-cell span,
-.duplicate-status-cell small {
+.duplicate-status-cell small,
+.duplicate-evidence-summary-cell span {
   min-width: 0;
   overflow: hidden;
   color: var(--text-muted);
@@ -3613,6 +3779,8 @@ select {
   .results-toolbar-secondary,
   .replacement-review-toolbar,
   .replacement-review-actions,
+  .duplicate-review-toolbar,
+  .duplicate-scan-profile-row,
   .operation-history-table-header,
   .operation-history-detail-header,
   .operation-history-path-actions {
@@ -3685,6 +3853,8 @@ select {
   .duplicate-review-summary-grid,
   .duplicate-trash-summary-grid,
   .duplicate-source-metadata-grid,
+  .duplicate-evidence-grid,
+  .duplicate-scan-mode-grid,
   .migration-path-grid,
   .migration-folder-row,
   .migration-result-path-row,
@@ -3705,6 +3875,7 @@ select {
 
   .workspace-switcher > div:last-child,
   .workspace-switcher .p-button,
+  .duplicate-mode-filter-bar .p-button,
   .duplicate-review-footer > div:last-child,
   .duplicate-review-footer .p-button,
   .duplicate-review-header .p-button {

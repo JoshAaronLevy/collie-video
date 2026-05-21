@@ -1,10 +1,23 @@
 import { useCallback, useEffect, useMemo, useState } from 'react';
 import type {
+  DuplicateCandidateFile,
+  DuplicateReviewScanJobSnapshot,
+  DuplicateReviewScanResult,
   DuplicateScanCandidate,
   DuplicateScanJobSnapshot,
-  DuplicateScanRequest,
+  DuplicateScanMode,
+  DuplicateScanProfile,
   DuplicateScanResult,
-  DuplicateScanSourceInput
+  DuplicateScanSourceInput,
+  ImprovedDuplicateScanJobSnapshot,
+  ImprovedDuplicateScanRequest
+} from '../../shared/types/duplicateScan';
+import {
+  IMPROVED_DUPLICATE_SCAN_DEEP_PROFILE,
+  IMPROVED_DUPLICATE_SCAN_DEFAULT_PROFILE,
+  IMPROVED_DUPLICATE_SCAN_FAST_PROFILE,
+  IMPROVED_DUPLICATE_SCAN_SOURCE_SCOPE,
+  isImprovedDuplicateScanResult
 } from '../../shared/types/duplicateScan';
 import type { FileOperationResult, TrashOperationPlan } from '../../shared/types/fileOperations';
 import type { VideoRow } from '../../shared/types/video';
@@ -20,6 +33,8 @@ export type DuplicateScanWorkflowActiveAction =
   | 'duplicateTrashExecute'
   | null;
 
+type DuplicateScanJobKind = 'exact' | 'improved';
+
 interface UseDuplicateScanWorkflowOptions {
   selectedVideos: VideoRow[];
   previewOperationHistoryAfterExecution?: boolean;
@@ -33,9 +48,11 @@ interface UseDuplicateScanWorkflowOptions {
 
 interface UseDuplicateScanWorkflowValue {
   duplicateScanFolder: string;
-  duplicateScanProgress: DuplicateScanJobSnapshot | null;
+  duplicateScanModes: DuplicateScanMode[];
+  duplicateScanProfile: DuplicateScanProfile;
+  duplicateScanProgress: DuplicateReviewScanJobSnapshot | null;
   duplicateScanPercent: number | null;
-  duplicateScanResult: DuplicateScanResult | null;
+  duplicateScanResult: DuplicateReviewScanResult | null;
   duplicateScanError: string | null;
   duplicateMarkedCandidateIds: string[];
   duplicateMarkedCandidateCount: number;
@@ -48,9 +65,12 @@ interface UseDuplicateScanWorkflowValue {
   isDuplicateTrashConfirmDialogVisible: boolean;
   isDuplicateTrashResultDialogVisible: boolean;
   canStartDuplicateScan: boolean;
+  canReviewMarkedDuplicateCandidates: boolean;
   hasDuplicateScanResults: boolean;
   hasDuplicateScanNoResults: boolean;
   setDuplicateScanFolder: (folder: string) => void;
+  setDuplicateScanModes: (modes: DuplicateScanMode[]) => void;
+  setDuplicateScanProfile: (profile: DuplicateScanProfile) => void;
   openDuplicateScanDialog: () => void;
   closeDuplicateScanDialog: () => void;
   selectDuplicateScanFolder: () => Promise<void>;
@@ -67,6 +87,15 @@ interface UseDuplicateScanWorkflowValue {
   resetDuplicateScanWorkflow: () => void;
 }
 
+const DEFAULT_DUPLICATE_SCAN_MODES: DuplicateScanMode[] = ['filename-exact'];
+const FAST_SAMPLE_INTERVAL_SECONDS = 10;
+const FAST_MAX_SAMPLES_PER_VIDEO = 120;
+const DEEP_SAMPLE_INTERVAL_SECONDS = 2;
+const DEEP_MAX_SAMPLES_PER_VIDEO = 600;
+const DEFAULT_HASH_DISTANCE_THRESHOLD = 8;
+const DEFAULT_VISUAL_MIN_SEQUENTIAL_MATCHES = 8;
+const DEFAULT_CONTAINED_MIN_SEQUENTIAL_MATCHES = 5;
+
 export function useDuplicateScanWorkflow({
   selectedVideos,
   previewOperationHistoryAfterExecution,
@@ -76,9 +105,18 @@ export function useDuplicateScanWorkflow({
   busyState
 }: UseDuplicateScanWorkflowOptions): UseDuplicateScanWorkflowValue {
   const [duplicateScanFolder, setDuplicateScanFolderState] = useState('');
+  const [duplicateScanModes, setDuplicateScanModesState] = useState<DuplicateScanMode[]>(
+    DEFAULT_DUPLICATE_SCAN_MODES
+  );
+  const [duplicateScanProfile, setDuplicateScanProfileState] = useState<DuplicateScanProfile>(
+    IMPROVED_DUPLICATE_SCAN_DEFAULT_PROFILE
+  );
   const [duplicateScanJobId, setDuplicateScanJobId] = useState<string | null>(null);
-  const [duplicateScanProgress, setDuplicateScanProgress] = useState<DuplicateScanJobSnapshot | null>(null);
-  const [duplicateScanResult, setDuplicateScanResult] = useState<DuplicateScanResult | null>(null);
+  const [duplicateScanJobKind, setDuplicateScanJobKind] = useState<DuplicateScanJobKind | null>(null);
+  const [duplicateScanProgress, setDuplicateScanProgress] =
+    useState<DuplicateReviewScanJobSnapshot | null>(null);
+  const [duplicateScanResult, setDuplicateScanResult] =
+    useState<DuplicateReviewScanResult | null>(null);
   const [duplicateScanError, setDuplicateScanError] = useState<string | null>(null);
   const [duplicateMarkedCandidateIds, setDuplicateMarkedCandidateIds] = useState<string[]>([]);
   const [duplicateTrashPlan, setDuplicateTrashPlan] = useState<TrashOperationPlan | null>(null);
@@ -97,12 +135,18 @@ export function useDuplicateScanWorkflow({
     busyState.activeAction,
     duplicateScanProgress
   );
+  const canReviewMarkedDuplicateCandidates = Boolean(
+    duplicateScanResult && !isImprovedDuplicateScanResult(duplicateScanResult)
+  );
   const hasDuplicateScanResults = Boolean(duplicateScanResult && duplicateScanResult.groups.length > 0);
   const hasDuplicateScanNoResults = Boolean(duplicateScanResult && duplicateScanResult.groups.length === 0);
 
   const resetDuplicateScanWorkflow = useCallback((): void => {
     setDuplicateScanFolderState('');
+    setDuplicateScanModesState(DEFAULT_DUPLICATE_SCAN_MODES);
+    setDuplicateScanProfileState(IMPROVED_DUPLICATE_SCAN_DEFAULT_PROFILE);
     setDuplicateScanJobId(null);
+    setDuplicateScanJobKind(null);
     setDuplicateScanProgress(null);
     setDuplicateScanResult(null);
     setDuplicateScanError(null);
@@ -116,7 +160,9 @@ export function useDuplicateScanWorkflow({
     setIsDuplicateTrashResultDialogVisible(false);
   }, []);
 
-  const applyDuplicateScanResult = useCallback((result: DuplicateScanResult): void => {
+  const applyDuplicateScanResult = useCallback((result: DuplicateReviewScanResult): void => {
+    const candidateCount = getDuplicateReviewCandidateCount(result);
+
     setDuplicateScanResult(result);
     setDuplicateScanError(null);
     setDuplicateMarkedCandidateIds([]);
@@ -128,7 +174,7 @@ export function useDuplicateScanWorkflow({
     if (result.groups.length > 0) {
       setIsDuplicateScanDialogVisible(false);
       setWorkflowMessage(
-        `Duplicate Scan complete. ${result.matchCount.toLocaleString()} duplicate candidate(s) found.`
+        `Duplicate Scan complete. ${candidateCount.toLocaleString()} duplicate candidate(s) found.`
       );
       return;
     }
@@ -137,9 +183,15 @@ export function useDuplicateScanWorkflow({
     setWorkflowMessage('No duplicate candidates found.');
   }, [setWorkflowMessage]);
 
-  const loadDuplicateScanResult = useCallback(async (jobId: string): Promise<void> => {
+  const loadDuplicateScanResult = useCallback(async (
+    jobId: string,
+    jobKind: DuplicateScanJobKind
+  ): Promise<void> => {
     try {
-      const response = await duplicateScanClient.getDuplicateScanResult(jobId);
+      const response =
+        jobKind === 'improved'
+          ? await duplicateScanClient.getImprovedDuplicateScanResult(jobId)
+          : await duplicateScanClient.getDuplicateScanResult(jobId);
 
       if (response.status !== 'complete' || !response.result) {
         setDuplicateScanError(response.message ?? 'Duplicate Scan result is not ready.');
@@ -152,45 +204,81 @@ export function useDuplicateScanWorkflow({
     }
   }, [applyDuplicateScanResult]);
 
+  const handleDuplicateScanProgress = useCallback((
+    progress: DuplicateReviewScanJobSnapshot,
+    jobKind: DuplicateScanJobKind
+  ): void => {
+    setDuplicateScanProgress(progress);
+    setDuplicateScanJobKind(jobKind);
+
+    if (progress.jobId) {
+      setDuplicateScanJobId(progress.jobId);
+    }
+
+    if (progress.status === 'running' || progress.status === 'starting') {
+      setActiveAction('duplicateScan');
+    }
+
+    if (progress.status === 'complete') {
+      setActiveAction(null);
+      setDuplicateScanError(null);
+
+      if (progress.result) {
+        applyDuplicateScanResult(progress.result);
+      } else if (progress.jobId) {
+        void loadDuplicateScanResult(progress.jobId, jobKind);
+      }
+    }
+
+    if (progress.status === 'error') {
+      setActiveAction(null);
+      setDuplicateScanError(progress.error ?? progress.message ?? 'Duplicate Scan failed.');
+      setWorkflowMessage(progress.message ?? 'Duplicate Scan failed.');
+    }
+
+    if (progress.status === 'canceled') {
+      setActiveAction(null);
+      setDuplicateScanError(null);
+      setWorkflowMessage(progress.message ?? 'Duplicate Scan canceled.');
+    }
+  }, [applyDuplicateScanResult, loadDuplicateScanResult, setActiveAction, setWorkflowMessage]);
+
   useEffect(() => {
     return duplicateScanClient.subscribeToDuplicateScanProgress((progress) => {
-      setDuplicateScanProgress(progress);
-
-      if (progress.jobId) {
-        setDuplicateScanJobId(progress.jobId);
+      if (duplicateScanJobKind && duplicateScanJobKind !== 'exact') {
+        return;
       }
 
-      if (progress.status === 'running' || progress.status === 'starting') {
-        setActiveAction('duplicateScan');
-      }
-
-      if (progress.status === 'complete') {
-        setActiveAction(null);
-        setDuplicateScanError(null);
-
-        if (progress.result) {
-          applyDuplicateScanResult(progress.result);
-        } else if (progress.jobId) {
-          void loadDuplicateScanResult(progress.jobId);
-        }
-      }
-
-      if (progress.status === 'error') {
-        setActiveAction(null);
-        setDuplicateScanError(progress.error ?? progress.message ?? 'Duplicate Scan failed.');
-        setWorkflowMessage(progress.message ?? 'Duplicate Scan failed.');
-      }
-
-      if (progress.status === 'canceled') {
-        setActiveAction(null);
-        setDuplicateScanError(null);
-        setWorkflowMessage(progress.message ?? 'Duplicate Scan canceled.');
-      }
+      handleDuplicateScanProgress(progress, 'exact');
     });
-  }, [applyDuplicateScanResult, loadDuplicateScanResult, setActiveAction, setWorkflowMessage]);
+  }, [duplicateScanJobKind, handleDuplicateScanProgress]);
+
+  useEffect(() => {
+    return duplicateScanClient.subscribeToImprovedDuplicateScanProgress((progress) => {
+      if (duplicateScanJobKind && duplicateScanJobKind !== 'improved') {
+        return;
+      }
+
+      handleDuplicateScanProgress(progress, 'improved');
+    });
+  }, [duplicateScanJobKind, handleDuplicateScanProgress]);
 
   const setDuplicateScanFolder = useCallback((folder: string): void => {
     setDuplicateScanFolderState(folder);
+    setDuplicateScanError(null);
+  }, []);
+
+  const setDuplicateScanModes = useCallback((modes: DuplicateScanMode[]): void => {
+    setDuplicateScanModesState(normalizeDuplicateScanModes(modes));
+    setDuplicateScanError(null);
+  }, []);
+
+  const setDuplicateScanProfile = useCallback((profile: DuplicateScanProfile): void => {
+    setDuplicateScanProfileState(
+      profile === IMPROVED_DUPLICATE_SCAN_DEEP_PROFILE
+        ? IMPROVED_DUPLICATE_SCAN_DEEP_PROFILE
+        : IMPROVED_DUPLICATE_SCAN_FAST_PROFILE
+    );
     setDuplicateScanError(null);
   }, []);
 
@@ -249,6 +337,8 @@ export function useDuplicateScanWorkflow({
 
   const startDuplicateScan = useCallback(async (): Promise<void> => {
     const scanFolder = duplicateScanFolder.trim();
+    const modes = normalizeDuplicateScanModes(duplicateScanModes);
+    const useImprovedScan = shouldUseImprovedDuplicateScan(modes);
 
     if (selectedVideos.length === 0) {
       setDuplicateScanError('Select at least one project video before starting a Duplicate Scan.');
@@ -260,10 +350,7 @@ export function useDuplicateScanWorkflow({
       return;
     }
 
-    const request: DuplicateScanRequest = {
-      scanFolder,
-      sources: selectedVideos.map(toDuplicateScanSourceInput)
-    };
+    const sources = selectedVideos.map(toDuplicateScanSourceInput);
 
     setDuplicateScanError(null);
     setDuplicateScanResult(null);
@@ -272,24 +359,23 @@ export function useDuplicateScanWorkflow({
     setDuplicateTrashPlanError(null);
     setDuplicateTrashResult(null);
     setDuplicateTrashResultError(null);
-    setDuplicateScanProgress({
-      jobId: null,
-      scanId: null,
-      status: 'starting',
-      phase: 'validating',
-      scannedFileCount: 0,
-      checkedVideoFileCount: 0,
-      filenameMatchesFound: 0,
-      metadataProcessedCount: 0,
-      metadataTotalCount: null,
-      currentFile: null,
-      message: 'Starting Duplicate Scan.',
-      error: null
-    });
+    setDuplicateScanJobKind(useImprovedScan ? 'improved' : 'exact');
+    setDuplicateScanProgress(
+      useImprovedScan
+        ? createInitialImprovedDuplicateScanProgress()
+        : createInitialExactDuplicateScanProgress()
+    );
     setActiveAction('duplicateScan');
 
     try {
-      const response = await duplicateScanClient.startDuplicateScan(request);
+      const response = useImprovedScan
+        ? await duplicateScanClient.startImprovedDuplicateScan(
+            createImprovedDuplicateScanRequest(scanFolder, sources, modes, duplicateScanProfile)
+          )
+        : await duplicateScanClient.startDuplicateScan({
+            scanFolder,
+            sources
+          });
 
       if (response.status !== 'started' || !response.jobId) {
         setActiveAction(null);
@@ -303,7 +389,14 @@ export function useDuplicateScanWorkflow({
       setActiveAction(null);
       setDuplicateScanError(getErrorMessage(error, 'Could not start Duplicate Scan.'));
     }
-  }, [duplicateScanFolder, selectedVideos, setActiveAction, setWorkflowMessage]);
+  }, [
+    duplicateScanFolder,
+    duplicateScanModes,
+    duplicateScanProfile,
+    selectedVideos,
+    setActiveAction,
+    setWorkflowMessage
+  ]);
 
   const cancelDuplicateScan = useCallback(async (): Promise<void> => {
     if (!duplicateScanJobId) {
@@ -311,17 +404,23 @@ export function useDuplicateScanWorkflow({
     }
 
     try {
-      const progress = await duplicateScanClient.cancelDuplicateScan(duplicateScanJobId);
+      const effectiveJobKind =
+        duplicateScanJobKind ?? (isImprovedDuplicateScanProgress(duplicateScanProgress) ? 'improved' : 'exact');
+      const progress =
+        effectiveJobKind === 'improved'
+          ? await duplicateScanClient.cancelImprovedDuplicateScan(duplicateScanJobId)
+          : await duplicateScanClient.cancelDuplicateScan(duplicateScanJobId);
       setDuplicateScanProgress(progress);
       setWorkflowMessage(progress.message ?? 'Duplicate Scan canceled.');
       setActiveAction(null);
     } catch (error: unknown) {
       setDuplicateScanError(getErrorMessage(error, 'Could not cancel Duplicate Scan.'));
     }
-  }, [duplicateScanJobId, setActiveAction, setWorkflowMessage]);
+  }, [duplicateScanJobId, duplicateScanJobKind, duplicateScanProgress, setActiveAction, setWorkflowMessage]);
 
   const clearDuplicateScanResult = useCallback((): void => {
     setDuplicateScanResult(null);
+    setDuplicateScanJobKind(null);
     setDuplicateMarkedCandidateIds([]);
     setDuplicateTrashPlan(null);
     setDuplicateTrashPlanError(null);
@@ -382,6 +481,14 @@ export function useDuplicateScanWorkflow({
       return;
     }
 
+    if (isImprovedDuplicateScanResult(duplicateScanResult)) {
+      const message =
+        'Move to Trash for visual and contained-clip candidates will be connected in a later safety stage. Exact filename-only scans can still use Move to Trash now.';
+      setDuplicateTrashPlanError(message);
+      setWorkflowMessage(message);
+      return;
+    }
+
     setDuplicateTrashPlan(null);
     setDuplicateTrashPlanError(null);
     setDuplicateTrashResult(null);
@@ -403,7 +510,9 @@ export function useDuplicateScanWorkflow({
 
       setDuplicateTrashPlan(response.plan);
       setDuplicateScanResult((result) =>
-        result ? applyDuplicateCandidateTrashPlan(result, markedSummary.candidateIds) : result
+        result && !isImprovedDuplicateScanResult(result)
+          ? applyDuplicateCandidateTrashPlan(result, markedSummary.candidateIds)
+          : result
       );
       setIsDuplicateTrashConfirmDialogVisible(true);
       setWorkflowMessage(null);
@@ -424,7 +533,9 @@ export function useDuplicateScanWorkflow({
     setIsDuplicateTrashConfirmDialogVisible(false);
     setDuplicateTrashPlan(null);
     setDuplicateTrashPlanError(null);
-    setDuplicateScanResult((result) => (result ? clearDuplicateCandidateTrashPlan(result) : result));
+    setDuplicateScanResult((result) =>
+      result && !isImprovedDuplicateScanResult(result) ? clearDuplicateCandidateTrashPlan(result) : result
+    );
   }, [busyState.activeAction]);
 
   const executeDuplicateTrashPlan = useCallback(async (typedConfirmation: string | null): Promise<void> => {
@@ -454,7 +565,9 @@ export function useDuplicateScanWorkflow({
 
       setDuplicateTrashResult(response.result);
       setDuplicateScanResult((result) =>
-        result ? applyDuplicateTrashResult(result, response.result as FileOperationResult) : result
+        result && !isImprovedDuplicateScanResult(result)
+          ? applyDuplicateTrashResult(result, response.result as FileOperationResult)
+          : result
       );
       setDuplicateMarkedCandidateIds([]);
       setIsDuplicateTrashConfirmDialogVisible(false);
@@ -481,6 +594,8 @@ export function useDuplicateScanWorkflow({
 
   return {
     duplicateScanFolder,
+    duplicateScanModes,
+    duplicateScanProfile,
     duplicateScanProgress,
     duplicateScanPercent,
     duplicateScanResult,
@@ -496,9 +611,12 @@ export function useDuplicateScanWorkflow({
     isDuplicateTrashConfirmDialogVisible,
     isDuplicateTrashResultDialogVisible,
     canStartDuplicateScan,
+    canReviewMarkedDuplicateCandidates,
     hasDuplicateScanResults,
     hasDuplicateScanNoResults,
     setDuplicateScanFolder,
+    setDuplicateScanModes,
+    setDuplicateScanProfile,
     openDuplicateScanDialog,
     closeDuplicateScanDialog,
     selectDuplicateScanFolder,
@@ -539,9 +657,84 @@ function toDuplicateScanSourceInput(video: VideoRow): DuplicateScanSourceInput {
   };
 }
 
-function getDuplicateScanPercent(progress: DuplicateScanJobSnapshot | null): number | null {
+function createInitialExactDuplicateScanProgress(): DuplicateScanJobSnapshot {
+  return {
+    jobId: null,
+    scanId: null,
+    status: 'starting',
+    phase: 'validating',
+    scannedFileCount: 0,
+    checkedVideoFileCount: 0,
+    filenameMatchesFound: 0,
+    metadataProcessedCount: 0,
+    metadataTotalCount: null,
+    currentFile: null,
+    message: 'Starting Duplicate Scan.',
+    error: null
+  };
+}
+
+function createInitialImprovedDuplicateScanProgress(): ImprovedDuplicateScanJobSnapshot {
+  return {
+    jobId: null,
+    scanId: null,
+    status: 'starting',
+    phase: 'validating',
+    totalFiles: null,
+    processedFiles: 0,
+    fingerprintedFiles: 0,
+    cacheHits: 0,
+    cacheMisses: 0,
+    cacheStale: 0,
+    cacheErrors: 0,
+    candidateGroupCount: 0,
+    currentFile: null,
+    message: 'Starting improved Duplicate Scan.',
+    error: null
+  };
+}
+
+function createImprovedDuplicateScanRequest(
+  scanFolder: string,
+  sources: DuplicateScanSourceInput[],
+  modes: DuplicateScanMode[],
+  profile: DuplicateScanProfile
+): ImprovedDuplicateScanRequest {
+  const isDeepProfile = profile === IMPROVED_DUPLICATE_SCAN_DEEP_PROFILE;
+
+  return {
+    scanFolder,
+    sources,
+    options: {
+      sourceScope: IMPROVED_DUPLICATE_SCAN_SOURCE_SCOPE,
+      modes,
+      profile,
+      sampleIntervalSeconds: isDeepProfile
+        ? DEEP_SAMPLE_INTERVAL_SECONDS
+        : FAST_SAMPLE_INTERVAL_SECONDS,
+      maxSamplesPerVideo: isDeepProfile
+        ? DEEP_MAX_SAMPLES_PER_VIDEO
+        : FAST_MAX_SAMPLES_PER_VIDEO,
+      minSequentialMatches: modes.includes('contained-clip')
+        ? DEFAULT_CONTAINED_MIN_SEQUENTIAL_MATCHES
+        : DEFAULT_VISUAL_MIN_SEQUENTIAL_MATCHES,
+      hashDistanceThreshold: DEFAULT_HASH_DISTANCE_THRESHOLD,
+      includeExistingExactFilenameMatches: modes.includes('filename-exact'),
+      useCachedFingerprints: true
+    }
+  };
+}
+
+function getDuplicateScanPercent(progress: DuplicateReviewScanJobSnapshot | null): number | null {
   if (!progress) {
     return null;
+  }
+
+  if (isImprovedDuplicateScanProgress(progress)) {
+    return (
+      getProgressPercent(progress.processedFiles, progress.totalFiles) ??
+      getProgressPercent(progress.fingerprintedFiles, progress.totalFiles)
+    );
   }
 
   return (
@@ -552,12 +745,61 @@ function getDuplicateScanPercent(progress: DuplicateScanJobSnapshot | null): num
 
 function isDuplicateScanActive(
   activeAction: string | null,
-  progress: DuplicateScanJobSnapshot | null
+  progress: DuplicateReviewScanJobSnapshot | null
 ): boolean {
   return activeAction === 'duplicateScan' || progress?.status === 'starting' || progress?.status === 'running';
 }
 
-function hasMarkableDuplicateCandidate(result: DuplicateScanResult, candidateId: string): boolean {
+function normalizeDuplicateScanModes(modes: DuplicateScanMode[]): DuplicateScanMode[] {
+  const normalizedModes: DuplicateScanMode[] = [];
+
+  for (const mode of modes) {
+    if (
+      (mode === 'filename-exact' ||
+        mode === 'visual-fingerprint' ||
+        mode === 'contained-clip') &&
+      !normalizedModes.includes(mode)
+    ) {
+      normalizedModes.push(mode);
+    }
+  }
+
+  return normalizedModes.length > 0 ? normalizedModes : DEFAULT_DUPLICATE_SCAN_MODES;
+}
+
+function shouldUseImprovedDuplicateScan(modes: DuplicateScanMode[]): boolean {
+  return modes.length !== 1 || modes[0] !== 'filename-exact';
+}
+
+function isImprovedDuplicateScanProgress(
+  progress: DuplicateReviewScanJobSnapshot | null
+): progress is ImprovedDuplicateScanJobSnapshot {
+  return Boolean(progress && 'processedFiles' in progress && 'candidateGroupCount' in progress);
+}
+
+function getDuplicateReviewCandidateCount(result: DuplicateReviewScanResult): number {
+  if (isImprovedDuplicateScanResult(result)) {
+    return result.summary.candidateFileCount;
+  }
+
+  return result.matchCount;
+}
+
+function hasMarkableDuplicateCandidate(result: DuplicateReviewScanResult, candidateId: string): boolean {
+  if (isImprovedDuplicateScanResult(result)) {
+    return result.groups.some((group) =>
+      group.files.some(
+        (file) =>
+          file.role === 'candidate' &&
+          (file.id === candidateId || file.filePath === candidateId) &&
+          file.reviewStatus !== 'moved-to-trash' &&
+          file.reviewStatus !== 'archived' &&
+          file.reviewStatus !== 'removed-from-table' &&
+          file.reviewStatus !== 'failed'
+      )
+    );
+  }
+
   return result.groups.some((group) =>
     group.candidates.some(
       (candidate) =>
@@ -568,7 +810,7 @@ function hasMarkableDuplicateCandidate(result: DuplicateScanResult, candidateId:
 }
 
 function summarizeMarkedCandidates(
-  result: DuplicateScanResult | null,
+  result: DuplicateReviewScanResult | null,
   markedCandidateIds: string[]
 ): {
   count: number;
@@ -583,6 +825,10 @@ function summarizeMarkedCandidates(
     };
   }
 
+  if (isImprovedDuplicateScanResult(result)) {
+    return summarizeMarkedImprovedCandidates(result, markedCandidateIds);
+  }
+
   const markedIdSet = new Set(markedCandidateIds);
   const candidatesByPath = new Map<string, DuplicateScanCandidate>();
 
@@ -590,6 +836,42 @@ function summarizeMarkedCandidates(
     for (const candidate of group.candidates) {
       if (markedIdSet.has(candidate.id) || markedIdSet.has(candidate.path)) {
         candidatesByPath.set(candidate.path, candidate);
+      }
+    }
+  }
+
+  const candidates = [...candidatesByPath.values()];
+
+  return {
+    count: candidates.length,
+    sizeBytes: candidates.reduce((total, candidate) => total + (candidate.sizeBytes ?? 0), 0),
+    candidateIds: candidates.map((candidate) => candidate.id)
+  };
+}
+
+function summarizeMarkedImprovedCandidates(
+  result: DuplicateReviewScanResult,
+  markedCandidateIds: string[]
+): {
+  count: number;
+  sizeBytes: number;
+  candidateIds: string[];
+} {
+  const markedIdSet = new Set(markedCandidateIds);
+  const candidatesByPath = new Map<string, DuplicateCandidateFile>();
+
+  if (!isImprovedDuplicateScanResult(result)) {
+    return {
+      count: 0,
+      sizeBytes: 0,
+      candidateIds: []
+    };
+  }
+
+  for (const group of result.groups) {
+    for (const file of group.files) {
+      if (file.role === 'candidate' && (markedIdSet.has(file.id) || markedIdSet.has(file.filePath))) {
+        candidatesByPath.set(file.filePath, file);
       }
     }
   }

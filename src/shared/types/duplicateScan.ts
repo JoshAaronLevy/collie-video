@@ -367,6 +367,29 @@ export interface ImprovedDuplicateScanJobSnapshot extends ImprovedDuplicateScanP
   error?: string | null;
 }
 
+export interface ImprovedDuplicateScanStartResponse {
+  jobId?: string;
+  scanId?: string;
+  status: 'started' | 'invalid_request' | 'error' | string;
+  message?: string;
+}
+
+export interface ImprovedDuplicateScanCancelResponse extends ImprovedDuplicateScanJobSnapshot {}
+
+export interface ImprovedDuplicateScanResultResponse {
+  jobId?: string;
+  scanId?: string;
+  status: ImprovedDuplicateScanResult['status'] | 'not_found' | 'not_ready' | 'error' | string;
+  message?: string;
+  result?: ImprovedDuplicateScanResult;
+}
+
+export type DuplicateReviewScanResult = DuplicateScanResult | ImprovedDuplicateScanResult;
+
+export type DuplicateReviewScanJobSnapshot =
+  | DuplicateScanJobSnapshot
+  | ImprovedDuplicateScanJobSnapshot;
+
 export interface DuplicateScanTrashPlanRequest {
   scanId: string;
   candidateIds: string[];
@@ -401,3 +424,15 @@ export const DUPLICATE_SCAN_MATCHING_SEMANTICS: DuplicateScanMatchingSemantics =
   usesBitrateForMatching: false,
   usesModifiedDateForMatching: false
 };
+
+export function isImprovedDuplicateScanResult(
+  result: DuplicateReviewScanResult | null | undefined
+): result is ImprovedDuplicateScanResult {
+  return Boolean(
+    result &&
+      'fingerprintedFileCount' in result &&
+      'cacheHitCount' in result &&
+      'summary' in result &&
+      'candidateFileCount' in result.summary
+  );
+}

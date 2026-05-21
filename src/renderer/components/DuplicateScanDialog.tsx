@@ -1,47 +1,93 @@
 import type { ReactElement } from 'react';
 import { Button } from 'primereact/button';
+import { Checkbox } from 'primereact/checkbox';
 import { Dialog } from 'primereact/dialog';
 import { InputText } from 'primereact/inputtext';
 import { Message } from 'primereact/message';
 import { ProgressBar } from 'primereact/progressbar';
+import { SelectButton } from 'primereact/selectbutton';
 import { Tag } from 'primereact/tag';
-import type { DuplicateScanJobSnapshot, DuplicateScanResult } from '../../shared/types/duplicateScan';
+import type {
+  DuplicateReviewScanJobSnapshot,
+  DuplicateReviewScanResult,
+  DuplicateScanMode,
+  DuplicateScanProfile,
+  ImprovedDuplicateScanJobSnapshot
+} from '../../shared/types/duplicateScan';
+import { isImprovedDuplicateScanResult } from '../../shared/types/duplicateScan';
 import { DialogFooter, DialogHeader } from './DialogChrome';
 
 interface DuplicateScanDialogProps {
   visible: boolean;
   selectedCount: number;
   scanFolder: string;
-  progress: DuplicateScanJobSnapshot | null;
+  modes: DuplicateScanMode[];
+  profile: DuplicateScanProfile;
+  progress: DuplicateReviewScanJobSnapshot | null;
   percent: number | null;
-  result: DuplicateScanResult | null;
+  result: DuplicateReviewScanResult | null;
   error: string | null;
   isScanning: boolean;
   onScanFolderChange: (value: string) => void;
+  onModesChange: (modes: DuplicateScanMode[]) => void;
+  onProfileChange: (profile: DuplicateScanProfile) => void;
   onSelectFolder: () => void | Promise<void>;
   onStartScan: () => void | Promise<void>;
   onCancelScan: () => void | Promise<void>;
   onHide: () => void;
 }
 
+const MODE_OPTIONS: Array<{
+  value: DuplicateScanMode;
+  label: string;
+  description: string;
+}> = [
+  {
+    value: 'filename-exact',
+    label: 'Exact Filename',
+    description: 'Same basename across folders'
+  },
+  {
+    value: 'visual-fingerprint',
+    label: 'Visual Match',
+    description: 'Perceptual frame fingerprints'
+  },
+  {
+    value: 'contained-clip',
+    label: 'Contained Clip',
+    description: 'Offset-aligned segment evidence'
+  }
+];
+
+const PROFILE_OPTIONS: Array<{ label: string; value: DuplicateScanProfile }> = [
+  { label: 'Fast', value: 'fast' },
+  { label: 'Deep', value: 'deep' }
+];
+
 export function DuplicateScanDialog({
   visible,
   selectedCount,
   scanFolder,
+  modes,
+  profile,
   progress,
   percent,
   result,
   error,
   isScanning,
   onScanFolderChange,
+  onModesChange,
+  onProfileChange,
   onSelectFolder,
   onStartScan,
   onCancelScan,
   onHide
 }: DuplicateScanDialogProps): ReactElement {
   const hasNoResults = Boolean(result && result.groups.length === 0);
-  const canStartScan = selectedCount > 0 && scanFolder.trim().length > 0 && !isScanning;
-  const checkedVideoFileCount = result?.checkedVideoFileCount ?? progress?.checkedVideoFileCount ?? 0;
+  const selectedModes = normalizeModes(modes);
+  const hasVisualMode = selectedModes.includes('visual-fingerprint') || selectedModes.includes('contained-clip');
+  const canStartScan = selectedCount > 0 && scanFolder.trim().length > 0 && selectedModes.length > 0 && !isScanning;
+  const checkedVideoFileCount = result?.checkedVideoFileCount ?? getProgressCheckedCount(progress);
   const footer = (
     <DialogFooter>
       {isScanning ? (
@@ -77,7 +123,7 @@ export function DuplicateScanDialog({
         <DialogHeader
           eyebrow="Duplicate Scan"
           title="Find Duplicate Candidates"
-          description="Scan another folder tree for possible duplicates of the selected project videos."
+          description="Scan another folder tree for likely duplicate matches against the selected project videos."
         />
       }
       visible={visible}
@@ -94,14 +140,67 @@ export function DuplicateScanDialog({
       <div className="duplicate-scan-dialog-content" aria-busy={isScanning}>
         <Message
           severity="info"
-          text="Find possible duplicates by exact filename, including extension. Duration, size, and metadata are only shown later for comparison."
+          text={
+            hasVisualMode
+              ? 'Visual modes use local fingerprints and may take longer. Exact filename-only scans keep the current fast matching behavior.'
+              : 'Exact filename mode matches basename plus extension across folders. Duration and metadata are shown later for comparison only.'
+          }
         />
 
         <div className="duplicate-scan-summary-grid">
           <SummaryMetric label="Selected source videos" value={selectedCount.toLocaleString()} />
-          <SummaryMetric label="Match rule" value="Exact filename match" />
+          <SummaryMetric label="Modes" value={formatSelectedModes(selectedModes)} />
+          <SummaryMetric label="Profile" value={hasVisualMode ? formatProfile(profile) : 'Exact only'} />
           <SummaryMetric label="Source protection" value="Project sources are kept" />
         </div>
+
+        <section className="duplicate-scan-mode-panel" aria-label="Duplicate Scan modes">
+          <div className="duplicate-scan-mode-heading">
+            <span>Detection modes</span>
+            <small>{hasVisualMode ? 'Deep is recommended for contained clips.' : 'OpenCV is not needed for exact-only scans.'}</small>
+          </div>
+          <div className="duplicate-scan-mode-grid">
+            {MODE_OPTIONS.map((option) => {
+              const checked = selectedModes.includes(option.value);
+              const inputId = `duplicate-mode-${option.value}`;
+
+              return (
+                <label key={option.value} className="duplicate-scan-mode-option" htmlFor={inputId}>
+                  <Checkbox
+                    inputId={inputId}
+                    checked={checked}
+                    disabled={isScanning}
+                    onChange={(event) =>
+                      onModesChange(toggleMode(selectedModes, option.value, Boolean(event.checked)))
+                    }
+                  />
+                  <span>
+                    <strong>{option.label}</strong>
+                    <small>{option.description}</small>
+                  </span>
+                </label>
+              );
+            })}
+          </div>
+        </section>
+
+        <section className="duplicate-scan-profile-row" aria-label="Duplicate Scan profile">
+          <div>
+            <span>Visual scan profile</span>
+            <small>{profile === 'deep' ? 'More samples per video' : 'Lower sample count for faster review'}</small>
+          </div>
+          <SelectButton
+            value={profile}
+            options={PROFILE_OPTIONS}
+            disabled={isScanning || !hasVisualMode}
+            allowEmpty={false}
+            onChange={(event) => {
+              if (event.value) {
+                onProfileChange(event.value as DuplicateScanProfile);
+              }
+            }}
+          />
+        </section>
 
         <div className="duplicate-scan-path-panel">
           <span>Folder to scan recursively</span>
@@ -132,13 +231,7 @@ export function DuplicateScanDialog({
             <ProgressBar value={percent ?? 0} showValue={percent !== null} aria-label="Duplicate Scan progress" />
             <p>{progress?.message ?? 'Preparing Duplicate Scan...'}</p>
             <div className="duplicate-scan-progress-counts">
-              <Tag value={`${(progress?.scannedFileCount ?? 0).toLocaleString()} files scanned`} />
-              <Tag value={`${(progress?.checkedVideoFileCount ?? 0).toLocaleString()} videos checked`} />
-              <Tag
-                value={`${(progress?.filenameMatchesFound ?? 0).toLocaleString()} filename matches`}
-                severity="info"
-              />
-              <Tag value={formatMetadataProgress(progress)} severity="secondary" />
+              {progressCountTags(progress)}
             </div>
             <PathPanel label="Current file" value={progress?.currentFile || 'Preparing...'} />
           </div>
@@ -150,7 +243,7 @@ export function DuplicateScanDialog({
             <div className="duplicate-scan-summary-grid">
               <SummaryMetric label="Scanned folder" value={result?.scannedFolder ?? scanFolder} />
               <SummaryMetric label="Video files checked" value={checkedVideoFileCount.toLocaleString()} />
-              <SummaryMetric label="Filename matches" value="0" />
+              {resultSummaryMetrics(result)}
             </div>
           </div>
         ) : null}
@@ -179,13 +272,142 @@ function PathPanel({ label, value }: { label: string; value: string }): ReactEle
   );
 }
 
-function formatMetadataProgress(progress: DuplicateScanJobSnapshot | null): string {
-  const processed = progress?.metadataProcessedCount ?? 0;
-  const total = progress?.metadataTotalCount;
+function progressCountTags(progress: DuplicateReviewScanJobSnapshot | null): ReactElement[] {
+  if (!progress) {
+    return [<Tag key="starting" value="Preparing" />];
+  }
+
+  if (isImprovedDuplicateScanProgress(progress)) {
+    return [
+      <Tag key="processed" value={formatProcessedFiles(progress)} />,
+      <Tag key="fingerprinted" value={`${progress.fingerprintedFiles.toLocaleString()} fingerprinted`} />,
+      <Tag
+        key="cache"
+        value={`${progress.cacheHits.toLocaleString()} cache hits / ${progress.cacheMisses.toLocaleString()} misses`}
+        severity="info"
+      />,
+      <Tag
+        key="groups"
+        value={`${progress.candidateGroupCount.toLocaleString()} candidate groups`}
+        severity="secondary"
+      />
+    ];
+  }
+
+  return [
+    <Tag key="scanned" value={`${progress.scannedFileCount.toLocaleString()} files scanned`} />,
+    <Tag key="checked" value={`${progress.checkedVideoFileCount.toLocaleString()} videos checked`} />,
+    <Tag
+      key="matches"
+      value={`${progress.filenameMatchesFound.toLocaleString()} filename matches`}
+      severity="info"
+    />,
+    <Tag key="metadata" value={formatMetadataProgress(progress)} severity="secondary" />
+  ];
+}
+
+function resultSummaryMetrics(result: DuplicateReviewScanResult | null): ReactElement[] {
+  if (!result) {
+    return [<SummaryMetric key="candidates" label="Candidates" value="0" />];
+  }
+
+  if (isImprovedDuplicateScanResult(result)) {
+    return [
+      <SummaryMetric
+        key="exact"
+        label="Exact groups"
+        value={result.summary.exactFilenameGroupCount.toLocaleString()}
+      />,
+      <SummaryMetric
+        key="visual"
+        label="Visual groups"
+        value={result.summary.visualGroupCount.toLocaleString()}
+      />,
+      <SummaryMetric
+        key="contained"
+        label="Contained groups"
+        value={result.summary.containedClipGroupCount.toLocaleString()}
+      />
+    ];
+  }
+
+  return [
+    <SummaryMetric key="matches" label="Filename matches" value={result.matchCount.toLocaleString()} />,
+    <SummaryMetric key="groups" label="Groups" value={result.groups.length.toLocaleString()} />
+  ];
+}
+
+function toggleMode(
+  currentModes: DuplicateScanMode[],
+  mode: DuplicateScanMode,
+  checked: boolean
+): DuplicateScanMode[] {
+  const nextModes = new Set(currentModes);
+
+  if (checked) {
+    nextModes.add(mode);
+  } else {
+    nextModes.delete(mode);
+  }
+
+  return nextModes.size > 0 ? [...nextModes] : ['filename-exact'];
+}
+
+function normalizeModes(modes: DuplicateScanMode[]): DuplicateScanMode[] {
+  const normalizedModes = MODE_OPTIONS
+    .map((option) => option.value)
+    .filter((mode) => modes.includes(mode));
+
+  return normalizedModes.length > 0 ? normalizedModes : ['filename-exact'];
+}
+
+function formatSelectedModes(modes: DuplicateScanMode[]): string {
+  return modes
+    .map((mode) => MODE_OPTIONS.find((option) => option.value === mode)?.label ?? mode)
+    .join(', ');
+}
+
+function formatProfile(profile: DuplicateScanProfile): string {
+  return profile === 'deep' ? 'Deep' : 'Fast';
+}
+
+function formatProcessedFiles(progress: ImprovedDuplicateScanJobSnapshot): string {
+  if (progress.totalFiles === null || progress.totalFiles === undefined) {
+    return `${progress.processedFiles.toLocaleString()} files processed`;
+  }
+
+  return `${progress.processedFiles.toLocaleString()} / ${progress.totalFiles.toLocaleString()} files`;
+}
+
+function formatMetadataProgress(progress: DuplicateReviewScanJobSnapshot | null): string {
+  if (!progress || isImprovedDuplicateScanProgress(progress)) {
+    return '0 metadata processed';
+  }
+
+  const processed = progress.metadataProcessedCount ?? 0;
+  const total = progress.metadataTotalCount;
 
   if (total === null || total === undefined) {
     return `${processed.toLocaleString()} metadata processed`;
   }
 
   return `${processed.toLocaleString()} / ${total.toLocaleString()} metadata`;
+}
+
+function getProgressCheckedCount(progress: DuplicateReviewScanJobSnapshot | null): number {
+  if (!progress) {
+    return 0;
+  }
+
+  if (isImprovedDuplicateScanProgress(progress)) {
+    return progress.processedFiles;
+  }
+
+  return progress.checkedVideoFileCount;
+}
+
+function isImprovedDuplicateScanProgress(
+  progress: DuplicateReviewScanJobSnapshot
+): progress is ImprovedDuplicateScanJobSnapshot {
+  return 'processedFiles' in progress && 'candidateGroupCount' in progress;
 }

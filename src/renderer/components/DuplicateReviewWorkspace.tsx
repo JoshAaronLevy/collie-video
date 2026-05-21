@@ -6,21 +6,27 @@ import { DataTable } from 'primereact/datatable';
 import { Message } from 'primereact/message';
 import { Tag } from 'primereact/tag';
 import type {
+  DuplicateCandidateEvidence,
+  DuplicateCandidateFile,
+  DuplicateCandidateMatchType,
+  DuplicateCandidateReviewStatus,
+  DuplicateReviewScanResult,
   DuplicateScanCandidate,
   DuplicateScanGroup,
-  DuplicateScanResult,
   DuplicateScanSource,
   DuplicateTrashStatus
 } from '../../shared/types/duplicateScan';
+import { isImprovedDuplicateScanResult } from '../../shared/types/duplicateScan';
 import { formatBytes } from '../helpers/fileSize';
 
 interface DuplicateReviewWorkspaceProps {
-  result: DuplicateScanResult;
+  result: DuplicateReviewScanResult;
   markedCandidateIds: string[];
   markedCount: number;
   markedSizeBytes: number;
   trashPlanError: string | null;
   isPreparingTrashPlan: boolean;
+  canReviewMarkedCandidates: boolean;
   onMarkCandidate: (candidateId: string, marked: boolean) => void;
   onClearMarks: () => void;
   onBackToResults: () => void;
@@ -29,6 +35,48 @@ interface DuplicateReviewWorkspaceProps {
 
 type TagSeverity = 'success' | 'info' | 'warning' | 'danger' | 'secondary';
 
+interface ReviewFile {
+  id: string;
+  role: 'source' | 'candidate';
+  filePath: string;
+  fileName: string;
+  directory: string;
+  durationSeconds: number | null;
+  durationFormatted?: string | null;
+  width?: number | null;
+  height?: number | null;
+  resolution?: string | null;
+  sizeBytes?: number | null;
+  bitRate?: number | null;
+  bitRateMbps?: number | null;
+  modifiedAt?: string | null;
+  modifiedAtMs?: number | null;
+  fileType?: string;
+  extension?: string;
+  matchedStartSeconds?: number;
+  matchedEndSeconds?: number;
+  reviewStatus?: DuplicateCandidateReviewStatus;
+  trashStatus?: DuplicateTrashStatus;
+  trashError?: string | null;
+}
+
+interface ReviewGroup {
+  id: string;
+  mode: string;
+  matchType: DuplicateCandidateMatchType;
+  confidence: number;
+  source: ReviewFile;
+  files: ReviewFile[];
+  candidates: ReviewFile[];
+  evidence: DuplicateCandidateEvidence;
+}
+
+interface MatchTypeFilterOption {
+  value: DuplicateCandidateMatchType;
+  label: string;
+  count: number;
+}
+
 export function DuplicateReviewWorkspace({
   result,
   markedCandidateIds,
@@ -36,17 +84,45 @@ export function DuplicateReviewWorkspace({
   markedSizeBytes,
   trashPlanError,
   isPreparingTrashPlan,
+  canReviewMarkedCandidates,
   onMarkCandidate,
   onClearMarks,
   onBackToResults,
   onReviewMarkedCandidates
 }: DuplicateReviewWorkspaceProps): ReactElement {
   const [expandedRows, setExpandedRows] = useState<Record<string, boolean>>({});
+  const [activeMatchTypes, setActiveMatchTypes] = useState<DuplicateCandidateMatchType[]>([]);
   const markedIdSet = useMemo(() => new Set(markedCandidateIds), [markedCandidateIds]);
+  const reviewGroups = useMemo(() => normalizeReviewGroups(result), [result]);
+  const filterOptions = useMemo(() => buildMatchTypeFilterOptions(reviewGroups), [reviewGroups]);
+  const filterKey = filterOptions.map((option) => `${option.value}:${option.count}`).join('|');
+  const activeMatchTypeSet = useMemo(() => {
+    const fallbackTypes = filterOptions.map((option) => option.value);
+    return new Set(activeMatchTypes.length > 0 ? activeMatchTypes : fallbackTypes);
+  }, [activeMatchTypes, filterOptions]);
+  const filteredGroups = useMemo(
+    () => reviewGroups.filter((group) => activeMatchTypeSet.has(group.matchType)),
+    [activeMatchTypeSet, reviewGroups]
+  );
+  const summary = useMemo(() => getReviewSummary(result, reviewGroups), [result, reviewGroups]);
+  const markedLabel = canReviewMarkedCandidates ? 'Marked for Trash' : 'Marked for Review';
 
   useEffect(() => {
     setExpandedRows({});
-  }, [result.scanId]);
+    setActiveMatchTypes(filterOptions.map((option) => option.value));
+  }, [filterKey, filterOptions, result.scanId]);
+
+  const toggleMatchTypeFilter = (matchType: DuplicateCandidateMatchType): void => {
+    setActiveMatchTypes((currentTypes) => {
+      const allTypes = filterOptions.map((option) => option.value);
+      const current = currentTypes.length > 0 ? currentTypes : allTypes;
+      const nextTypes = current.includes(matchType)
+        ? current.filter((type) => type !== matchType)
+        : [...current, matchType];
+
+      return nextTypes.length > 0 ? nextTypes : allTypes;
+    });
+  };
 
   return (
     <section className="duplicate-review-workspace" aria-label="Duplicate candidate review workspace">
@@ -61,33 +137,69 @@ export function DuplicateReviewWorkspace({
 
       <div className="duplicate-review-summary-grid">
         <SummaryMetric label="Source videos" value={result.sourceCount.toLocaleString()} />
-        <SummaryMetric label="Groups with matches" value={result.groups.length.toLocaleString()} />
-        <SummaryMetric label="Duplicate candidates" value={result.matchCount.toLocaleString()} />
-        <SummaryMetric label="Videos checked" value={result.checkedVideoFileCount.toLocaleString()} />
-        <SummaryMetric label="Files scanned" value={result.scannedFileCount.toLocaleString()} />
+        <SummaryMetric label="Candidate groups" value={reviewGroups.length.toLocaleString()} />
+        <SummaryMetric label="Candidate files" value={summary.candidateFileCount.toLocaleString()} />
+        <SummaryMetric label="Visual groups" value={summary.visualGroupCount.toLocaleString()} />
+        <SummaryMetric label="Contained groups" value={summary.containedClipGroupCount.toLocaleString()} />
         <SummaryMetric
-          label="Marked for Trash"
+          label={markedLabel}
           value={`${markedCount.toLocaleString()} - ${formatBytes(markedSizeBytes)}`}
         />
       </div>
 
+      <div className="duplicate-review-toolbar">
+        <div className="duplicate-mode-filter-bar" aria-label="Duplicate match filters">
+          <Button
+            label="All"
+            icon="pi pi-list"
+            size="small"
+            severity="secondary"
+            outlined={activeMatchTypes.length !== filterOptions.length}
+            onClick={() => setActiveMatchTypes(filterOptions.map((option) => option.value))}
+          />
+          {filterOptions.map((option) => {
+            const isActive = activeMatchTypeSet.has(option.value);
+
+            return (
+              <Button
+                key={option.value}
+                label={`${option.label} (${option.count.toLocaleString()})`}
+                icon={getMatchTypeIcon(option.value)}
+                size="small"
+                severity={getMatchTypeSeverity(option.value)}
+                outlined={!isActive}
+                onClick={() => toggleMatchTypeFilter(option.value)}
+              />
+            );
+          })}
+        </div>
+        <span>{filteredGroups.length.toLocaleString()} group(s) shown</span>
+      </div>
+
       <Message
         severity="info"
-        text="Review possible duplicates by source video. Project sources are protected; only scanned duplicate candidates can be marked for Trash."
+        text={
+          canReviewMarkedCandidates
+            ? 'Review possible duplicates by source video. Project sources are protected; only scanned duplicate candidates can be marked for Trash.'
+            : 'Review likely matches by evidence. Improved visual and contained-clip actions are not connected to file operations in this stage.'
+        }
       />
+      {isImprovedDuplicateScanResult(result) && result.warnings.length > 0 ? (
+        <Message severity="warn" text={`${result.warnings.length.toLocaleString()} scan warning(s) were recorded.`} />
+      ) : null}
       {trashPlanError ? <Message severity="error" text={trashPlanError} /> : null}
 
       <div className="duplicate-table-shell" role="region" aria-label="Duplicate candidate groups">
         <DataTable
-          value={result.groups}
+          value={filteredGroups}
           dataKey="id"
           expandedRows={expandedRows}
           onRowToggle={(event) => setExpandedRows((event.data ?? {}) as Record<string, boolean>)}
-          rowExpansionTemplate={(group: DuplicateScanGroup) =>
-            groupExpansionTemplate(group, markedIdSet, onMarkCandidate)
+          rowExpansionTemplate={(group: ReviewGroup) =>
+            groupExpansionTemplate(group, markedIdSet, canReviewMarkedCandidates, onMarkCandidate)
           }
           rows={10}
-          paginator={result.groups.length > 10}
+          paginator={filteredGroups.length > 10}
           rowsPerPageOptions={[10, 25, 50, 100]}
           sortMode="multiple"
           removableSort
@@ -95,62 +207,66 @@ export function DuplicateReviewWorkspace({
           size="small"
           scrollable
           className="duplicate-groups-table"
-          tableStyle={{ minWidth: '1280px' }}
-          emptyMessage="No duplicate candidate groups found."
+          tableStyle={{ minWidth: '1400px' }}
+          emptyMessage="No duplicate candidate groups match the current filters."
         >
           <Column expander style={{ width: '3rem' }} />
+          <Column
+            field="confidence"
+            header="Confidence"
+            sortable
+            body={(group: ReviewGroup) => confidenceTemplate(group)}
+            style={{ width: '8rem' }}
+          />
+          <Column
+            field="matchType"
+            header="Match Type"
+            sortable
+            body={(group: ReviewGroup) => matchTypeTemplate(group)}
+            style={{ width: '12rem' }}
+          />
           <Column
             field="source.fileName"
             header="Source Filename"
             sortable
-            body={(group: DuplicateScanGroup) => sourceFileTemplate(group.source)}
+            body={(group: ReviewGroup) => fileTemplate(group.source)}
             style={{ width: '22rem' }}
           />
           <Column
             field="source.directory"
             header="Source Folder"
             sortable
-            body={(group: DuplicateScanGroup) => pathTemplate(group.source.directory || group.source.path)}
-            style={{ width: '28rem' }}
+            body={(group: ReviewGroup) => pathTemplate(group.source.directory || group.source.filePath)}
+            style={{ width: '24rem' }}
           />
           <Column
-            header="Matches"
-            body={(group: DuplicateScanGroup) => group.candidates.length.toLocaleString()}
+            header="Candidates"
+            body={(group: ReviewGroup) => group.candidates.length.toLocaleString()}
             style={{ width: '7rem' }}
           />
           <Column
-            header="Marked for Trash"
-            body={(group: DuplicateScanGroup) => getGroupMarkedCount(group, markedIdSet).toLocaleString()}
+            header="Segment"
+            body={(group: ReviewGroup) => segmentSummaryTemplate(group)}
+            style={{ width: '16rem' }}
+          />
+          <Column
+            header="Evidence"
+            body={(group: ReviewGroup) => evidenceSummaryTemplate(group)}
+            style={{ width: '18rem' }}
+          />
+          <Column
+            header={markedLabel}
+            body={(group: ReviewGroup) => getGroupMarkedCount(group, markedIdSet).toLocaleString()}
             style={{ width: '10rem' }}
-          />
-          <Column
-            header="Duration"
-            body={(group: DuplicateScanGroup) =>
-              formatDuration(group.source.durationSeconds, group.source.durationFormatted)
-            }
-            style={{ width: '8rem' }}
-          />
-          <Column
-            header="Size"
-            body={(group: DuplicateScanGroup) => formatBytes(group.source.sizeBytes)}
-            style={{ width: '8rem' }}
-          />
-          <Column
-            header="Resolution"
-            body={(group: DuplicateScanGroup) => metadataText(group.source.resolution)}
-            style={{ width: '8rem' }}
-          />
-          <Column
-            header="Modified"
-            body={(group: DuplicateScanGroup) => formatDate(group.source.modifiedAt, group.source.modifiedAtMs)}
-            style={{ width: '9rem' }}
           />
         </DataTable>
       </div>
 
-      <div className="duplicate-review-footer" aria-label="Duplicate candidate Trash review summary">
+      <div className="duplicate-review-footer" aria-label="Duplicate candidate review summary">
         <div>
-          <strong>{markedCount.toLocaleString()} Marked for Trash</strong>
+          <strong>
+            {markedCount.toLocaleString()} {markedLabel}
+          </strong>
           <span>{formatBytes(markedSizeBytes)} total</span>
         </div>
         <div>
@@ -167,8 +283,12 @@ export function DuplicateReviewWorkspace({
             icon="pi pi-trash"
             severity="danger"
             loading={isPreparingTrashPlan}
-            disabled={markedCount === 0}
-            title="Review marked duplicate candidates before moving them to Trash."
+            disabled={markedCount === 0 || !canReviewMarkedCandidates}
+            title={
+              canReviewMarkedCandidates
+                ? 'Review marked duplicate candidates before moving them to Trash.'
+                : 'Safe file actions for improved duplicate candidates are planned for the next stage.'
+            }
             onClick={() => {
               void onReviewMarkedCandidates();
             }}
@@ -180,44 +300,53 @@ export function DuplicateReviewWorkspace({
 }
 
 function groupExpansionTemplate(
-  group: DuplicateScanGroup,
+  group: ReviewGroup,
   markedIdSet: Set<string>,
+  canReviewMarkedCandidates: boolean,
   onMarkCandidate: (candidateId: string, marked: boolean) => void
 ): ReactElement {
   return (
     <div className="duplicate-review-expanded">
-      <section className="duplicate-source-summary" aria-label={`Protected source summary for ${group.source.fileName}`}>
-        <div className="duplicate-source-heading">
+      <section className="duplicate-evidence-panel" aria-label={`Evidence for ${group.source.fileName}`}>
+        <div className="duplicate-evidence-heading">
           <div>
-            <Tag value="Project Source" severity="success" />
-            <Tag value="Source -- not markable for deletion" severity="secondary" />
+            <Tag value={getMatchTypeLabel(group.matchType)} severity={getMatchTypeSeverity(group.matchType)} />
+            <Tag value={formatConfidence(group.confidence)} severity={getConfidenceSeverity(group.confidence)} />
+            <Tag value={getModeLabel(group.mode)} severity="secondary" />
           </div>
-          <strong title={group.source.path}>{group.source.fileName}</strong>
+          <strong>{formatSegmentSummary(group)}</strong>
         </div>
 
-        <div className="duplicate-source-metadata-grid">
-          <MetadataItem label="Full path" value={group.source.path} code />
-          <MetadataItem
-            label="Duration"
-            value={formatDuration(group.source.durationSeconds, group.source.durationFormatted)}
-          />
-          <MetadataItem label="Size" value={formatBytes(group.source.sizeBytes)} />
-          <MetadataItem label="Resolution" value={metadataText(group.source.resolution)} />
-          <MetadataItem label="Bitrate" value={formatBitrate(group.source.bitRateMbps, group.source.bitRate)} />
-          <MetadataItem label="Modified" value={formatDate(group.source.modifiedAt, group.source.modifiedAtMs)} />
+        <div className="duplicate-evidence-grid">
+          <EvidenceItem label="Matched frames" value={formatNumber(group.evidence.matchedFrameCount)} />
+          <EvidenceItem label="Sequential run" value={formatNumber(group.evidence.sequentialMatchCount)} />
+          <EvidenceItem label="Matched duration" value={formatDuration(group.evidence.matchedDurationSeconds)} />
+          <EvidenceItem label="Coverage" value={formatPercent(group.evidence.shorterVideoCoverageRatio)} />
+          <EvidenceItem label="Average distance" value={formatDecimal(group.evidence.averageHashDistance)} />
+          <EvidenceItem label="Offset" value={formatSignedTimestamp(group.evidence.offsetSeconds)} />
+          <EvidenceItem label="Sample interval" value={formatDuration(group.evidence.sampleIntervalSeconds)} />
+          <EvidenceItem label="Algorithm" value={group.evidence.algorithm ?? 'Filename'} />
         </div>
+
+        {group.evidence.notes?.length ? (
+          <ul className="duplicate-evidence-notes">
+            {group.evidence.notes.map((note) => (
+              <li key={note}>{note}</li>
+            ))}
+          </ul>
+        ) : null}
       </section>
 
       <div
         className="duplicate-table-shell"
         role="region"
-        aria-label={`Duplicate candidates for ${group.source.fileName}`}
+        aria-label={`Duplicate files for ${group.source.fileName}`}
       >
         <DataTable
-          value={group.candidates}
+          value={group.files}
           dataKey="id"
           rows={8}
-          paginator={group.candidates.length > 8}
+          paginator={group.files.length > 8}
           rowsPerPageOptions={[8, 15, 25, 50]}
           sortMode="multiple"
           removableSort
@@ -226,80 +355,219 @@ function groupExpansionTemplate(
           scrollable
           className="duplicate-candidates-table"
           tableStyle={{ minWidth: '1500px' }}
-          emptyMessage="No duplicate candidates for this source."
+          emptyMessage="No files for this candidate group."
         >
           <Column
-            header="Marked for Trash"
-            body={(candidate: DuplicateScanCandidate) => markTemplate(candidate, markedIdSet, onMarkCandidate)}
-            style={{ width: '6.5rem' }}
+            header={canReviewMarkedCandidates ? 'Marked for Trash' : 'Marked for Review'}
+            body={(file: ReviewFile) =>
+              markTemplate(file, group, markedIdSet, canReviewMarkedCandidates, onMarkCandidate)
+            }
+            style={{ width: '7.5rem' }}
+          />
+          <Column
+            field="role"
+            header="Role"
+            sortable
+            body={(file: ReviewFile) => roleTemplate(file)}
+            style={{ width: '8rem' }}
           />
           <Column
             field="fileName"
             header="Filename"
             sortable
-            body={(candidate: DuplicateScanCandidate) => candidateFileTemplate(candidate)}
+            body={(file: ReviewFile) => fileTemplate(file)}
             style={{ width: '20rem' }}
           />
           <Column
             field="directory"
             header="Folder"
             sortable
-            body={(candidate: DuplicateScanCandidate) => pathTemplate(candidate.directory || candidate.path)}
-            style={{ width: '25rem' }}
+            body={(file: ReviewFile) => pathTemplate(file.directory || file.filePath)}
+            style={{ width: '24rem' }}
+          />
+          <Column
+            header="Matched Segment"
+            body={(file: ReviewFile) => fileSegmentTemplate(file)}
+            style={{ width: '12rem' }}
           />
           <Column
             header="Duration"
-            body={(candidate: DuplicateScanCandidate) =>
-              formatDuration(candidate.durationSeconds, candidate.durationFormatted)
-            }
+            body={(file: ReviewFile) => formatDuration(file.durationSeconds, file.durationFormatted)}
             style={{ width: '8rem' }}
-          />
-          <Column
-            header="Duration Delta"
-            body={(candidate: DuplicateScanCandidate) => formatSignedDuration(candidate.durationDeltaSeconds)}
-            style={{ width: '9rem' }}
           />
           <Column
             header="Size"
-            body={(candidate: DuplicateScanCandidate) => formatBytes(candidate.sizeBytes)}
-            style={{ width: '8rem' }}
-          />
-          <Column
-            header="Size Delta"
-            body={(candidate: DuplicateScanCandidate) => formatSignedBytes(candidate.sizeDeltaBytes)}
+            body={(file: ReviewFile) => formatBytes(file.sizeBytes)}
             style={{ width: '8rem' }}
           />
           <Column
             header="Resolution"
-            body={(candidate: DuplicateScanCandidate) => metadataText(candidate.resolution)}
+            body={(file: ReviewFile) => formatResolution(file)}
             style={{ width: '8rem' }}
           />
           <Column
             header="Bitrate"
-            body={(candidate: DuplicateScanCandidate) => formatBitrate(candidate.bitRateMbps, candidate.bitRate)}
+            body={(file: ReviewFile) => formatBitrate(file.bitRateMbps, file.bitRate)}
             style={{ width: '8rem' }}
           />
           <Column
             header="Modified"
-            body={(candidate: DuplicateScanCandidate) => formatDate(candidate.modifiedAt, candidate.modifiedAtMs)}
+            body={(file: ReviewFile) => formatDate(file.modifiedAt, file.modifiedAtMs)}
             style={{ width: '9rem' }}
           />
           <Column
-            header="Match"
-            body={() => <Tag value="Exact filename match" severity="info" />}
-            style={{ width: '11rem' }}
-          />
-          <Column
-            field="trashStatus"
-            header="Trash Status"
-            sortable
-            body={(candidate: DuplicateScanCandidate) => trashStatusTemplate(candidate)}
+            header="Status"
+            body={(file: ReviewFile) => statusTemplate(file)}
             style={{ width: '11rem' }}
           />
         </DataTable>
       </div>
     </div>
   );
+}
+
+function normalizeReviewGroups(result: DuplicateReviewScanResult): ReviewGroup[] {
+  if (isImprovedDuplicateScanResult(result)) {
+    return result.groups.map((group): ReviewGroup => {
+      const files = group.files.map(improvedFileToReviewFile);
+      const source = files.find((file) => file.role === 'source') ?? files[0];
+      const candidates = files.filter((file) => file.role === 'candidate');
+
+      return {
+        id: group.id,
+        mode: group.mode,
+        matchType: group.matchType,
+        confidence: group.confidence,
+        source,
+        files,
+        candidates,
+        evidence: group.evidence
+      };
+    });
+  }
+
+  return result.groups.map(legacyGroupToReviewGroup);
+}
+
+function legacyGroupToReviewGroup(group: DuplicateScanGroup): ReviewGroup {
+  const source = legacySourceToReviewFile(group.source);
+  const candidates = group.candidates.map(legacyCandidateToReviewFile);
+
+  return {
+    id: group.id,
+    mode: 'filename-exact',
+    matchType: 'exact-filename',
+    confidence: 1,
+    source,
+    files: [source, ...candidates],
+    candidates,
+    evidence: {
+      matchedFrameCount: group.candidates.length,
+      filenameMatchKey: group.source.matchKey,
+      notes: ['Exact filename candidate. Duration and metadata are not used for this match.']
+    }
+  };
+}
+
+function legacySourceToReviewFile(source: DuplicateScanSource): ReviewFile {
+  return {
+    id: source.id,
+    role: 'source',
+    filePath: source.path,
+    fileName: source.fileName,
+    directory: source.directory,
+    durationSeconds: source.durationSeconds ?? null,
+    durationFormatted: source.durationFormatted,
+    width: source.width,
+    height: source.height,
+    resolution: source.resolution,
+    sizeBytes: source.sizeBytes,
+    bitRate: source.bitRate,
+    bitRateMbps: source.bitRateMbps,
+    modifiedAt: source.modifiedAt,
+    modifiedAtMs: source.modifiedAtMs,
+    fileType: source.fileType,
+    extension: source.extension
+  };
+}
+
+function legacyCandidateToReviewFile(candidate: DuplicateScanCandidate): ReviewFile {
+  return {
+    id: candidate.id,
+    role: 'candidate',
+    filePath: candidate.path,
+    fileName: candidate.fileName,
+    directory: candidate.directory,
+    durationSeconds: candidate.durationSeconds,
+    durationFormatted: candidate.durationFormatted,
+    width: candidate.width,
+    height: candidate.height,
+    resolution: candidate.resolution,
+    sizeBytes: candidate.sizeBytes,
+    bitRate: candidate.bitRate,
+    bitRateMbps: candidate.bitRateMbps,
+    modifiedAt: candidate.modifiedAt,
+    modifiedAtMs: candidate.modifiedAtMs,
+    fileType: candidate.fileType,
+    extension: candidate.extension,
+    trashStatus: candidate.trashStatus,
+    trashError: candidate.trashError
+  };
+}
+
+function improvedFileToReviewFile(file: DuplicateCandidateFile): ReviewFile {
+  return {
+    id: file.id,
+    role: file.role,
+    filePath: file.filePath,
+    fileName: file.fileName,
+    directory: file.directory,
+    durationSeconds: file.durationSeconds,
+    width: file.width,
+    height: file.height,
+    sizeBytes: file.sizeBytes,
+    modifiedAtMs: file.modifiedAtMs,
+    matchedStartSeconds: file.matchedStartSeconds,
+    matchedEndSeconds: file.matchedEndSeconds,
+    reviewStatus: file.reviewStatus
+  };
+}
+
+function buildMatchTypeFilterOptions(groups: ReviewGroup[]): MatchTypeFilterOption[] {
+  const orderedTypes: DuplicateCandidateMatchType[] = [
+    'exact-filename',
+    'near-duplicate',
+    'contained-clip',
+    'shared-segment'
+  ];
+
+  return orderedTypes
+    .map((matchType) => ({
+      value: matchType,
+      label: getMatchTypeLabel(matchType),
+      count: groups.filter((group) => group.matchType === matchType).length
+    }))
+    .filter((option) => option.count > 0);
+}
+
+function getReviewSummary(result: DuplicateReviewScanResult, groups: ReviewGroup[]): {
+  candidateFileCount: number;
+  visualGroupCount: number;
+  containedClipGroupCount: number;
+} {
+  if (isImprovedDuplicateScanResult(result)) {
+    return {
+      candidateFileCount: result.summary.candidateFileCount,
+      visualGroupCount: result.summary.visualGroupCount,
+      containedClipGroupCount: result.summary.containedClipGroupCount
+    };
+  }
+
+  return {
+    candidateFileCount: result.matchCount,
+    visualGroupCount: groups.filter((group) => group.matchType === 'near-duplicate').length,
+    containedClipGroupCount: groups.filter((group) => group.matchType === 'contained-clip').length
+  };
 }
 
 function SummaryMetric({ label, value }: { label: string; value: string }): ReactElement {
@@ -311,37 +579,37 @@ function SummaryMetric({ label, value }: { label: string; value: string }): Reac
   );
 }
 
-function MetadataItem({
-  label,
-  value,
-  code
-}: {
-  label: string;
-  value: string;
-  code?: boolean;
-}): ReactElement {
+function EvidenceItem({ label, value }: { label: string; value: string }): ReactElement {
   return (
     <div>
       <span>{label}</span>
-      {code ? <code title={value}>{value}</code> : <strong title={value}>{value}</strong>}
+      <strong title={value}>{value}</strong>
     </div>
   );
 }
 
-function sourceFileTemplate(source: DuplicateScanSource): ReactElement {
+function confidenceTemplate(group: ReviewGroup): ReactElement {
+  return <Tag value={formatConfidence(group.confidence)} severity={getConfidenceSeverity(group.confidence)} />;
+}
+
+function matchTypeTemplate(group: ReviewGroup): ReactElement {
+  return <Tag value={getMatchTypeLabel(group.matchType)} severity={getMatchTypeSeverity(group.matchType)} />;
+}
+
+function roleTemplate(file: ReviewFile): ReactElement {
   return (
-    <div className="duplicate-file-cell">
-      <strong title={source.path}>{source.fileName}</strong>
-      <span>Project Source</span>
-    </div>
+    <Tag
+      value={file.role === 'source' ? 'Project Source' : 'Candidate'}
+      severity={file.role === 'source' ? 'success' : 'info'}
+    />
   );
 }
 
-function candidateFileTemplate(candidate: DuplicateScanCandidate): ReactElement {
+function fileTemplate(file: ReviewFile): ReactElement {
   return (
     <div className="duplicate-file-cell">
-      <strong title={candidate.path}>{candidate.fileName}</strong>
-      <span>{candidate.fileType || candidate.extension || 'Video'}</span>
+      <strong title={file.filePath}>{file.fileName}</strong>
+      <span>{file.role === 'source' ? 'Project Source' : file.fileType || file.extension || 'Video'}</span>
     </div>
   );
 }
@@ -355,14 +623,27 @@ function pathTemplate(value: string): ReactElement {
 }
 
 function markTemplate(
-  candidate: DuplicateScanCandidate,
+  file: ReviewFile,
+  group: ReviewGroup,
   markedIdSet: Set<string>,
+  canReviewMarkedCandidates: boolean,
   onMarkCandidate: (candidateId: string, marked: boolean) => void
 ): ReactElement {
-  const checked = isCandidateMarked(candidate, markedIdSet);
-  const disabled = candidate.trashStatus === 'moved_to_trash';
-  const inputId = getCandidateInputId(candidate);
-  const label = checked ? `Unmark ${candidate.fileName} for Trash.` : `Mark ${candidate.fileName} for Trash.`;
+  if (file.role === 'source') {
+    return (
+      <div className="duplicate-mark-cell">
+        <Tag value="Kept" severity="success" />
+      </div>
+    );
+  }
+
+  const checked = isReviewFileMarked(file, markedIdSet);
+  const disabled = isReviewFileTerminal(file);
+  const inputId = getCandidateInputId(group, file);
+  const targetLabel = canReviewMarkedCandidates ? 'Trash' : 'Review';
+  const label = checked
+    ? `Unmark ${file.fileName} for ${targetLabel}.`
+    : `Mark ${file.fileName} for ${targetLabel}.`;
 
   return (
     <div className="duplicate-mark-cell">
@@ -370,8 +651,8 @@ function markTemplate(
         inputId={inputId}
         checked={checked}
         disabled={disabled}
-        title={disabled ? 'This candidate was already moved to Trash.' : label}
-        onChange={(event) => onMarkCandidate(candidate.id, Boolean(event.checked))}
+        title={disabled ? 'This candidate already has a terminal review status.' : label}
+        onChange={(event) => onMarkCandidate(file.id, Boolean(event.checked))}
       />
       <label className="sr-only" htmlFor={inputId}>
         {label}
@@ -380,25 +661,93 @@ function markTemplate(
   );
 }
 
-function trashStatusTemplate(candidate: DuplicateScanCandidate): ReactElement {
+function statusTemplate(file: ReviewFile): ReactElement {
+  if (file.role === 'source') {
+    return <Tag value="Protected" severity="success" />;
+  }
+
+  if (file.trashStatus) {
+    return (
+      <div className="duplicate-status-cell">
+        <Tag value={formatTrashStatus(file.trashStatus)} severity={getTrashStatusSeverity(file.trashStatus)} />
+        {file.trashError ? <small title={file.trashError}>{file.trashError}</small> : null}
+      </div>
+    );
+  }
+
+  const reviewStatus = file.reviewStatus ?? 'unreviewed';
+
   return (
-    <div className="duplicate-status-cell">
-      <Tag value={formatTrashStatus(candidate.trashStatus)} severity={getTrashStatusSeverity(candidate.trashStatus)} />
-      {candidate.trashError ? <small title={candidate.trashError}>{candidate.trashError}</small> : null}
+    <Tag
+      value={formatReviewStatus(reviewStatus)}
+      severity={getReviewStatusSeverity(reviewStatus)}
+    />
+  );
+}
+
+function segmentSummaryTemplate(group: ReviewGroup): ReactElement {
+  return (
+    <div className="duplicate-evidence-summary-cell">
+      <strong>{formatSegmentSummary(group)}</strong>
+      {group.evidence.offsetSeconds !== undefined ? (
+        <span>Offset {formatSignedTimestamp(group.evidence.offsetSeconds)}</span>
+      ) : null}
     </div>
   );
 }
 
-function getGroupMarkedCount(group: DuplicateScanGroup, markedIdSet: Set<string>): number {
-  return group.candidates.filter((candidate) => isCandidateMarked(candidate, markedIdSet)).length;
+function evidenceSummaryTemplate(group: ReviewGroup): ReactElement {
+  return (
+    <div className="duplicate-evidence-summary-cell">
+      <strong>
+        {group.evidence.sequentialMatchCount
+          ? `${group.evidence.sequentialMatchCount.toLocaleString()} sequential`
+          : group.evidence.matchedFrameCount
+            ? `${group.evidence.matchedFrameCount.toLocaleString()} matched`
+            : getMatchTypeLabel(group.matchType)}
+      </strong>
+      <span>
+        {group.evidence.averageHashDistance !== undefined
+          ? `avg distance ${formatDecimal(group.evidence.averageHashDistance)}`
+          : group.evidence.filenameMatchKey
+            ? `key ${group.evidence.filenameMatchKey}`
+            : 'Evidence in expanded row'}
+      </span>
+    </div>
+  );
 }
 
-function isCandidateMarked(candidate: DuplicateScanCandidate, markedIdSet: Set<string>): boolean {
-  return markedIdSet.has(candidate.id) || markedIdSet.has(candidate.path);
+function fileSegmentTemplate(file: ReviewFile): ReactElement {
+  const segment = formatTimestampRange(file.matchedStartSeconds, file.matchedEndSeconds);
+
+  return (
+    <div className="duplicate-evidence-summary-cell">
+      <strong>{segment}</strong>
+      <span>{file.role === 'source' ? 'Source segment' : 'Candidate segment'}</span>
+    </div>
+  );
 }
 
-function getCandidateInputId(candidate: DuplicateScanCandidate): string {
-  return `duplicate-mark-${hashDomId(`${candidate.sourceId}:${candidate.id}:${candidate.path}`)}`;
+function getGroupMarkedCount(group: ReviewGroup, markedIdSet: Set<string>): number {
+  return group.candidates.filter((candidate) => isReviewFileMarked(candidate, markedIdSet)).length;
+}
+
+function isReviewFileMarked(file: ReviewFile, markedIdSet: Set<string>): boolean {
+  return markedIdSet.has(file.id) || markedIdSet.has(file.filePath);
+}
+
+function isReviewFileTerminal(file: ReviewFile): boolean {
+  return (
+    file.trashStatus === 'moved_to_trash' ||
+    file.reviewStatus === 'moved-to-trash' ||
+    file.reviewStatus === 'archived' ||
+    file.reviewStatus === 'removed-from-table' ||
+    file.reviewStatus === 'failed'
+  );
+}
+
+function getCandidateInputId(group: ReviewGroup, file: ReviewFile): string {
+  return `duplicate-mark-${hashDomId(`${group.id}:${file.id}:${file.filePath}`)}`;
 }
 
 function hashDomId(value: string): string {
@@ -411,8 +760,119 @@ function hashDomId(value: string): string {
   return hash.toString(36);
 }
 
-function metadataText(value: string | null | undefined): string {
-  return value?.trim() || 'Unknown';
+function getMatchTypeLabel(matchType: DuplicateCandidateMatchType): string {
+  switch (matchType) {
+    case 'exact-filename':
+      return 'Exact Filename';
+    case 'near-duplicate':
+      return 'Visual Match';
+    case 'contained-clip':
+      return 'Contained Clip';
+    case 'shared-segment':
+      return 'Shared Segment';
+  }
+}
+
+function getModeLabel(mode: string): string {
+  switch (mode) {
+    case 'filename-exact':
+      return 'Filename Mode';
+    case 'visual-fingerprint':
+      return 'Visual Mode';
+    case 'contained-clip':
+      return 'Contained Mode';
+    default:
+      return mode;
+  }
+}
+
+function getMatchTypeIcon(matchType: DuplicateCandidateMatchType): string {
+  switch (matchType) {
+    case 'exact-filename':
+      return 'pi pi-file';
+    case 'near-duplicate':
+      return 'pi pi-eye';
+    case 'contained-clip':
+      return 'pi pi-clone';
+    case 'shared-segment':
+      return 'pi pi-link';
+  }
+}
+
+function getMatchTypeSeverity(matchType: DuplicateCandidateMatchType): TagSeverity {
+  switch (matchType) {
+    case 'exact-filename':
+      return 'info';
+    case 'near-duplicate':
+      return 'success';
+    case 'contained-clip':
+      return 'warning';
+    case 'shared-segment':
+      return 'secondary';
+  }
+}
+
+function getConfidenceSeverity(confidence: number): TagSeverity {
+  if (confidence >= 0.85) {
+    return 'success';
+  }
+
+  if (confidence >= 0.7) {
+    return 'info';
+  }
+
+  if (confidence >= 0.55) {
+    return 'warning';
+  }
+
+  return 'danger';
+}
+
+function formatConfidence(confidence: number): string {
+  if (!Number.isFinite(confidence)) {
+    return 'Unknown';
+  }
+
+  return `${Math.round(Math.max(0, Math.min(1, confidence)) * 100)}%`;
+}
+
+function formatSegmentSummary(group: ReviewGroup): string {
+  if (group.matchType === 'exact-filename') {
+    return 'Filename match';
+  }
+
+  const sourceSegment = formatTimestampRange(group.source.matchedStartSeconds, group.source.matchedEndSeconds);
+  const candidate = group.candidates[0];
+  const candidateSegment = candidate
+    ? formatTimestampRange(candidate.matchedStartSeconds, candidate.matchedEndSeconds)
+    : 'Unknown';
+
+  return `Source ${sourceSegment} / Candidate ${candidateSegment}`;
+}
+
+function formatTimestampRange(
+  startSeconds: number | null | undefined,
+  endSeconds: number | null | undefined
+): string {
+  if (
+    startSeconds === null ||
+    startSeconds === undefined ||
+    endSeconds === null ||
+    endSeconds === undefined
+  ) {
+    return 'Not segmented';
+  }
+
+  return `${formatDuration(startSeconds)} - ${formatDuration(endSeconds)}`;
+}
+
+function formatSignedTimestamp(seconds: number | null | undefined): string {
+  if (seconds === null || seconds === undefined || !Number.isFinite(seconds)) {
+    return 'Unknown';
+  }
+
+  const sign = seconds > 0 ? '+' : seconds < 0 ? '-' : '';
+  return `${sign}${formatDuration(Math.abs(seconds))}`;
 }
 
 function formatDuration(seconds: number | null | undefined, formatted?: string | null): string {
@@ -436,22 +896,45 @@ function formatDuration(seconds: number | null | undefined, formatted?: string |
   return `${minutes}:${remainingSeconds.toString().padStart(2, '0')}`;
 }
 
-function formatSignedDuration(seconds: number | null | undefined): string {
-  if (seconds === null || seconds === undefined || !Number.isFinite(seconds)) {
+function formatPercent(value: number | null | undefined): string {
+  if (value === null || value === undefined || !Number.isFinite(value)) {
     return 'Unknown';
   }
 
-  const sign = seconds > 0 ? '+' : seconds < 0 ? '-' : '';
-  return `${sign}${formatDuration(Math.abs(seconds))}`;
+  return `${Math.round(value * 100)}%`;
 }
 
-function formatSignedBytes(bytes: number | null | undefined): string {
-  if (bytes === null || bytes === undefined || !Number.isFinite(bytes)) {
+function formatDecimal(value: number | null | undefined): string {
+  if (value === null || value === undefined || !Number.isFinite(value)) {
     return 'Unknown';
   }
 
-  const sign = bytes > 0 ? '+' : bytes < 0 ? '-' : '';
-  return `${sign}${formatBytes(Math.abs(bytes))}`;
+  return value.toFixed(2);
+}
+
+function formatNumber(value: number | null | undefined): string {
+  if (value === null || value === undefined || !Number.isFinite(value)) {
+    return 'Unknown';
+  }
+
+  return value.toLocaleString();
+}
+
+function formatResolution(file: ReviewFile): string {
+  if (file.resolution?.trim()) {
+    return file.resolution;
+  }
+
+  if (
+    file.width !== null &&
+    file.width !== undefined &&
+    file.height !== null &&
+    file.height !== undefined
+  ) {
+    return `${file.width}x${file.height}`;
+  }
+
+  return 'Unknown';
 }
 
 function formatBitrate(bitRateMbps: number | null | undefined, bitRate: number | null | undefined): string {
@@ -501,6 +984,49 @@ function getTrashStatusSeverity(status: DuplicateTrashStatus): TagSeverity {
       return 'success';
     case 'skipped':
       return 'warning';
+    case 'failed':
+      return 'danger';
+  }
+}
+
+function formatReviewStatus(status: DuplicateCandidateReviewStatus): string {
+  switch (status) {
+    case 'unreviewed':
+      return 'Unreviewed';
+    case 'ignored':
+      return 'Ignored';
+    case 'keep':
+      return 'Keep';
+    case 'marked-for-trash':
+      return 'Marked for Trash';
+    case 'marked-for-archive':
+      return 'Marked for Archive';
+    case 'moved-to-trash':
+      return 'Moved to Trash';
+    case 'archived':
+      return 'Archived';
+    case 'removed-from-table':
+      return 'Removed from Table';
+    case 'failed':
+      return 'Failed';
+  }
+}
+
+function getReviewStatusSeverity(status: DuplicateCandidateReviewStatus): TagSeverity {
+  switch (status) {
+    case 'unreviewed':
+      return 'secondary';
+    case 'ignored':
+      return 'secondary';
+    case 'keep':
+      return 'success';
+    case 'marked-for-trash':
+    case 'marked-for-archive':
+      return 'warning';
+    case 'moved-to-trash':
+    case 'archived':
+    case 'removed-from-table':
+      return 'success';
     case 'failed':
       return 'danger';
   }

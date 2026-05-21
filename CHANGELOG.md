@@ -7,6 +7,12 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.50.69] - 2026-05-21
+
+### Added
+
+- Added Stage 6 improved duplicate detection review UI with mode/profile scan controls, improved scan IPC/preload/client wiring, unified exact/visual/contained candidate review filters, confidence/evidence display, and guarded review-only marks for improved candidates ahead of safe actions integration.
+
 ## [0.50.68] - 2026-05-21
 
 ### Added

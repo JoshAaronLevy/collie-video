@@ -10,7 +10,12 @@ import type {
 import type { AutoCropJobSnapshot, AutoCropResult } from '../../shared/types/autoCrop';
 import type { AutoFixJobSnapshot, AutoFixResult } from '../../shared/types/autoFix';
 import type { ToolDiagnosticsResult } from '../../shared/types/diagnostics';
-import type { DuplicateScanJobSnapshot, DuplicateScanResult } from '../../shared/types/duplicateScan';
+import type {
+  DuplicateReviewScanJobSnapshot,
+  DuplicateReviewScanResult,
+  DuplicateScanMode,
+  DuplicateScanProfile
+} from '../../shared/types/duplicateScan';
 import type {
   ArchiveOperationPlan,
   DestinationConflictStrategy,
@@ -175,9 +180,11 @@ export interface VideoAuditAppController {
   isMigrationExecuting: boolean;
   isMigrationActive: boolean;
   duplicateScanFolder: string;
-  duplicateScanProgress: DuplicateScanJobSnapshot | null;
+  duplicateScanModes: DuplicateScanMode[];
+  duplicateScanProfile: DuplicateScanProfile;
+  duplicateScanProgress: DuplicateReviewScanJobSnapshot | null;
   duplicateScanPercent: number | null;
-  duplicateScanResult: DuplicateScanResult | null;
+  duplicateScanResult: DuplicateReviewScanResult | null;
   duplicateScanError: string | null;
   duplicateMarkedCandidateIds: string[];
   duplicateMarkedCandidateCount: number;
@@ -193,6 +200,7 @@ export interface VideoAuditAppController {
   isDuplicateTrashPlanning: boolean;
   isDuplicateTrashExecuting: boolean;
   canStartDuplicateScan: boolean;
+  canReviewMarkedDuplicateCandidates: boolean;
   hasDuplicateScanResults: boolean;
   hasDuplicateScanNoResults: boolean;
   trashPlan: TrashOperationPlan | null;
@@ -316,6 +324,8 @@ export interface VideoAuditAppController {
   executeMigration: () => Promise<void>;
   closeMigrationResultDialog: () => void;
   setDuplicateScanFolder: (folder: string) => void;
+  setDuplicateScanModes: (modes: DuplicateScanMode[]) => void;
+  setDuplicateScanProfile: (profile: DuplicateScanProfile) => void;
   openDuplicateScanDialog: () => void;
   closeDuplicateScanDialog: () => void;
   selectDuplicateScanFolder: () => Promise<void>;

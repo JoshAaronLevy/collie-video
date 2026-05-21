@@ -35,7 +35,12 @@ import type {
   DuplicateScanResultResponse,
   DuplicateScanStartResponse,
   DuplicateScanTrashPlanRequest,
-  DuplicateScanTrashPlanResponse
+  DuplicateScanTrashPlanResponse,
+  ImprovedDuplicateScanCancelResponse,
+  ImprovedDuplicateScanJobSnapshot,
+  ImprovedDuplicateScanRequest,
+  ImprovedDuplicateScanResultResponse,
+  ImprovedDuplicateScanStartResponse
 } from '../shared/types/duplicateScan';
 import type {
   CreateArchiveOperationPlanRequest,
@@ -173,6 +178,12 @@ export interface VideoAuditApi {
     getResult: (jobId: string) => Promise<DuplicateScanResultResponse>;
     createTrashPlan: (request: DuplicateScanTrashPlanRequest) => Promise<DuplicateScanTrashPlanResponse>;
     onProgress: (callback: (progress: DuplicateScanJobSnapshot) => void) => () => void;
+  };
+  improvedDuplicateScan: {
+    start: (request: ImprovedDuplicateScanRequest) => Promise<ImprovedDuplicateScanStartResponse>;
+    cancel: (jobId: string) => Promise<ImprovedDuplicateScanCancelResponse>;
+    getResult: (jobId: string) => Promise<ImprovedDuplicateScanResultResponse>;
+    onProgress: (callback: (progress: ImprovedDuplicateScanJobSnapshot) => void) => () => void;
   };
   autoFix: {
     start: (request: AutoFixRequest) => Promise<AutoFixStartResponse>;
@@ -363,6 +374,28 @@ export const videoAuditApi: VideoAuditApi = {
 
       return () => {
         ipcRenderer.removeListener(IPC_CHANNELS.duplicateScanProgress, listener);
+      };
+    }
+  },
+  improvedDuplicateScan: {
+    start: (request: ImprovedDuplicateScanRequest) =>
+      ipcRenderer.invoke(IPC_CHANNELS.improvedDuplicateScanStart, request),
+    cancel: (jobId: string) =>
+      ipcRenderer.invoke(IPC_CHANNELS.improvedDuplicateScanCancel, jobId),
+    getResult: (jobId: string) =>
+      ipcRenderer.invoke(IPC_CHANNELS.improvedDuplicateScanGetResult, jobId),
+    onProgress: (callback: (progress: ImprovedDuplicateScanJobSnapshot) => void) => {
+      const listener = (
+        _event: Electron.IpcRendererEvent,
+        progress: ImprovedDuplicateScanJobSnapshot
+      ): void => {
+        callback(progress);
+      };
+
+      ipcRenderer.on(IPC_CHANNELS.improvedDuplicateScanProgress, listener);
+
+      return () => {
+        ipcRenderer.removeListener(IPC_CHANNELS.improvedDuplicateScanProgress, listener);
       };
     }
   },

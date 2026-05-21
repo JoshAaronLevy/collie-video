@@ -23,3 +23,23 @@ export function subscribeToDuplicateScanProgress(
 ) {
   return window.videoAudit.duplicateScan.onProgress(callback);
 }
+
+export function startImprovedDuplicateScan(
+  request: Parameters<typeof window.videoAudit.improvedDuplicateScan.start>[0]
+) {
+  return window.videoAudit.improvedDuplicateScan.start(request);
+}
+
+export function cancelImprovedDuplicateScan(jobId: string) {
+  return window.videoAudit.improvedDuplicateScan.cancel(jobId);
+}
+
+export function getImprovedDuplicateScanResult(jobId: string) {
+  return window.videoAudit.improvedDuplicateScan.getResult(jobId);
+}
+
+export function subscribeToImprovedDuplicateScanProgress(
+  callback: Parameters<typeof window.videoAudit.improvedDuplicateScan.onProgress>[0]
+) {
+  return window.videoAudit.improvedDuplicateScan.onProgress(callback);
+}
