@@ -7,6 +7,12 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.50.64] - 2026-05-21
+
+### Added
+
+- Added Stage 2 improved duplicate detection fingerprint prototype with OpenCV `dhash-v1` frame sampling, JSON fingerprint output, and a main-process-only service boundary for running the project-local Python helper.
+
 ## [0.50.63] - 2026-05-21
 
 ### Added

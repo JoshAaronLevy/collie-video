@@ -2,7 +2,7 @@
 
 ## Purpose
 
-Collie Video is preparing for future visual duplicate detection that can use local OpenCV-based video and frame analysis. This setup is only the local Python/OpenCV foundation. It does not add duplicate detection behavior, renderer UI, IPC, preload APIs, cache files, or app workflow integration.
+Collie Video is preparing for visual duplicate detection that can use local OpenCV-based video and frame analysis. This setup is the local Python/OpenCV foundation plus a main-process-only fingerprint prototype. It does not add duplicate grouping, renderer UI, IPC, preload APIs, cache files, or app workflow integration.
 
 OpenCV is local, free, and open source. This setup does not call a hosted AI service.
 
@@ -31,14 +31,20 @@ npm run opencv:verify
 
 The verification script prints JSON with the OpenCV version, NumPy version, Python executable path, and Python version.
 
-## Metadata Smoke Test
+## Fingerprint Smoke Test
+
+```bash
+npm run opencv:fingerprint -- "/path/to/video.mp4" 5
+```
+
+This smoke test verifies that OpenCV can open a local video file, sample frames, and print a JSON `dhash-v1` visual fingerprint with timestamps, frame hashes, basic frame quality metrics, dimensions, duration, and warnings. It does not compare videos, create duplicate groups, or write persistent cache files.
+
+The older metadata alias still points at the same helper:
 
 ```bash
 npm run opencv:metadata -- "/path/to/video.mp4" 5
 ```
 
-This smoke test only verifies that OpenCV can open a local video file and read basic metadata such as FPS, frame count, approximate duration, width, and height. It does not hash frames, compare videos, create duplicate groups, or write persistent cache files.
-
 ## Integration Boundary
 
-These helper scripts are not integrated into the Electron app yet. Future app integration should call Python/OpenCV only from Electron main-process helpers. Renderer code should not execute these scripts directly and should only interact with future functionality through typed preload IPC.
+The helper is callable from Electron main-process services only. Renderer code should not execute these scripts directly and should only interact with future functionality through typed preload IPC.

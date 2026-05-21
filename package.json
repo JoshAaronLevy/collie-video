@@ -1,6 +1,6 @@
 {
   "name": "collie-video",
-  "version": "0.50.63",
+  "version": "0.50.64",
   "description": "Private macOS Electron version of Collie Video.",
   "private": true,
   "author": "Josh Levy",
@@ -19,6 +19,7 @@
     "icons": "node scripts/generate-icons.mjs",
     "opencv:install": ".venv/bin/python -m pip install -r requirements-opencv.txt",
     "opencv:verify": ".venv/bin/python scripts/opencv/verify_opencv.py",
+    "opencv:fingerprint": ".venv/bin/python scripts/opencv/fingerprint_video.py",
     "opencv:metadata": ".venv/bin/python scripts/opencv/fingerprint_video.py"
   },
   "build": {

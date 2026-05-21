@@ -1,9 +1,9 @@
 # OpenCV Helper Scripts
 
-This folder contains local helper scripts for future OpenCV-powered video analysis in Collie Video.
+This folder contains local helper scripts for OpenCV-powered video analysis in Collie Video.
 
-These scripts are not currently wired into the Electron app. They are intended to keep Python/OpenCV setup and smoke testing reproducible while the visual duplicate detection feature is still in preparation.
+The visual fingerprint helper can be called by Electron main-process services only. It is not exposed to the renderer, preload API, or duplicate review UI yet.
 
 Use a project-local virtual environment at `.venv/`, and install dependencies from the repo-root `requirements-opencv.txt` file.
 
-The renderer should not call these scripts directly. Future app integration should happen through Electron main-process helpers, with any renderer access exposed only through typed preload IPC.
+The renderer should not call these scripts directly. Any future renderer access should happen only through typed preload IPC.
