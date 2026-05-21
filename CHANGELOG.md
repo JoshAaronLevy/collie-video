@@ -7,6 +7,12 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.50.65] - 2026-05-21
+
+### Added
+
+- Added the Stage 0 improved duplicate detection baseline document that records the current exact filename Duplicate Scan flow, preservation checks, and future extension points.
+
 ## [0.50.64] - 2026-05-21
 
 ### Added

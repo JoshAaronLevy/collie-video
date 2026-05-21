@@ -1000,6 +1000,7 @@ Files/modules likely affected:
 
 Implementation notes:
 
+- Stage 0 completion artifact: `docs/improved-dupe-detection-stage-0.md`.
 - Treat `src/shared/types/duplicateScan.ts`, `duplicateScanService.ts`, `duplicateScanIpc.ts`, `useDuplicateScanWorkflow.ts`, and `DuplicateReviewWorkspace.tsx` as the baseline.
 - Confirm current exact filename semantics remain a first-class mode.
 - Identify extension points for additional modes without replacing current behavior.
